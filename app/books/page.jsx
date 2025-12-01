@@ -77,6 +77,12 @@ export default function BooksPage() {
     setIsFormOpen(true);
   };
 
+  const handleBackToSearch = () => {
+    setIsFormOpen(false);
+    setSelectedBookData(null);
+    setIsBookSearchOpen(true);
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -177,6 +183,7 @@ export default function BooksPage() {
           setSelectedBookData(null);
           setManualCreateQuery(null);
         }}
+        onBackToSearch={selectedBookData ? handleBackToSearch : undefined} 
         mediaType="book"
         initialData={editingMedia || undefined}
         externalData={selectedBookData}

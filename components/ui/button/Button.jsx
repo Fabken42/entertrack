@@ -14,7 +14,7 @@ const Button = React.forwardRef(
     disabled,
     ...props 
   }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'; // 🔥 ADICIONE cursor-pointer AQUI
     
     const variants = {
       primary: 'bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-ring focus:ring-offset-background',

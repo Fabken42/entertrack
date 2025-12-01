@@ -1,3 +1,5 @@
+export const DISCOVERY_ITEMS_PER_PAGE = 30;
+
 export const MEDIA_TYPES = {
   movie: 'Filme',
   series: 'Série',

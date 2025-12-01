@@ -75,6 +75,12 @@ export default function MangasPage() {
     setIsFormOpen(true);
   };
 
+  const handleBackToSearch = () => {
+    setIsFormOpen(false);
+    setSelectedMangaData(null);
+    setIsMangaSearchOpen(true);
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -176,6 +182,7 @@ export default function MangasPage() {
           setSelectedMangaData(null);
           setManualCreateQuery(null);
         }}
+        onBackToSearch={selectedMangaData ? handleBackToSearch : undefined} 
         mediaType="manga"
         initialData={editingMedia || undefined}
         externalData={selectedMangaData}

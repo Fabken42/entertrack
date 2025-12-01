@@ -68,6 +68,12 @@ export default function SeriesPage() {
     setEditingMedia(null);
   };
 
+  const handleBackToSearch = () => {
+    setIsFormOpen(false);
+    setSelectedSeriesData(null);
+    setIsSeriesSearchOpen(true);
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -160,6 +166,7 @@ export default function SeriesPage() {
               setIsFormOpen(false);
               setSelectedSeriesData(null);
             }}
+            onBackToSearch={selectedSeriesData ? handleBackToSearch : undefined}
             mediaType="series"
             initialData={editingMedia || undefined}
             externalData={selectedSeriesData}

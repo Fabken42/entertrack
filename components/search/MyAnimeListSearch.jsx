@@ -16,23 +16,15 @@ const MyAnimeListSearch = ({
   const [query, setQuery] = useState('');
   const { results, loading, error } = useMyAnimeListSearch(query, mediaType);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setQuery('');
-    }
-  }, [isOpen]);
-
   const handleSelect = (item) => {
     onSelectMedia(item);
     onClose();
-    setQuery('');
   };
 
-  const handleManualCreateClick = () => {
+  const handleManualCreate = () => {
     if (query.trim()) {
       onManualCreate(query.trim());
       onClose();
-      setQuery('');
     }
   };
 
@@ -250,7 +242,7 @@ const MyAnimeListSearch = ({
                   <Button
                     variant="outline"
                     icon={Plus}
-                    onClick={handleManualCreateClick}
+                    onClick={handleManualCreate}
                   >
                     {results.length === 0
                       ? `Adicionar "${query}" manualmente`

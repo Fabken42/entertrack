@@ -17,6 +17,8 @@ const MediaFormModal = ({
   externalData,
   manualCreateQuery,
   onSubmit,
+  onBackToSearch,
+  showBackToSearch = true,
 }) => {
   const [loading, setLoading] = React.useState(false);
 
@@ -39,6 +41,7 @@ const MediaFormModal = ({
       manualCreateQuery,
       onSubmit: handleSubmit,
       onCancel: onClose,
+      onBackToSearch: onBackToSearch,
       loading,
     };
 
@@ -49,7 +52,7 @@ const MediaFormModal = ({
         return <SeriesForm {...formProps} />;
       case 'anime':
         return <AnimeForm {...formProps} />;
-      case 'manga': // ✅ ADICIONADO
+      case 'manga': 
         return <MangaForm {...formProps} />;
       case 'book':
         return <BookForm {...formProps} />;
@@ -72,7 +75,7 @@ const MediaFormModal = ({
       movie: 'Filme',
       series: 'Série',
       anime: 'Anime',
-      manga: 'Mangá', // ✅ ADICIONADO
+      manga: 'Mangá', 
       book: 'Livro',
       game: 'Game',
     };
@@ -81,12 +84,14 @@ const MediaFormModal = ({
 
  return (
   <Modal
-    isOpen={isOpen}
+    isOpen={isOpen} 
     onClose={onClose}
     title={getTitle()}
     size="lg"
+    showBackButton={showBackToSearch} 
+    onBack={onBackToSearch}
   >
-    <div className="p-6 max-h-[80vh] overflow-y-auto bg-gray-800">
+    <div className="p-6 bg-gray-800">
       {getFormComponent()}
     </div>
   </Modal>

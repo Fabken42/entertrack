@@ -5,24 +5,42 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Layout } from '@/components/layout';
 import { Button, Card, CardContent, Select } from '@/components/ui';
-import { Grid, List, Star, TrendingUp, Calendar, Users, BookOpen, Tv, GamepadIcon } from 'lucide-react';
+import { Grid, List, Star, TrendingUp, Calendar, Plus, Users } from 'lucide-react';
 import Pagination from '../../../components/ui/pagination/Pagination';
+import MediaCard from '../../../components/media/media-card/MediaCard';
+// NOVOS IMPORTS para busca e formulário
+import TMDBSearch from '@/components/search/TMDBSearch';
+import MyAnimeListSearch from '@/components/search/MyAnimeListSearch';
+import RAWGSearchGames from '@/components/search/RAWGSearchGames';
+import GoogleBooksSearch from '@/components/search/GoogleBooksSearch';
+import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
+import { useMediaStore } from '@/store/media-store';
 
 export default function DiscoverPage() {
   const params = useParams();
   const mediaType = params.mediaType;
 
+  // ESTADOS EXISTENTES
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState('popularity');
+  const [sortBy, setSortBy] = useState(mediaType === 'books' ? 'relevance' : 'popularity');
   const [selectedGenre, setSelectedGenre] = useState('');
   const [genres, setGenres] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
   const [error, setError] = useState(null);
-  // NOVOS ESTADOS para paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
+
+  // NOVOS ESTADOS para busca e formulário
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedMediaData, setSelectedMediaData] = useState(null);
+  const [manualCreateQuery, setManualCreateQuery] = useState(null);
+  const [editingMedia, setEditingMedia] = useState(null);
+  const [formOpenedFromSearch, setFormOpenedFromSearch] = useState(false);
+
+  const { addMedia, updateMedia } = useMediaStore();
 
   useEffect(() => {
     if (mediaType) {
@@ -32,13 +50,13 @@ export default function DiscoverPage() {
 
   useEffect(() => {
     if (mediaType) {
-      setCurrentPage(1); // Reset para página 1 quando mudar filtros
+      setCurrentPage(1);
       fetchDiscoveryItems();
     }
   }, [mediaType, sortBy, selectedGenre]);
 
   useEffect(() => {
-    if (mediaType && currentPage > 1) {
+    if (mediaType) {
       fetchDiscoveryItems();
     }
   }, [currentPage]);
@@ -65,17 +83,8 @@ export default function DiscoverPage() {
       const queryParams = new URLSearchParams({
         sortBy,
         page: currentPage.toString(),
-        limit: '50',
+        limit: '20',
         ...(selectedGenre && { genre: selectedGenre })
-      });
-
-      console.log('Frontend - Fetching:', {
-        mediaType,
-        sortBy,
-        selectedGenre,
-        currentPage,
-        limit: 50,
-        url: `/api/discover/${mediaType}?${queryParams}`
       });
 
       const response = await fetch(`/api/discover/${mediaType}?${queryParams}`);
@@ -83,14 +92,6 @@ export default function DiscoverPage() {
         throw new Error('Failed to fetch discovery items');
       }
       const data = await response.json();
-
-      console.log('Frontend - Received:', {
-        totalItems: data.results?.length || 0,
-        totalResults: data.total,
-        totalPages: data.totalPages,
-        currentPage: data.currentPage,
-        itemsPerPage: data.itemsPerPage
-      });
 
       setItems(data.results || []);
       setTotalResults(data.total || 0);
@@ -107,10 +108,111 @@ export default function DiscoverPage() {
     }
   };
 
-  // NOVA FUNÇÃO: Mudar página
+  const handleFormClose = () => {
+    setIsFormOpen(false);
+    setSelectedMediaData(null);
+    setManualCreateQuery(null);
+    setFormOpenedFromSearch(false);
+    setEditingMedia(null);
+  };
+
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // NOVAS FUNÇÕES para busca e formulário
+  const handleSelectMedia = (mediaData) => {
+    setSelectedMediaData(mediaData);
+    setManualCreateQuery(null);
+    setFormOpenedFromSearch(true);
+    setIsFormOpen(true);
+  };
+
+  const handleManualCreate = (query) => {
+    setManualCreateQuery(query);
+    setSelectedMediaData(null);
+    setFormOpenedFromSearch(true);
+    setIsFormOpen(true);
+  };
+
+  const handleAddMedia = async (data) => {
+    await addMedia({
+      ...data,
+      userId: 'user-1',
+      mediaType: getStoreMediaType(),
+    });
+  };
+
+  const handleEditMedia = async (data) => {
+    if (editingMedia) {
+      await updateMedia(editingMedia.id, data);
+      setEditingMedia(null);
+    }
+  };
+
+  const handleBackToSearch = () => {
+    setIsFormOpen(false);
+    setSelectedMediaData(null);
+    setIsSearchOpen(true);
+  };
+
+  const getStoreMediaType = () => {
+    const mapping = {
+      'movies': 'movie',
+      'series': 'series',
+      'animes': 'anime',
+      'mangas': 'manga',
+      'books': 'book',
+      'games': 'game'
+    };
+    return mapping[mediaType] || mediaType;
+  };
+
+  const getSearchComponent = () => {
+    const searchProps = {
+      isOpen: isSearchOpen,
+      onClose: () => setIsSearchOpen(false),
+      onSelectMedia: handleSelectMedia,
+      onManualCreate: handleManualCreate,
+    };
+
+    switch (mediaType) {
+      case 'movies':
+      case 'series':
+        return (
+          <TMDBSearch
+            {...searchProps}
+            mediaType={mediaType === 'movies' ? 'movie' : 'series'}
+          />
+        );
+      case 'animes':
+      case 'mangas':
+        return (
+          <MyAnimeListSearch
+            {...searchProps}
+            mediaType={mediaType === 'animes' ? 'anime' : 'manga'}
+          />
+        );
+      case 'games':
+        return <RAWGSearchGames {...searchProps} />;
+      case 'books':
+        return <GoogleBooksSearch {...searchProps} />;
+      default:
+        return null;
+    }
+  };
+
+  const getButtonLabel = () => {
+    const labels = {
+      'movies': 'Buscar Filme',
+      'series': 'Buscar Série',
+      'animes': 'Buscar Anime',
+      'mangas': 'Buscar Mangá',
+      'books': 'Buscar Livro',
+      'games': 'Buscar Jogo'
+    };
+    return labels[mediaType] || 'Buscar';
   };
 
   const getMediaTypeLabel = () => {
@@ -118,7 +220,7 @@ export default function DiscoverPage() {
       movies: 'Filme',
       series: 'Série',
       animes: 'Anime',
-      mangas: 'Mangá', // NOVO
+      mangas: 'Mangá',
       books: 'Livro',
       games: 'Jogo'
     };
@@ -130,7 +232,7 @@ export default function DiscoverPage() {
       movies: '🎬',
       series: '📺',
       animes: '🇯🇵',
-      mangas: '📚', // NOVO - ícone diferente dos livros
+      mangas: '📚',
       books: '📖',
       games: '🎮'
     };
@@ -138,9 +240,44 @@ export default function DiscoverPage() {
   };
 
   const handleAddToLibrary = (item) => {
-    // Implementar a lógica para adicionar à biblioteca
-    console.log('Adicionar à biblioteca:', item);
-    // Aqui você pode abrir o modal de formulário como nas outras páginas
+    // Converte o item do discover para o formato do formulário
+    const mediaData = {
+      externalId: item.id?.toString(),
+      title: item.title,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      releaseYear: item.releaseYear,
+      genres: item.genres || [],
+      mediaType: getStoreMediaType(),
+      apiRating: item.rating,
+      apiVoteCount: item.ratingsCount,
+      // Campos específicos por tipo
+      ...(mediaType === 'animes' && {
+        episodes: item.episodes,
+        popularity: item.popularity,
+        members: item.members,
+        rank: item.rank,
+      }),
+      ...(mediaType === 'mangas' && {
+        volumes: item.volumes,
+        chapters: item.chapters,
+        popularity: item.popularity,
+        members: item.members,
+        rank: item.rank,
+      }),
+      ...(mediaType === 'movies' && {
+        runtime: item.runtime,
+      }),
+      ...(mediaType === 'series' && {
+        numberOfSeasons: item.numberOfSeasons,
+        numberOfEpisodes: item.numberOfEpisodes,
+      }),
+    };
+
+    setSelectedMediaData(mediaData);
+    setManualCreateQuery(null);
+    setFormOpenedFromSearch(false);
+    setIsFormOpen(true);
   };
 
   if (!mediaType) {
@@ -159,57 +296,72 @@ export default function DiscoverPage() {
   }
 
   const getSortOptions = () => {
-    if (mediaType === 'books') {
-      // Google Books só suporta 'relevance' e 'newest'
-      return [
-        { value: 'popularity', label: 'Mais Relevantes', icon: TrendingUp },
-        { value: 'newest', label: 'Mais Recentes', icon: Calendar },
-      ];
-    }
+    switch (mediaType) {
+      case 'books':
+        return [
+          { value: 'relevance', label: 'Mais Relevantes', icon: TrendingUp },
+          { value: 'newest', label: 'Mais Recentes', icon: Calendar },
+        ];
 
-    // Mangás têm as mesmas opções de ordenação que animes
-    if (mediaType === 'mangas' || mediaType === 'animes') {
-      return [
-        { value: 'popularity', label: 'Mais Populares', icon: TrendingUp },
-        { value: 'rating', label: 'Melhores Avaliados', icon: Star },
-        { value: 'newest', label: 'Mais Recentes', icon: Calendar },
-      ];
+      case 'mangas':
+      case 'animes':
+        return [
+          { value: 'popularity', label: 'Mais Populares', icon: TrendingUp },
+          { value: 'rating', label: 'Melhores Avaliados', icon: Star },
+          { value: 'newest', label: 'Mais Recentes', icon: Calendar },
+        ];
+      case 'games':
+        return [
+          { value: 'popularity', label: 'Mais Populares', icon: TrendingUp },
+          { value: 'rating', label: 'Melhores Avaliados', icon: Star },
+          { value: 'newest', label: 'Mais Recentes', icon: Calendar },
+        ];
+      case 'movies':
+      case 'series':
+      default:
+        return [
+          { value: 'popularity', label: 'Tendências', icon: TrendingUp },
+          { value: 'most_rated', label: 'Mais Populares', icon: Users },
+          { value: 'rating', label: 'Melhores Avaliados', icon: Star },
+          { value: 'newest', label: 'Mais Recentes', icon: Calendar },
+        ];
     }
-
-    return [
-      { value: 'popularity', label: 'Mais Populares', icon: TrendingUp },
-      { value: 'rating', label: 'Melhores Avaliados', icon: Star },
-      { value: 'newest', label: 'Mais Recentes', icon: Calendar },
-    ];
   };
 
   return (
     <Layout>
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
           <div className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-2xl">{getMediaTypeIcon()}</span>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">
-                  Descobrir {getMediaTypeLabel()}s
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Explore {getMediaTypeLabel().toLowerCase()}s populares, bem avaliados e recém-lançados
-                </p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{getMediaTypeIcon()}</span>
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">
+                    Descobrir {getMediaTypeLabel()}s
+                  </h1>
+                  <p className="text-muted-foreground mt-1">
+                    Explore {getMediaTypeLabel().toLowerCase()}s populares, bem avaliados e recém-lançados
+                  </p>
+                </div>
               </div>
+              <Button
+                variant="primary"
+                icon={Plus}
+                onClick={() => setIsSearchOpen(true)}
+              >
+                {getButtonLabel()}
+              </Button>
             </div>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
               <p className="text-destructive text-sm">{error}</p>
             </div>
           )}
 
-          {/* Filters - CORES AJUSTADAS PARA O TEMA ESCURO */}
+          {/* Filters */}
           <div className="bg-card p-4 rounded-lg border border-border mb-6">
             <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
               <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
@@ -243,7 +395,7 @@ export default function DiscoverPage() {
               {/* View Mode */}
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground whitespace-nowrap">Visualização:</span>
-                <div className="flex bg-secondary rounded-lg p-1">
+                <div className="flex bg-gray-800 rounded-lg p-1">
                   <Button
                     variant={viewMode === 'grid' ? 'primary' : 'ghost'}
                     size="sm"
@@ -263,11 +415,11 @@ export default function DiscoverPage() {
             </div>
           </div>
 
-          {/* Results Count - ATUALIZADO */}
+          {/* Results Count */}
           {!loading && items.length > 0 && (
             <div className="mb-4 flex justify-between items-center">
               <p className="text-muted-foreground">
-                Mostrando {((currentPage - 1) * 50) + 1}-{((currentPage - 1) * 50) + items.length} de {totalResults} {getMediaTypeLabel().toLowerCase()}{totalResults !== 1 ? 's' : ''}
+                Mostrando {((currentPage - 1) * 20) + 1}-{((currentPage - 1) * 20) + items.length} de {totalResults} {getMediaTypeLabel().toLowerCase()}{totalResults !== 1 ? 's' : ''}
                 {selectedGenre && genres.find(g => g.id === selectedGenre) &&
                   ` no gênero ${genres.find(g => g.id === selectedGenre).name}`
                 }
@@ -329,244 +481,24 @@ export default function DiscoverPage() {
           )}
         </div>
       </div>
+
+      {/* COMPONENTES DE BUSCA E FORMULÁRIO */}
+      {getSearchComponent()}
+      <MediaFormModal
+        isOpen={isFormOpen}
+        onClose={() => {
+          setIsFormOpen(false);
+          setSelectedMediaData(null);
+          setManualCreateQuery(null);
+        }}
+        onBackToSearch={selectedMediaData ? handleBackToSearch : undefined}
+        mediaType={getStoreMediaType()}
+        initialData={editingMedia || undefined}
+        externalData={selectedMediaData}
+        manualCreateQuery={manualCreateQuery}
+        onSubmit={editingMedia ? handleEditMedia : handleAddMedia}
+        showBackToSearch={formOpenedFromSearch}
+      />
     </Layout>
-  );
-}
-
-// Componente MediaCard ATUALIZADO com suporte a mangás e cores do tema escuro
-function MediaCard({ item, mediaType, viewMode, onAddToLibrary }) {
-  const formatNumber = (num) => {
-    if (!num) return 'N/A';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
-  };
-
-  const formatPopularity = (popularity) => {
-    if (!popularity) return 'N/A';
-    return `#${popularity.toLocaleString('pt-BR')}`; // Número completo com separadores brasileiros
-  };
-
-  const getRatingColor = (rating, maxRating = 10) => {
-    if (!rating) return 'text-gray-500';
-    const percentage = (rating / maxRating) * 100;
-    if (percentage >= 80) return 'text-green-400';
-    if (percentage >= 60) return 'text-yellow-400';
-    if (percentage >= 40) return 'text-orange-400';
-    return 'text-red-400';
-  };
-
-  if (viewMode === 'list') {
-    return (
-      <div className="flex items-start gap-4 p-4 border border-border rounded-lg hover:border-primary/50 transition-colors bg-card">
-        <img
-          src={item.imageUrl || '/placeholder-image.jpg'}
-          alt={item.title}
-          className="w-20 h-28 object-cover rounded-lg flex-shrink-0"
-          onError={(e) => {
-            e.target.src = '/placeholder-image.jpg';
-          }}
-        />
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-foreground text-lg mb-1">{item.title}</h3>
-
-          {/* Informações básicas */}
-          <div className="flex flex-wrap items-center gap-4 mb-2 text-sm text-muted-foreground">
-            {item.releaseYear && (
-              <span>{item.releaseYear}</span>
-            )}
-            {item.rating && (
-              <span className={`flex items-center gap-1 font-medium ${getRatingColor(item.rating)}`}>
-                <Star className="w-4 h-4 fill-current" />
-                {item.rating.toFixed(1)}
-                {item.ratingsCount && (
-                  <span className="text-muted-foreground text-xs">
-                    ({formatNumber(item.ratingsCount)})
-                  </span>
-                )}
-              </span>
-            )}
-            
-            {/* Informações específicas por tipo de mídia */}
-            {mediaType === 'animes' && item.episodes && (
-              <span>{item.episodes} episódios</span>
-            )}
-            {mediaType === 'mangas' && item.volumes && (
-              <span>{item.volumes} volumes</span>
-            )}
-            {mediaType === 'mangas' && item.chapters && (
-              <span>• {item.chapters} capítulos</span>
-            )}
-            {mediaType === 'books' && item.pageCount && (
-              <span>{item.pageCount} páginas</span>
-            )}
-            
-            {/* ADICIONADO: Número de membros */}
-            {item.members && (
-              <span className="flex items-center gap-1">
-                <Users className="w-4 h-4" />
-                {formatNumber(item.members)}
-              </span>
-            )}
-          </div>
-
-          {/* Autores para mangás */}
-          {mediaType === 'mangas' && item.authors && item.authors.length > 0 && (
-            <div className="mb-2">
-              <span className="text-sm text-muted-foreground">
-                por <span className="font-medium text-foreground">{item.authors.join(', ')}</span>
-              </span>
-            </div>
-          )}
-
-          {/* Informações adicionais */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {item.voteCount && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Users className="w-3 h-3" />
-                {formatNumber(item.voteCount)} votos
-              </span>
-            )}
-            {/* MODIFICADO: Popularidade com # */}
-            {item.popularity && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <TrendingUp className="w-3 h-3" />
-                {formatPopularity(item.popularity)}
-              </span>
-            )}
-            {item.metacritic && (
-              <span className="px-2 py-1 bg-green-900/30 text-green-400 text-xs rounded-full border border-green-800/50">
-                Metacritic: {item.metacritic}
-              </span>
-            )}
-          </div>
-
-          {item.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {item.description}
-            </p>
-          )}
-        </div>
-        <Button variant="primary" size="sm" onClick={() => onAddToLibrary(item)}>
-          Adicionar
-        </Button>
-      </div>
-    );
-  }
-
-  // View Mode Grid (ATUALIZADO para mangás e cores do tema escuro)
-  return (
-    <Card variant="elevated" className="hover:shadow-lg transition-shadow h-full flex flex-col group bg-card border-border">
-      <CardContent className="p-4 flex-1 flex flex-col">
-        {/* Imagem */}
-        <div className="relative mb-4">
-          <img
-            src={item.imageUrl || '/placeholder-image.jpg'}
-            alt={item.title}
-            className="w-full h-48 object-cover rounded-lg"
-            onError={(e) => {
-              e.target.src = '/placeholder-image.jpg';
-            }}
-          />
-          {/* Badge de avaliação */}
-          {item.rating && (
-            <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold backdrop-blur-sm bg-card/90 border border-border ${getRatingColor(item.rating)}`}>
-              ⭐ {item.rating.toFixed(1)}
-            </div>
-          )}
-        </div>
-
-        {/* Título */}
-        <h3 className="font-semibold text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-          {item.title}
-        </h3>
-
-        {/* Informações básicas */}
-        <div className="flex items-center gap-3 mb-3 text-sm text-muted-foreground">
-          {item.releaseYear && (
-            <span>{item.releaseYear}</span>
-          )}
-          {/* Informações específicas por tipo */}
-          {mediaType === 'animes' && item.episodes && (
-            <span>• {item.episodes} eps</span>
-          )}
-          {mediaType === 'mangas' && item.volumes && (
-            <span>• {item.volumes} vol</span>
-          )}
-          {mediaType === 'mangas' && item.chapters && (
-            <span>• {item.chapters} cap</span>
-          )}
-          {mediaType === 'books' && item.pageCount && (
-            <span>• {item.pageCount} pág</span>
-          )}
-        </div>
-
-        {/* Autores para mangás */}
-        {mediaType === 'mangas' && item.authors && item.authors.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs text-muted-foreground line-clamp-1">
-              por <span className="font-medium text-foreground">{item.authors.join(', ')}</span>
-            </p>
-          </div>
-        )}
-
-        {/* Estatísticas detalhadas */}
-        <div className="space-y-2 mb-4 flex-1">
-          {/* ADICIONADO: Número de membros */}
-          {item.members && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Membros:</span>
-              <span className="font-medium text-foreground">{formatNumber(item.members)}</span>
-            </div>
-          )}
-          {item.ratingsCount && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Avaliações:</span>
-              <span className="font-medium text-foreground">{formatNumber(item.ratingsCount)}</span>
-            </div>
-          )}
-          {item.voteCount && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Votos:</span>
-              <span className="font-medium text-foreground">{formatNumber(item.voteCount)}</span>
-            </div>
-          )}
-          {/* MODIFICADO: Popularidade com # */}
-          {item.popularity && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Popularidade:</span>
-              <span className="font-medium text-foreground">{formatPopularity(item.popularity)}</span>
-            </div>
-          )}
-          {item.metacritic && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Metacritic:</span>
-              <span className="font-medium text-green-400">{item.metacritic}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Descrição */}
-        {item.description && (
-          <p className="text-sm text-muted-foreground line-clamp-3 mb-4 flex-1">
-            {item.description}
-          </p>
-        )}
-
-        {/* Botão de ação */}
-        <div className="flex items-center justify-between mt-auto pt-3 border-t border-border">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {item.rating && item.ratingsCount && (
-              <span>
-                {item.rating.toFixed(1)} ⭐ ({formatNumber(item.ratingsCount)})
-              </span>
-            )}
-          </div>
-          <Button variant="primary" size="sm" onClick={() => onAddToLibrary(item)}>
-            Adicionar
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

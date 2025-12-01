@@ -1,5 +1,5 @@
 export { default as Button } from './button/Button';
-export { default as Card, CardHeader, CardContent, CardFooter } from './card/Card';
+export { default as Card, CardHeader, CardContent, CardFooter } from '../media/media-card/Card';
 export { default as Input } from './input/Input';
 export { default as Select } from './select/Select';
 export { default as Modal } from './modal/Modal';

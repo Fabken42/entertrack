@@ -36,38 +36,6 @@ const formatPopularity = (popularity) => {
   return `#${popularity.toLocaleString('pt-BR')}`;
 };
 
-const formatApiRating = (rating, mediaType) => {
-  if (!rating) return null;
-
-  // APIs que usam base 10: TMDB (filmes/séries) e MyAnimeList (animes/mangás)
-  const base10Apis = ['movie', 'series', 'anime', 'manga'];
-  // APIs que usam base 5: RAWG (jogos) e Google Books (livros)
-  const base5Apis = ['game', 'book'];
-
-  if (base10Apis.includes(mediaType)) {
-    return {
-      display: (rating / 2).toFixed(1), // Converte para base 5
-      original: rating.toFixed(1),
-      base: 10
-    };
-  } else if (base5Apis.includes(mediaType)) {
-    return {
-      display: rating.toFixed(1), // Mantém base 5
-      original: rating.toFixed(1),
-      base: 5
-    };
-  }
-
-  return {
-    display: rating.toFixed(1),
-    original: rating.toFixed(1),
-    base: 10 // Padrão
-  };
-};
-
-
-
-
 const BaseMediaForm = ({
   mediaType,
   initialData,
@@ -469,9 +437,9 @@ const BaseMediaForm = ({
                 Gêneros
               </label>
               <div className="flex flex-wrap gap-2">
-                {externalData.genres.map((genre) => (
+                {externalData.genres.map((genre, index) => (
                   <span
-                    key={genre}
+                    key={typeof genre === 'object' ? genre.id || genre.name || index : genre}
                     className={`px-3 py-1 text-sm rounded-full ${mediaType === 'book'
                       ? 'bg-purple-900 text-purple-300'
                       : mediaType === 'game'
@@ -481,7 +449,7 @@ const BaseMediaForm = ({
                           : 'bg-blue-900 text-blue-300'
                       }`}
                   >
-                    {genre}
+                    {typeof genre === 'object' ? genre.name : genre}
                   </span>
                 ))}
               </div>

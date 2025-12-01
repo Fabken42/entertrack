@@ -1,5 +1,5 @@
-import React from 'react'; 
-import MediaCard from '../media-card/MediaCard';
+import React from 'react';
+import MediaCard from '@/components/media/media-card/MediaCard'; // 🔥 Agora usa o componente unificado
 
 const MediaGrid = ({ 
   media, 
@@ -21,16 +21,18 @@ const MediaGrid = ({
   }
 
   return (
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-    {media.map((item) => (
-      <MediaCard 
-        key={item.id} 
-        media={item} 
-        onEditClick={onEditClick}
-      />
-    ))}
-  </div>
-);
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+      {media.map((item) => (
+        <MediaCard 
+          key={item.id} 
+          item={item} 
+          mediaType={item.mediaType + 's'} // Converte 'movie' para 'movies'
+          onEditClick={onEditClick}
+          isLibrary={true} // 🔥 Indica que é da biblioteca
+        />
+      ))}
+    </div>
+  );
 };
 
 export default MediaGrid;

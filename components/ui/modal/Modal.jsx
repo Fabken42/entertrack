@@ -3,7 +3,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import { X } from 'lucide-react';
+import { X, ArrowLeft } from 'lucide-react';
 import Button from '../button/Button';
 
 const Modal = ({
@@ -12,7 +12,9 @@ const Modal = ({
   title,
   children,
   size = 'md',
-  showCloseButton = true
+  showCloseButton = true,
+  showBackButton = false, // 👈 Nova prop
+  onBack // 👈 Nova prop
 }) => {
   const [mounted, setMounted] = React.useState(false);
 
@@ -55,11 +57,29 @@ const Modal = ({
         )}
       >
         {/* Header */}
-        {(title || showCloseButton) && (
+        {(title || showCloseButton || showBackButton) && (
           <div className="flex items-center justify-between p-6 border-b border-gray-700">
-            {title && (
-              <h2 className="text-lg font-semibold text-white">{title}</h2>
-            )}
+            {/* Botão Voltar - lado esquerdo */}
+            <div className="flex items-center">
+              {showBackButton && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onBack}
+                  className="!p-1 hover:bg-gray-700 text-gray-300 mr-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              )}
+              
+              {title && (
+                <h2 className="text-lg font-semibold text-white">
+                  {title}
+                </h2>
+              )}
+            </div>
+
+            {/* Botão Fechar - lado direito */}
             {showCloseButton && (
               <Button
                 variant="ghost"

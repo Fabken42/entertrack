@@ -76,6 +76,12 @@ export default function AnimesPage() {
     setIsFormOpen(true);
   };
 
+  const handleBackToSearch = () => {
+    setIsFormOpen(false);
+    setSelectedAnimeData(null);
+    setIsAnimeSearchOpen(true);
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -177,6 +183,7 @@ export default function AnimesPage() {
           setSelectedAnimeData(null);
           setManualCreateQuery(null);
         }}
+        onBackToSearch={selectedAnimeData ? handleBackToSearch : undefined}
         mediaType="anime"
         initialData={editingMedia || undefined}
         externalData={selectedAnimeData}

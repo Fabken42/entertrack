@@ -76,6 +76,12 @@ export default function MoviesPage() {
     setIsFormOpen(true);
   };
 
+  const handleBackToSearch = () => {
+    setIsFormOpen(false);
+    setSelectedMovieData(null);
+    setIsMovieSearchOpen(true);
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -177,7 +183,7 @@ export default function MoviesPage() {
           setSelectedMovieData(null);
           setManualCreateQuery(null);
         }}
-        mediaType="movie"
+        onBackToSearch={selectedMovieData ? handleBackToSearch : undefined} mediaType="movie"
         initialData={editingMedia || undefined}
         externalData={selectedMovieData}
         manualCreateQuery={manualCreateQuery}

@@ -77,6 +77,12 @@ export default function GamesPage() {
     setIsFormOpen(true);
   };
 
+  const handleBackToSearch = () => {
+    setIsFormOpen(false);
+    setSelectedGameData(null);
+    setIsGameSearchOpen(true);
+  };
+
   return (
     <Layout>
       <div className="p-6">
@@ -177,6 +183,7 @@ export default function GamesPage() {
           setSelectedGameData(null);
           setManualCreateQuery(null);
         }}
+        onBackToSearch={selectedGameData ? handleBackToSearch : undefined} 
         mediaType="game"
         initialData={editingMedia || undefined}
         externalData={selectedGameData}

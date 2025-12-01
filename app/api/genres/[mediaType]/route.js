@@ -1,6 +1,9 @@
+// /app/api/genres/[mediaType]/route.js
 import { NextResponse } from 'next/server';
 import { tmdbClient } from '@/lib/api/tmdb';
 import { rawgClient } from '@/lib/api/rawg';
+import { malClient } from '@/lib/api/myanimelist';
+import { googleBooksClient } from '@/lib/api/google-books';
 
 export async function GET(request, { params }) {
   try {
@@ -10,11 +13,11 @@ export async function GET(request, { params }) {
 
     switch (mediaType) {
       case 'movies':
-        const movieGenres = await tmdbClient.getMovieGenres();
+        const movieGenres = await tmdbClient.getGenres('movie');
         genres = movieGenres.genres;
         break;
       case 'series':
-        const tvGenres = await tmdbClient.getTVGenres();
+        const tvGenres = await tmdbClient.getGenres('tv');
         genres = tvGenres.genres;
         break;
       case 'games':
@@ -25,45 +28,16 @@ export async function GET(request, { params }) {
         }));
         break;
       case 'animes':
-      case 'mangas': // MESMOS gêneros para animes e mangás
-        genres = [
-          { id: '1', name: 'Ação' },
-          { id: '2', name: 'Aventura' },
-          { id: '4', name: 'Comédia' },
-          { id: '7', name: 'Mistério' },
-          { id: '8', name: 'Drama' },
-          { id: '10', name: 'Fantasia' },
-          { id: '14', name: 'Terror' },
-          { id: '22', name: 'Romance' },
-          { id: '24', name: 'Ficção Científica' },
-          { id: '36', name: 'Slice of Life' },
-          { id: '30', name: 'Esportes' },
-          { id: '37', name: 'Sobrenatural' },
-          { id: '41', name: 'Suspense' },
-          { id: '25', name: 'Shoujo' },
-          { id: '27', name: 'Shounen' },
-          { id: '42', name: 'Seinen' },
-          { id: '43', name: 'Josei' },
-          { id: '9', name: 'Ecchi' }
-        ];
+        const animeGenres = await malClient.getGenres('anime'); 
+        genres = animeGenres;
+        break;
+      case 'mangas':
+        const mangaGenres = await malClient.getGenres('manga'); 
+        genres = mangaGenres;
         break;
       case 'books':
-        genres = [
-          { id: 'fiction', name: 'Ficção' },
-          { id: 'fantasy', name: 'Fantasia' },
-          { id: 'romance', name: 'Romance' },
-          { id: 'mystery', name: 'Mistério' },
-          { id: 'science', name: 'Ciência' },
-          { id: 'history', name: 'História' },
-          { id: 'biography', name: 'Biografia' },
-          { id: 'business', name: 'Negócios' },
-          { id: 'young-adult', name: 'Young Adult' },
-          { id: 'children', name: 'Infantil' },
-          { id: 'thriller', name: 'Suspense' },
-          { id: 'horror', name: 'Terror' },
-          { id: 'science-fiction', name: 'Ficção Científica' },
-          { id: 'self-help', name: 'Autoajuda' }
-        ];
+        const bookGenres = await googleBooksClient.getGenres();
+        genres = bookGenres;
         break;
       default:
         return NextResponse.json({ error: 'Invalid media type' }, { status: 400 });
