@@ -19,9 +19,7 @@ const mangaSchema = z.object({
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   progress: z.object({
     currentVolume: z.number().min(0).optional(),
-    totalVolumes: z.number().min(1).optional(),
-    currentChapter: z.number().min(0).optional(),
-    totalChapters: z.number().min(1).optional(),
+    currentPage: z.number().min(0).optional(),
   }).optional(),
 });
 
@@ -61,21 +59,52 @@ const MangaForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  const status = watch('status');
-  const showProgressFields = status === 'in_progress' || status === 'completed';
-
   const handleSubmit = (baseData) => {
     const formData = {
       ...baseData,
       mediaType: 'manga',
-      progress: showProgressFields ? {
+      progress: baseData.status === 'in_progress' ? {
         currentVolume: baseData.progress?.currentVolume || 0,
-        totalVolumes: baseData.progress?.totalVolumes || 0,
-        currentChapter: baseData.progress?.currentChapter || 0,
-        totalChapters: baseData.progress?.totalChapters || 0,
+        currentPage: baseData.progress?.currentPage || 0,
       } : undefined,
     };
     props.onSubmit(formData);
+  };
+
+  // Componente para os campos específicos
+  const MangaSpecificFields = ({ currentStatus, register, errors }) => {
+    const showVolumePage = currentStatus === 'in_progress';
+    
+    if (!showVolumePage) return null;
+    
+    return (
+      <div className="space-y-6 pt-6 border-t border-gray-700">
+        <h4 className="text-md font-medium text-white">Progresso de Leitura</h4>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {showVolumePage && (
+            <div className="space-y-4">
+              <h5 className="text-sm font-medium text-gray-300">Posição Atual</h5>
+              <Input
+                label="Volume Atual"
+                type="number"
+                {...register('progress.currentVolume', { valueAsNumber: true })}
+                error={errors.progress?.currentVolume?.message}
+                placeholder="5"
+              />
+
+              <Input
+                label="Página Atual"
+                type="number"
+                {...register('progress.currentPage', { valueAsNumber: true })}
+                error={errors.progress?.currentPage?.message}
+                placeholder="42"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -90,53 +119,10 @@ const MangaForm = (props) => {
       selectedRating={selectedRating}
       onRatingChange={handleRatingChange}
     >
-      {showProgressFields && (
-        <div className="space-y-6 pt-6 border-t border-gray-700">
-          <h4 className="text-md font-medium text-white">Progresso de Leitura</h4>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Volumes */}
-            <div className="space-y-4">
-              <h5 className="text-sm font-medium text-gray-300">Volumes</h5>
-              <Input
-                label="Volume Atual"
-                type="number"
-                {...register('progress.currentVolume', { valueAsNumber: true })}
-                error={errors.progress?.currentVolume?.message}
-                placeholder="5"
-              />
-
-              <Input
-                label="Total de Volumes"
-                type="number"
-                {...register('progress.totalVolumes', { valueAsNumber: true })}
-                error={errors.progress?.totalVolumes?.message}
-                placeholder="20"
-              />
-            </div>
-
-            {/* Capítulos */}
-            <div className="space-y-4">
-              <h5 className="text-sm font-medium text-gray-300">Capítulos</h5>
-              <Input
-                label="Capítulo Atual"
-                type="number"
-                {...register('progress.currentChapter', { valueAsNumber: true })}
-                error={errors.progress?.currentChapter?.message}
-                placeholder="187"
-              />
-
-              <Input
-                label="Total de Capítulos"
-                type="number"
-                {...register('progress.totalChapters', { valueAsNumber: true })}
-                error={errors.progress?.totalChapters?.message}
-                placeholder="250"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <MangaSpecificFields 
+        register={register}
+        errors={errors}
+      />
     </BaseMediaForm>
   );
 };

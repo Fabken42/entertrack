@@ -4,15 +4,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Layout } from '@/components/layout';
-import { Button, Card, CardContent, Select } from '@/components/ui';
-import { Grid, List, Star, TrendingUp, Calendar, Plus, Users } from 'lucide-react';
+import { Button, Card, CardContent, Select, Input } from '@/components/ui';
+import { Grid, List, Star, TrendingUp, Calendar, Search, Users } from 'lucide-react';
 import Pagination from '../../../components/ui/pagination/Pagination';
 import MediaCard from '../../../components/media/media-card/MediaCard';
-// NOVOS IMPORTS para busca e formulário
-import TMDBSearch from '@/components/search/TMDBSearch';
-import MyAnimeListSearch from '@/components/search/MyAnimeListSearch';
-import RAWGSearchGames from '@/components/search/RAWGSearchGames';
-import GoogleBooksSearch from '@/components/search/GoogleBooksSearch';
+// Remova os imports dos componentes de busca
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
 
@@ -32,13 +28,13 @@ export default function DiscoverPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
 
-  // NOVOS ESTADOS para busca e formulário
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // NOVO ESTADO para busca
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // ESTADOS para formulário (mantidos apenas para adicionar à biblioteca)
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedMediaData, setSelectedMediaData] = useState(null);
-  const [manualCreateQuery, setManualCreateQuery] = useState(null);
   const [editingMedia, setEditingMedia] = useState(null);
-  const [formOpenedFromSearch, setFormOpenedFromSearch] = useState(false);
 
   const { addMedia, updateMedia } = useMediaStore();
 
@@ -53,7 +49,7 @@ export default function DiscoverPage() {
       setCurrentPage(1);
       fetchDiscoveryItems();
     }
-  }, [mediaType, sortBy, selectedGenre]);
+  }, [mediaType, sortBy, selectedGenre, searchQuery]); // Adicionado searchQuery
 
   useEffect(() => {
     if (mediaType) {
@@ -84,7 +80,8 @@ export default function DiscoverPage() {
         sortBy,
         page: currentPage.toString(),
         limit: '20',
-        ...(selectedGenre && { genre: selectedGenre })
+        ...(selectedGenre && { genre: selectedGenre }),
+        ...(searchQuery && { query: searchQuery }) // Adicionado query
       });
 
       const response = await fetch(`/api/discover/${mediaType}?${queryParams}`);
@@ -111,29 +108,12 @@ export default function DiscoverPage() {
   const handleFormClose = () => {
     setIsFormOpen(false);
     setSelectedMediaData(null);
-    setManualCreateQuery(null);
-    setFormOpenedFromSearch(false);
     setEditingMedia(null);
   };
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // NOVAS FUNÇÕES para busca e formulário
-  const handleSelectMedia = (mediaData) => {
-    setSelectedMediaData(mediaData);
-    setManualCreateQuery(null);
-    setFormOpenedFromSearch(true);
-    setIsFormOpen(true);
-  };
-
-  const handleManualCreate = (query) => {
-    setManualCreateQuery(query);
-    setSelectedMediaData(null);
-    setFormOpenedFromSearch(true);
-    setIsFormOpen(true);
   };
 
   const handleAddMedia = async (data) => {
@@ -151,12 +131,6 @@ export default function DiscoverPage() {
     }
   };
 
-  const handleBackToSearch = () => {
-    setIsFormOpen(false);
-    setSelectedMediaData(null);
-    setIsSearchOpen(true);
-  };
-
   const getStoreMediaType = () => {
     const mapping = {
       'movies': 'movie',
@@ -167,52 +141,6 @@ export default function DiscoverPage() {
       'games': 'game'
     };
     return mapping[mediaType] || mediaType;
-  };
-
-  const getSearchComponent = () => {
-    const searchProps = {
-      isOpen: isSearchOpen,
-      onClose: () => setIsSearchOpen(false),
-      onSelectMedia: handleSelectMedia,
-      onManualCreate: handleManualCreate,
-    };
-
-    switch (mediaType) {
-      case 'movies':
-      case 'series':
-        return (
-          <TMDBSearch
-            {...searchProps}
-            mediaType={mediaType === 'movies' ? 'movie' : 'series'}
-          />
-        );
-      case 'animes':
-      case 'mangas':
-        return (
-          <MyAnimeListSearch
-            {...searchProps}
-            mediaType={mediaType === 'animes' ? 'anime' : 'manga'}
-          />
-        );
-      case 'games':
-        return <RAWGSearchGames {...searchProps} />;
-      case 'books':
-        return <GoogleBooksSearch {...searchProps} />;
-      default:
-        return null;
-    }
-  };
-
-  const getButtonLabel = () => {
-    const labels = {
-      'movies': 'Buscar Filme',
-      'series': 'Buscar Série',
-      'animes': 'Buscar Anime',
-      'mangas': 'Buscar Mangá',
-      'books': 'Buscar Livro',
-      'games': 'Buscar Jogo'
-    };
-    return labels[mediaType] || 'Buscar';
   };
 
   const getMediaTypeLabel = () => {
@@ -275,8 +203,6 @@ export default function DiscoverPage() {
     };
 
     setSelectedMediaData(mediaData);
-    setManualCreateQuery(null);
-    setFormOpenedFromSearch(false);
     setIsFormOpen(true);
   };
 
@@ -345,13 +271,7 @@ export default function DiscoverPage() {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="primary"
-                icon={Plus}
-                onClick={() => setIsSearchOpen(true)}
-              >
-                {getButtonLabel()}
-              </Button>
+              {/* Botão removido - a busca agora está integrada nos filtros */}
             </div>
           </div>
 
@@ -361,10 +281,26 @@ export default function DiscoverPage() {
             </div>
           )}
 
-          {/* Filters */}
           <div className="bg-card p-4 rounded-lg border border-border mb-6">
             <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
               <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
+                {/* Campo de Busca COM LABEL */}
+                <div className="w-full sm:w-64">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Buscar {getMediaTypeLabel().toLowerCase()}s
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      type="text"
+                      placeholder={`Digite o nome...`}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 bg-gray-800 border-gray-700 text-white"
+                    />
+                  </div>
+                </div>
+
                 {/* Genre Filter */}
                 <div className="w-full sm:w-48">
                   <Select
@@ -393,7 +329,7 @@ export default function DiscoverPage() {
               </div>
 
               {/* View Mode */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mt-4 lg:mt-0">
                 <span className="text-sm text-muted-foreground whitespace-nowrap">Visualização:</span>
                 <div className="flex bg-gray-800 rounded-lg p-1">
                   <Button
@@ -415,11 +351,12 @@ export default function DiscoverPage() {
             </div>
           </div>
 
-          {/* Results Count */}
+          {/* Results Count - MODIFICADO para incluir informação da busca */}
           {!loading && items.length > 0 && (
             <div className="mb-4 flex justify-between items-center">
               <p className="text-muted-foreground">
                 Mostrando {((currentPage - 1) * 20) + 1}-{((currentPage - 1) * 20) + items.length} de {totalResults} {getMediaTypeLabel().toLowerCase()}{totalResults !== 1 ? 's' : ''}
+                {searchQuery && ` para "${searchQuery}"`}
                 {selectedGenre && genres.find(g => g.id === selectedGenre) &&
                   ` no gênero ${genres.find(g => g.id === selectedGenre).name}`
                 }
@@ -472,32 +409,36 @@ export default function DiscoverPage() {
                 Nenhum resultado encontrado
               </h3>
               <p className="text-muted-foreground">
-                {selectedGenre
-                  ? `Não encontramos ${getMediaTypeLabel().toLowerCase()} no gênero selecionado. Tente outro gênero.`
-                  : `Tente alterar os filtros de ordenação.`
+                {searchQuery
+                  ? `Não encontramos ${getMediaTypeLabel().toLowerCase()}s para "${searchQuery}"`
+                  : selectedGenre
+                    ? `Não encontramos ${getMediaTypeLabel().toLowerCase()} no gênero selecionado. Tente outro gênero.`
+                    : `Tente alterar os filtros de ordenação.`
                 }
               </p>
+              {searchQuery && (
+                <div className="mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Limpar busca
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* COMPONENTES DE BUSCA E FORMULÁRIO */}
-      {getSearchComponent()}
+      {/* FORMULÁRIO MODAL (mantido para adicionar à biblioteca) */}
       <MediaFormModal
         isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false);
-          setSelectedMediaData(null);
-          setManualCreateQuery(null);
-        }}
-        onBackToSearch={selectedMediaData ? handleBackToSearch : undefined}
+        onClose={handleFormClose}
         mediaType={getStoreMediaType()}
         initialData={editingMedia || undefined}
         externalData={selectedMediaData}
-        manualCreateQuery={manualCreateQuery}
         onSubmit={editingMedia ? handleEditMedia : handleAddMedia}
-        showBackToSearch={formOpenedFromSearch}
       />
     </Layout>
   );

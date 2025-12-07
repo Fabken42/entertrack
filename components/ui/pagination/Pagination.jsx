@@ -109,7 +109,7 @@ export default function Pagination({
         className="flex items-center gap-1"
       >
         <ChevronLeft className="w-4 h-4" />
-        Anterior
+        
       </Button>
       
       {/* Botões de página - SEM ELIPSES */}
@@ -133,7 +133,7 @@ export default function Pagination({
         disabled={currentPage === totalPages}
         className="flex items-center gap-1"
       >
-        Próximo
+        
         <ChevronRight className="w-4 h-4" />
       </Button>
     </div>

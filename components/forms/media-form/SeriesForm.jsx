@@ -1,3 +1,4 @@
+// /components/forms/media-form/SeriesForm.jsx
 'use client';
 
 import React from 'react';
@@ -18,9 +19,7 @@ const seriesSchema = z.object({
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   progress: z.object({
     currentEpisode: z.number().min(0).optional(),
-    totalEpisodes: z.number().min(1).optional(),
     currentSeason: z.number().min(1).optional(),
-    totalSeasons: z.number().min(1).optional(),
   }).optional(),
 });
 
@@ -29,6 +28,7 @@ const SeriesForm = (props) => {
     register,
     formState: { errors },
     watch,
+    setValue,
   } = useForm({
     resolver: zodResolver(seriesSchema),
     defaultValues: props.initialData ? {
@@ -47,18 +47,13 @@ const SeriesForm = (props) => {
     },
   });
 
-  const status = watch('status');
-  const showProgressFields = status === 'in_progress' || status === 'completed';
-
   const handleSubmit = (baseData) => {
     const formData = {
       ...baseData,
       mediaType: 'series',
-      progress: showProgressFields ? {
+      progress: baseData.status === 'in_progress' ? {
         currentEpisode: baseData.progress?.currentEpisode || 0,
-        totalEpisodes: baseData.progress?.totalEpisodes || 0,
         currentSeason: baseData.progress?.currentSeason || 1,
-        totalSeasons: baseData.progress?.totalSeasons || 1,
       } : undefined,
     };
     props.onSubmit(formData);
@@ -68,10 +63,40 @@ const SeriesForm = (props) => {
     props.initialData?.rating
   );
 
-  // E a função handleRatingChange:
   const handleRatingChange = (rating) => {
     setSelectedRating(rating);
     setValue('rating', rating, { shouldValidate: true });
+  };
+
+  // Componente para os campos específicos
+  const SeriesSpecificFields = ({ currentStatus, register, errors }) => {
+    const showSeasonEpisode = currentStatus === 'in_progress';
+    
+    if (!showSeasonEpisode) return null;
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-700">
+        {showSeasonEpisode && (
+          <Input
+            label="Temporada Atual"
+            type="number"
+            {...register('progress.currentSeason', { valueAsNumber: true })}
+            error={errors.progress?.currentSeason?.message}
+            placeholder="1"
+          />
+        )}
+        
+        {showSeasonEpisode && (
+          <Input
+            label="Episódio Atual"
+            type="number"
+            {...register('progress.currentEpisode', { valueAsNumber: true })}
+            error={errors.progress?.currentEpisode?.message}
+            placeholder="5"
+          />
+        )}
+      </div>
+    );
   };
 
   return (
@@ -86,42 +111,10 @@ const SeriesForm = (props) => {
       selectedRating={selectedRating}
       onRatingChange={handleRatingChange}
     >
-      {/* Campos específicos de séries */}
-      {showProgressFields && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-700">
-          <Input
-            label="Episódio Atual"
-            type="number"
-            {...register('progress.currentEpisode', { valueAsNumber: true })}
-            error={errors.progress?.currentEpisode?.message}
-            placeholder="5"
-          />
-
-          <Input
-            label="Total de Episódios"
-            type="number"
-            {...register('progress.totalEpisodes', { valueAsNumber: true })}
-            error={errors.progress?.totalEpisodes?.message}
-            placeholder="10"
-          />
-
-          <Input
-            label="Temporada Atual"
-            type="number"
-            {...register('progress.currentSeason', { valueAsNumber: true })}
-            error={errors.progress?.currentSeason?.message}
-            placeholder="1"
-          />
-
-          <Input
-            label="Total de Temporadas"
-            type="number"
-            {...register('progress.totalSeasons', { valueAsNumber: true })}
-            error={errors.progress?.totalSeasons?.message}
-            placeholder="3"
-          />
-        </div>
-      )}
+      <SeriesSpecificFields 
+        register={register}
+        errors={errors}
+      />
     </BaseMediaForm>
   );
 };

@@ -16,9 +16,7 @@ const MediaFormModal = ({
   initialData,
   externalData,
   manualCreateQuery,
-  onSubmit,
-  onBackToSearch,
-  showBackToSearch = true,
+  onSubmit
 }) => {
   const [loading, setLoading] = React.useState(false);
 
@@ -41,7 +39,6 @@ const MediaFormModal = ({
       manualCreateQuery,
       onSubmit: handleSubmit,
       onCancel: onClose,
-      onBackToSearch: onBackToSearch,
       loading,
     };
 
@@ -88,8 +85,6 @@ const MediaFormModal = ({
     onClose={onClose}
     title={getTitle()}
     size="lg"
-    showBackButton={showBackToSearch} 
-    onBack={onBackToSearch}
   >
     <div className="p-6 bg-gray-800">
       {getFormComponent()}

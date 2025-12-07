@@ -8,7 +8,9 @@ import MediaFilters from '@/components/media/media-filters/MediaFilters';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
 import { Plus } from 'lucide-react';
-import MyAnimeListSearch from '@/components/search/MyAnimeListSearch';
+import SearchResults from '@/components/search/SearchResults';
+import InlineSearch from '@/components/search/InlineSearch';
+import { useMyAnimeListSearch } from '@/lib/hooks/use-myanimelist'; // Importe o hook
 
 export default function MangasPage() {
   const { getMediaByType, addMedia, updateMedia } = useMediaStore();
@@ -18,8 +20,12 @@ export default function MangasPage() {
   const [viewMode, setViewMode] = React.useState('grid');
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingMedia, setEditingMedia] = React.useState(null);
-  const [isMangaSearchOpen, setIsMangaSearchOpen] = React.useState(false);
   const [selectedMangaData, setSelectedMangaData] = React.useState(null);
+  const [inlineSearchQuery, setInlineSearchQuery] = React.useState('');
+  
+  // Use o hook com mediaType='manga'
+  const { results, loading, error } = useMyAnimeListSearch(inlineSearchQuery, 'manga');
+  
   const mangas = getMediaByType('manga');
 
   const filteredMangas = mangas.filter(manga => {
@@ -61,24 +67,28 @@ export default function MangasPage() {
   const handleFormClose = () => {
     setIsFormOpen(false);
     setEditingMedia(null);
+    setSelectedMangaData(null);
+    setManualCreateQuery(null);
   };
 
   const handleSelectManga = (mangaData) => {
     setSelectedMangaData(mangaData);
     setManualCreateQuery(null);
     setIsFormOpen(true);
+    setInlineSearchQuery('');
   };
 
-  const handleManualCreate = (query) => {
-    setManualCreateQuery(query);
-    setSelectedMangaData(null);
-    setIsFormOpen(true);
+  const handleManualCreate = () => {
+    if (inlineSearchQuery.trim()) {
+      setManualCreateQuery(inlineSearchQuery.trim());
+      setSelectedMangaData(null);
+      setIsFormOpen(true);
+      setInlineSearchQuery('');
+    }
   };
 
-  const handleBackToSearch = () => {
-    setIsFormOpen(false);
-    setSelectedMangaData(null);
-    setIsMangaSearchOpen(true);
+  const handleInlineSearch = (query) => {
+    setInlineSearchQuery(query);
   };
 
   return (
@@ -93,13 +103,41 @@ export default function MangasPage() {
                 Acompanhe os mangás que você leu, está lendo ou planeja ler.
               </p>
             </div>
-            <Button
-              variant="primary"
-              icon={Plus}
-              onClick={() => setIsMangaSearchOpen(true)}
-            >
-              Buscar Mangá
-            </Button>
+            <div className="relative w-full sm:w-auto">
+              <InlineSearch
+                placeholder="Buscar mangás no MyAnimeList..."
+                onSearch={handleInlineSearch}
+                mediaType="manga"
+                className="w-full sm:w-96"
+              >
+                <SearchResults
+                  results={results}
+                  loading={loading}
+                  error={error}
+                  mediaType="manga"
+                  onSelect={handleSelectManga}
+                  query={inlineSearchQuery}
+                />
+              </InlineSearch>
+              {inlineSearchQuery && !loading && results.length === 0 && (
+                <div className="absolute top-full mt-1 w-full">
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
+                    <p className="text-gray-400 mb-3">
+                      Não encontramos "{inlineSearchQuery}" no MyAnimeList
+                    </p>
+                    <Button
+                      variant="outline"
+                      icon={Plus}
+                      onClick={handleManualCreate}
+                      size="sm"
+                      className="w-full"
+                    >
+                      Adicionar manualmente
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Stats */}
@@ -168,21 +206,9 @@ export default function MangasPage() {
         </div>
       </div>
 
-      <MyAnimeListSearch
-        isOpen={isMangaSearchOpen}
-        onClose={() => setIsMangaSearchOpen(false)}
-        onSelectMedia={handleSelectManga}
-        onManualCreate={handleManualCreate}
-        mediaType="manga"
-      />
       <MediaFormModal
         isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false);
-          setSelectedMangaData(null);
-          setManualCreateQuery(null);
-        }}
-        onBackToSearch={selectedMangaData ? handleBackToSearch : undefined} 
+        onClose={handleFormClose}
         mediaType="manga"
         initialData={editingMedia || undefined}
         externalData={selectedMangaData}

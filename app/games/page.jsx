@@ -1,5 +1,3 @@
-// /entertrack/app/games/page.jsx
-
 'use client';
 
 import React from 'react';
@@ -10,7 +8,9 @@ import MediaFilters from '@/components/media/media-filters/MediaFilters';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
 import { Plus } from 'lucide-react';
-import RAWGSearchGames from '@/components/search/RAWGSearchGames';
+import InlineSearch from '@/components/search/InlineSearch';
+import SearchResults from '@/components/search/SearchResults';
+import { useRAWGSearch } from '@/lib/hooks/use-rawg-games'; // Importe o hook
 
 export default function GamesPage() {
   const { getMediaByType, addMedia, updateMedia } = useMediaStore();
@@ -20,8 +20,12 @@ export default function GamesPage() {
   const [viewMode, setViewMode] = React.useState('grid');
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingMedia, setEditingMedia] = React.useState(null);
-  const [isGameSearchOpen, setIsGameSearchOpen] = React.useState(false);
   const [selectedGameData, setSelectedGameData] = React.useState(null);
+  const [inlineSearchQuery, setInlineSearchQuery] = React.useState('');
+  
+  // Use o hook correto
+  const { games: searchResults, loading, error } = useRAWGSearch(inlineSearchQuery);
+  
   const games = getMediaByType('game');
 
   const filteredGames = games.filter(game => {
@@ -63,24 +67,28 @@ export default function GamesPage() {
   const handleFormClose = () => {
     setIsFormOpen(false);
     setEditingMedia(null);
+    setSelectedGameData(null);
+    setManualCreateQuery(null);
   };
 
   const handleSelectGame = (gameData) => {
     setSelectedGameData(gameData);
     setManualCreateQuery(null);
     setIsFormOpen(true);
+    setInlineSearchQuery('');
   };
 
-  const handleManualCreate = (query) => {
-    setManualCreateQuery(query);
-    setSelectedGameData(null);
-    setIsFormOpen(true);
+  const handleManualCreate = () => {
+    if (inlineSearchQuery.trim()) {
+      setManualCreateQuery(inlineSearchQuery.trim());
+      setSelectedGameData(null);
+      setIsFormOpen(true);
+      setInlineSearchQuery('');
+    }
   };
 
-  const handleBackToSearch = () => {
-    setIsFormOpen(false);
-    setSelectedGameData(null);
-    setIsGameSearchOpen(true);
+  const handleInlineSearch = (query) => {
+    setInlineSearchQuery(query);
   };
 
   return (
@@ -95,13 +103,41 @@ export default function GamesPage() {
                 Acompanhe os jogos que você jogou, está jogando ou planeja jogar.
               </p>
             </div>
-            <Button
-              variant="primary"
-              icon={Plus}
-              onClick={() => setIsGameSearchOpen(true)}
-            >
-              Buscar Jogo
-            </Button>
+            <div className="relative w-full sm:w-auto">
+              <InlineSearch
+                placeholder="Buscar jogos no RAWG..."
+                onSearch={handleInlineSearch}
+                mediaType="game"
+                className="w-full sm:w-96"
+              >
+                <SearchResults
+                  results={searchResults}
+                  loading={loading}
+                  error={error}
+                  mediaType="game"
+                  onSelect={handleSelectGame}
+                  query={inlineSearchQuery}
+                />
+              </InlineSearch>
+              {inlineSearchQuery && !loading && searchResults.length === 0 && (
+                <div className="absolute top-full mt-1 w-full">
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
+                    <p className="text-gray-400 mb-3">
+                      Não encontramos "{inlineSearchQuery}" no RAWG
+                    </p>
+                    <Button
+                      variant="outline"
+                      icon={Plus}
+                      onClick={handleManualCreate}
+                      size="sm"
+                      className="w-full"
+                    >
+                      Adicionar manualmente
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Stats */}
@@ -170,20 +206,9 @@ export default function GamesPage() {
         </div>
       </div>
 
-      <RAWGSearchGames
-        isOpen={isGameSearchOpen}
-        onClose={() => setIsGameSearchOpen(false)}
-        onSelectGame={handleSelectGame}
-        onManualCreate={handleManualCreate}
-      />
       <MediaFormModal
         isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false);
-          setSelectedGameData(null);
-          setManualCreateQuery(null);
-        }}
-        onBackToSearch={selectedGameData ? handleBackToSearch : undefined} 
+        onClose={handleFormClose}
         mediaType="game"
         initialData={editingMedia || undefined}
         externalData={selectedGameData}

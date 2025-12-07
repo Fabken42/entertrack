@@ -19,9 +19,7 @@ const animeSchema = z.object({
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   progress: z.object({
     currentEpisode: z.number().min(0).optional(),
-    totalEpisodes: z.number().min(1).optional(),
     currentSeason: z.number().min(1).optional(),
-    totalSeasons: z.number().min(1).optional(),
   }).optional(),
 });
 
@@ -61,21 +59,38 @@ const AnimeForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  const status = watch('status');
-  const showProgressFields = status === 'in_progress' || status === 'completed';
-
   const handleSubmit = (baseData) => {
     const formData = {
       ...baseData,
       mediaType: 'anime',
-      progress: showProgressFields ? {
+      progress: baseData.status === 'in_progress' ? {
         currentEpisode: baseData.progress?.currentEpisode || 0,
-        totalEpisodes: baseData.progress?.totalEpisodes || 0,
         currentSeason: baseData.progress?.currentSeason || 1,
-        totalSeasons: baseData.progress?.totalSeasons || 1,
       } : undefined,
     };
     props.onSubmit(formData);
+  };
+
+  // Componente para os campos específicos
+  const AnimeSpecificFields = ({ currentStatus, register, errors }) => {
+    const showSeasonEpisode = currentStatus === 'in_progress';
+    
+    if (!showSeasonEpisode) return null;
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-700">
+        
+        {showSeasonEpisode && (
+          <Input
+            label="Episódio Atual"
+            type="number"
+            {...register('progress.currentEpisode', { valueAsNumber: true })}
+            error={errors.progress?.currentEpisode?.message}
+            placeholder="12"
+          />
+        )}
+      </div>
+    );
   };
 
   return (
@@ -90,41 +105,10 @@ const AnimeForm = (props) => {
       selectedRating={selectedRating}
       onRatingChange={handleRatingChange}
     >
-      {showProgressFields && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-700">
-          <Input
-            label="Episódio Atual"
-            type="number"
-            {...register('progress.currentEpisode', { valueAsNumber: true })}
-            error={errors.progress?.currentEpisode?.message}
-            placeholder="12"
-          />
-
-          <Input
-            label="Total de Episódios"
-            type="number"
-            {...register('progress.totalEpisodes', { valueAsNumber: true })}
-            error={errors.progress?.totalEpisodes?.message}
-            placeholder="24"
-          />
-
-          <Input
-            label="Temporada Atual"
-            type="number"
-            {...register('progress.currentSeason', { valueAsNumber: true })}
-            error={errors.progress?.currentSeason?.message}
-            placeholder="1"
-          />
-
-          <Input
-            label="Total de Temporadas"
-            type="number"
-            {...register('progress.totalSeasons', { valueAsNumber: true })}
-            error={errors.progress?.totalSeasons?.message}
-            placeholder="4"
-          />
-        </div>
-      )}
+      <AnimeSpecificFields 
+        register={register}
+        errors={errors}
+      />
     </BaseMediaForm>
   );
 };

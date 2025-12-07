@@ -7,3 +7,4 @@ export { default as Rating } from './rating/Rating';
 export { default as ProgressBar } from './progress-bar/ProgressBar';
 export { default as Search } from './search/Search';
 export { default as Pagination } from './pagination/Pagination';
+export { default as TextArea } from './text-area/TextArea';

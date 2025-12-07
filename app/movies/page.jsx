@@ -1,4 +1,3 @@
-// /entertrack/app/movies/page.jsx
 'use client';
 
 import React from 'react';
@@ -9,7 +8,9 @@ import MediaFilters from '@/components/media/media-filters/MediaFilters';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
 import { Plus } from 'lucide-react';
-import TMDBSearch from '@/components/search/TMDBSearch';
+import SearchResults from '@/components/search/SearchResults';
+import InlineSearch from '@/components/search/InlineSearch';
+import { useTMDBSearch } from '@/lib/hooks/use-tmdb'; // Importe o hook
 
 export default function MoviesPage() {
   const { getMediaByType, addMedia, updateMedia } = useMediaStore();
@@ -19,8 +20,12 @@ export default function MoviesPage() {
   const [viewMode, setViewMode] = React.useState('grid');
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingMedia, setEditingMedia] = React.useState(null);
-  const [isMovieSearchOpen, setIsMovieSearchOpen] = React.useState(false);
   const [selectedMovieData, setSelectedMovieData] = React.useState(null);
+  const [inlineSearchQuery, setInlineSearchQuery] = React.useState('');
+  
+  // Use o hook com mediaType='movie'
+  const { results, loading, error } = useTMDBSearch(inlineSearchQuery, 'movie');
+  
   const movies = getMediaByType('movie');
 
   const filteredMovies = movies.filter(movie => {
@@ -62,24 +67,28 @@ export default function MoviesPage() {
   const handleFormClose = () => {
     setIsFormOpen(false);
     setEditingMedia(null);
+    setSelectedMovieData(null);
+    setManualCreateQuery(null);
   };
 
   const handleSelectMovie = (movieData) => {
     setSelectedMovieData(movieData);
     setManualCreateQuery(null);
     setIsFormOpen(true);
+    setInlineSearchQuery('');
   };
 
-  const handleManualCreate = (query) => {
-    setManualCreateQuery(query);
-    setSelectedMovieData(null);
-    setIsFormOpen(true);
+  const handleManualCreate = () => {
+    if (inlineSearchQuery.trim()) {
+      setManualCreateQuery(inlineSearchQuery.trim());
+      setSelectedMovieData(null);
+      setIsFormOpen(true);
+      setInlineSearchQuery('');
+    }
   };
 
-  const handleBackToSearch = () => {
-    setIsFormOpen(false);
-    setSelectedMovieData(null);
-    setIsMovieSearchOpen(true);
+  const handleInlineSearch = (query) => {
+    setInlineSearchQuery(query);
   };
 
   return (
@@ -94,13 +103,41 @@ export default function MoviesPage() {
                 Acompanhe os filmes que você assistiu, está assistindo ou planeja assistir.
               </p>
             </div>
-            <Button
-              variant="primary"
-              icon={Plus}
-              onClick={() => setIsMovieSearchOpen(true)}
-            >
-              Buscar Filme
-            </Button>
+            <div className="relative w-full sm:w-auto">
+              <InlineSearch
+                placeholder="Buscar filmes no TMDB..."
+                onSearch={handleInlineSearch}
+                mediaType="movie"
+                className="w-full sm:w-96"
+              >
+                <SearchResults
+                  results={results}
+                  loading={loading}
+                  error={error}
+                  mediaType="movie"
+                  onSelect={handleSelectMovie}
+                  query={inlineSearchQuery}
+                />
+              </InlineSearch>
+              {inlineSearchQuery && !loading && results.length === 0 && (
+                <div className="absolute top-full mt-1 w-full">
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
+                    <p className="text-gray-400 mb-3">
+                      Não encontramos "{inlineSearchQuery}" no TMDB
+                    </p>
+                    <Button
+                      variant="outline"
+                      icon={Plus}
+                      onClick={handleManualCreate}
+                      size="sm"
+                      className="w-full"
+                    >
+                      Adicionar manualmente
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Stats */}
@@ -169,21 +206,10 @@ export default function MoviesPage() {
         </div>
       </div>
 
-      <TMDBSearch
-        isOpen={isMovieSearchOpen}
-        onClose={() => setIsMovieSearchOpen(false)}
-        onSelectMedia={handleSelectMovie}
-        onManualCreate={handleManualCreate}
-        mediaType="movie"
-      />
       <MediaFormModal
         isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false);
-          setSelectedMovieData(null);
-          setManualCreateQuery(null);
-        }}
-        onBackToSearch={selectedMovieData ? handleBackToSearch : undefined} mediaType="movie"
+        onClose={handleFormClose}
+        mediaType="movie"
         initialData={editingMedia || undefined}
         externalData={selectedMovieData}
         manualCreateQuery={manualCreateQuery}

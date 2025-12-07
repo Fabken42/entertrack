@@ -3,6 +3,21 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 
 const Select = React.forwardRef(({ className, label, error, options, ...props }, ref) => {
+  // 🔥 REMOVER DUPLICATAS das options antes de renderizar
+  const uniqueOptions = React.useMemo(() => {
+    const seen = new Set();
+    return options.filter(option => {
+      if (seen.has(option.value)) {
+        console.warn(`⚠️ Select: Duplicate option value found: ${option.value} - ${option.label}`);
+        return false;
+      }
+      seen.add(option.value);
+      return true;
+    });
+  }, [options]);
+
+  console.log('🔍 Select options:', { original: options.length, unique: uniqueOptions.length });
+
   return (
     <div className="w-full">
       {label && (
@@ -19,8 +34,13 @@ const Select = React.forwardRef(({ className, label, error, options, ...props },
         )}
         {...props}
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-gray-800 text-white">
+        {uniqueOptions.map((option, index) => (
+          // 🔥 Adicionar index ao key para garantir unicidade mesmo com valores duplicados
+          <option 
+            key={`${option.value}-${index}-${Math.random().toString(36).substr(2, 9)}`} 
+            value={option.value} 
+            className="bg-gray-800 text-white"
+          >
             {option.label}
           </option>
         ))}

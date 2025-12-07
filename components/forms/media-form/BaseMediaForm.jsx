@@ -72,6 +72,7 @@ const BaseMediaForm = ({
       rating: initialData.rating,
       comment: initialData.comment,
       imageUrl: initialData.imageUrl,
+      status: initialData.status,
     } : externalData ? {
       title: externalData.title,
       description: externalData.description,
@@ -90,6 +91,7 @@ const BaseMediaForm = ({
   });
 
   const currentStatus = watch('status');
+  const showRatingAndComment = currentStatus === 'completed' || currentStatus === 'dropped'; // 🔥 NOVO
 
   const getApiSourceLabel = () => {
     switch (mediaType) {
@@ -135,7 +137,8 @@ const BaseMediaForm = ({
   const onSubmitForm = (data) => {
     onSubmit({
       ...data,
-      rating: selectedRating,
+      rating: showRatingAndComment ? selectedRating : undefined, // 🔥 Só envia rating se permitido
+      comment: showRatingAndComment ? data.comment : undefined, // 🔥 Só envia comment se permitido
       genres: selectedGenres,
       ...(externalData && {
         externalId: externalData.externalId,
@@ -470,31 +473,40 @@ const BaseMediaForm = ({
           options={statusOptions}
         />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Sua avaliação
-          </label>
-          <RatingComponent
-            value={selectedRating}
-            onChange={handleRatingChangeInternal}
-            showLabel
-          />
-        </div>
+        {/* 🔥 MODIFICAÇÃO: Só mostrar avaliação e comentário quando o status for completed ou dropped */}
+        {showRatingAndComment && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Sua avaliação
+              </label>
+              <RatingComponent
+                value={selectedRating}
+                onChange={handleRatingChangeInternal}
+                showLabel
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Seu comentário
-          </label>
-          <textarea
-            {...register('comment')}
-            rows={3}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400"
-            placeholder="Compartilhe suas impressões..."
-          />
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Seu comentário
+              </label>
+              <textarea
+                {...register('comment')}
+                rows={3}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400"
+                placeholder="Compartilhe suas impressões..."
+              />
+            </div>
+          </>
+        )}
       </div>
 
-      {children}
+      {React.Children.map(children, child =>
+        React.isValidElement(child)
+          ? React.cloneElement(child, { currentStatus })
+          : child
+      )}
 
       <div className="flex justify-end gap-4 pt-6 border-t border-gray-700">
         <Button

@@ -1,4 +1,3 @@
-// /entertrack/app/animes/page.jsx
 'use client';
 
 import React from 'react';
@@ -9,7 +8,9 @@ import MediaFilters from '@/components/media/media-filters/MediaFilters';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
 import { Plus } from 'lucide-react';
-import MyAnimeListSearch from '@/components/search/MyAnimeListSearch';
+import InlineSearch from '@/components/search/InlineSearch';
+import SearchResults from '@/components/search/SearchResults';
+import { useMyAnimeListSearch } from '@/lib/hooks/use-myanimelist';
 
 export default function AnimesPage() {
   const { getMediaByType, addMedia, updateMedia } = useMediaStore();
@@ -19,7 +20,8 @@ export default function AnimesPage() {
   const [viewMode, setViewMode] = React.useState('grid');
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingMedia, setEditingMedia] = React.useState(null);
-  const [isAnimeSearchOpen, setIsAnimeSearchOpen] = React.useState(false);
+  const [inlineSearchQuery, setInlineSearchQuery] = React.useState('');
+  const { results, loading, error } = useMyAnimeListSearch(inlineSearchQuery, 'anime');
   const [selectedAnimeData, setSelectedAnimeData] = React.useState(null);
   const animes = getMediaByType('anime');
 
@@ -62,24 +64,28 @@ export default function AnimesPage() {
   const handleFormClose = () => {
     setIsFormOpen(false);
     setEditingMedia(null);
+    setSelectedAnimeData(null);
+    setManualCreateQuery(null);
   };
 
   const handleSelectAnime = (animeData) => {
     setSelectedAnimeData(animeData);
     setManualCreateQuery(null);
     setIsFormOpen(true);
+    setInlineSearchQuery('');
   };
 
-  const handleManualCreate = (query) => {
-    setManualCreateQuery(query);
-    setSelectedAnimeData(null);
-    setIsFormOpen(true);
+  const handleManualCreate = () => {
+    if (inlineSearchQuery.trim()) {
+      setManualCreateQuery(inlineSearchQuery.trim());
+      setSelectedAnimeData(null);
+      setIsFormOpen(true);
+      setInlineSearchQuery('');
+    }
   };
 
-  const handleBackToSearch = () => {
-    setIsFormOpen(false);
-    setSelectedAnimeData(null);
-    setIsAnimeSearchOpen(true);
+  const handleInlineSearch = (query) => {
+    setInlineSearchQuery(query);
   };
 
   return (
@@ -94,13 +100,41 @@ export default function AnimesPage() {
                 Acompanhe os animes que você assistiu, está assistindo ou planeja assistir.
               </p>
             </div>
-            <Button
-              variant="primary"
-              icon={Plus}
-              onClick={() => setIsAnimeSearchOpen(true)}
-            >
-              Buscar Anime
-            </Button>
+            <div className="relative w-full sm:w-auto">
+              <InlineSearch
+                placeholder="Buscar animes no MyAnimeList..."
+                onSearch={handleInlineSearch}
+                mediaType="anime"
+                className="w-full sm:w-96"
+              >
+                <SearchResults
+                  results={results}
+                  loading={loading}
+                  error={error}
+                  mediaType="anime"
+                  onSelect={handleSelectAnime}
+                  query={inlineSearchQuery}
+                />
+              </InlineSearch>
+              {inlineSearchQuery && !loading && results.length === 0 && (
+                <div className="absolute top-full mt-1 w-full">
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
+                    <p className="text-gray-400 mb-3">
+                      Não encontramos "{inlineSearchQuery}" no MyAnimeList
+                    </p>
+                    <Button
+                      variant="outline"
+                      icon={Plus}
+                      onClick={handleManualCreate}
+                      size="sm"
+                      className="w-full"
+                    >
+                      Adicionar manualmente
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Stats */}
@@ -169,21 +203,9 @@ export default function AnimesPage() {
         </div>
       </div>
 
-      <MyAnimeListSearch
-        isOpen={isAnimeSearchOpen}
-        onClose={() => setIsAnimeSearchOpen(false)}
-        onSelectMedia={handleSelectAnime}
-        onManualCreate={handleManualCreate}
-        mediaType='anime'
-      />
       <MediaFormModal
         isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false);
-          setSelectedAnimeData(null);
-          setManualCreateQuery(null);
-        }}
-        onBackToSearch={selectedAnimeData ? handleBackToSearch : undefined}
+        onClose={handleFormClose}
         mediaType="anime"
         initialData={editingMedia || undefined}
         externalData={selectedAnimeData}

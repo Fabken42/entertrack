@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { tmdbClient } from '@/lib/api/tmdb';
 import { rawgClient } from '@/lib/api/rawg';
-import { malClient } from '@/lib/api/myanimelist';
+import { jikanClient } from '@/lib/api/jikan';
 import { googleBooksClient } from '@/lib/api/google-books';
 
 export async function GET(request, { params }) {
@@ -28,11 +28,11 @@ export async function GET(request, { params }) {
         }));
         break;
       case 'animes':
-        const animeGenres = await malClient.getGenres('anime'); 
+        const animeGenres = await jikanClient.getGenres('anime'); 
         genres = animeGenres;
         break;
       case 'mangas':
-        const mangaGenres = await malClient.getGenres('manga'); 
+        const mangaGenres = await jikanClient.getGenres('manga'); 
         genres = mangaGenres;
         break;
       case 'books':

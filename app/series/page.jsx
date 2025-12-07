@@ -8,18 +8,24 @@ import MediaFilters from '@/components/media/media-filters/MediaFilters';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
 import { Plus } from 'lucide-react';
-import TMDBSearch from '@/components/search/TMDBSearch';
+import SearchResults from '@/components/search/SearchResults';
+import InlineSearch from '@/components/search/InlineSearch';
+import { useTMDBSearch } from '@/lib/hooks/use-tmdb'; // Importe o hook
 
 export default function SeriesPage() {
   const { getMediaByType, addMedia, updateMedia } = useMediaStore();
   const [statusFilter, setStatusFilter] = React.useState('all');
-  const [isSeriesSearchOpen, setIsSeriesSearchOpen] = React.useState(false);
+  const [manualCreateQuery, setManualCreateQuery] = React.useState(null);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [viewMode, setViewMode] = React.useState('grid');
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingMedia, setEditingMedia] = React.useState(null);
   const [selectedSeriesData, setSelectedSeriesData] = React.useState(null);
-
+  const [inlineSearchQuery, setInlineSearchQuery] = React.useState('');
+  
+  // Use o hook com mediaType='series'
+  const { results, loading, error } = useTMDBSearch(inlineSearchQuery, 'series');
+  
   const series = getMediaByType('series');
 
   const filteredSeries = series.filter(item => {
@@ -40,7 +46,9 @@ export default function SeriesPage() {
 
   const handleSelectSeries = (seriesData) => {
     setSelectedSeriesData(seriesData);
+    setManualCreateQuery(null);
     setIsFormOpen(true);
+    setInlineSearchQuery('');
   };
 
   const handleAddSeries = async (data) => {
@@ -66,12 +74,21 @@ export default function SeriesPage() {
   const handleFormClose = () => {
     setIsFormOpen(false);
     setEditingMedia(null);
+    setSelectedSeriesData(null);
+    setManualCreateQuery(null);
+  };
+  
+  const handleManualCreate = () => {
+    if (inlineSearchQuery.trim()) {
+      setManualCreateQuery(inlineSearchQuery.trim());
+      setSelectedSeriesData(null);
+      setIsFormOpen(true);
+      setInlineSearchQuery('');
+    }
   };
 
-  const handleBackToSearch = () => {
-    setIsFormOpen(false);
-    setSelectedSeriesData(null);
-    setIsSeriesSearchOpen(true);
+  const handleInlineSearch = (query) => {
+    setInlineSearchQuery(query);
   };
 
   return (
@@ -86,13 +103,41 @@ export default function SeriesPage() {
                 Acompanhe suas séries favoritas e nunca perca um episódio.
               </p>
             </div>
-            <Button
-              variant="primary"
-              icon={Plus}
-              onClick={() => setIsSeriesSearchOpen(true)}
-            >
-              Buscar Série
-            </Button>
+            <div className="relative w-full sm:w-auto">
+              <InlineSearch
+                placeholder="Buscar séries no TMDB..."
+                onSearch={handleInlineSearch}
+                mediaType="series"
+                className="w-full sm:w-96"
+              >
+                <SearchResults
+                  results={results}
+                  loading={loading}
+                  error={error}
+                  mediaType="series"
+                  onSelect={handleSelectSeries}
+                  query={inlineSearchQuery}
+                />
+              </InlineSearch>
+              {inlineSearchQuery && !loading && results.length === 0 && (
+                <div className="absolute top-full mt-1 w-full">
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
+                    <p className="text-gray-400 mb-3">
+                      Não encontramos "{inlineSearchQuery}" no TMDB
+                    </p>
+                    <Button
+                      variant="outline"
+                      icon={Plus}
+                      onClick={handleManualCreate}
+                      size="sm"
+                      className="w-full"
+                    >
+                      Adicionar manualmente
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Stats */}
@@ -162,21 +207,12 @@ export default function SeriesPage() {
           {/* Form Modal */}
           <MediaFormModal
             isOpen={isFormOpen}
-            onClose={() => {
-              setIsFormOpen(false);
-              setSelectedSeriesData(null);
-            }}
-            onBackToSearch={selectedSeriesData ? handleBackToSearch : undefined}
+            onClose={handleFormClose}
             mediaType="series"
             initialData={editingMedia || undefined}
             externalData={selectedSeriesData}
+            manualCreateQuery={manualCreateQuery}
             onSubmit={editingMedia ? handleEditSeries : handleAddSeries}
-          />
-          <TMDBSearch
-            isOpen={isSeriesSearchOpen}
-            onClose={() => setIsSeriesSearchOpen(false)}
-            onSelectMedia={handleSelectSeries}
-            mediaType="series"
           />
         </div>
       </div>

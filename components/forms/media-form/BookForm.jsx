@@ -1,5 +1,4 @@
 // /entertrack/components/forms/media-form/BookForm.jsx
-
 'use client';
 
 import React from 'react';
@@ -23,7 +22,6 @@ const bookSchema = z.object({
   // Campos específicos de livros
   progress: z.object({
     currentPage: z.number().min(0).optional(),
-    totalPages: z.number().min(1).optional(),
   }).optional(),
 });
 
@@ -32,13 +30,13 @@ const BookForm = (props) => {
     register,
     formState: { errors },
     watch,
+    setValue,
   } = useForm({
     resolver: zodResolver(bookSchema),
     defaultValues: props.initialData ? {
       ...props.initialData,
       progress: props.initialData.progress || {},
     } : props.externalData ? {
-      // Pré-preenche com dados externos
       title: props.externalData.title,
       description: props.externalData.description,
       releaseYear: props.externalData.releaseYear,
@@ -51,16 +49,12 @@ const BookForm = (props) => {
     },
   });
 
-  const status = watch('status');
-  const showProgressFields = status === 'in_progress' || status === 'completed';
-
   const handleSubmit = (baseData) => {
     const formData = {
       ...baseData,
       mediaType: 'book',
-      progress: showProgressFields ? {
+      progress: baseData.status === 'in_progress' ? {
         currentPage: baseData.progress?.currentPage || 0,
-        totalPages: baseData.progress?.totalPages || 0,
       } : undefined,
     };
     props.onSubmit(formData);
@@ -70,10 +64,28 @@ const BookForm = (props) => {
     props.initialData?.rating
   );
 
-  // E a função handleRatingChange:
   const handleRatingChange = (rating) => {
     setSelectedRating(rating);
     setValue('rating', rating, { shouldValidate: true });
+  };
+
+  // Componente para os campos específicos
+  const BookSpecificFields = ({ currentStatus, register, errors }) => {
+    const showCurrentPage = currentStatus === 'in_progress';
+    
+    if (!showCurrentPage) return null;
+    
+    return (
+      <div className="pt-6 border-t border-gray-700">
+        <Input
+          label="Página Atual"
+          type="number"
+          {...register('progress.currentPage', { valueAsNumber: true })}
+          error={errors.progress?.currentPage?.message}
+          placeholder="150"
+        />
+      </div>
+    );
   };
 
   return (
@@ -81,32 +93,17 @@ const BookForm = (props) => {
       mediaType="book"
       initialData={props.initialData}
       externalData={props.externalData}
+      manualCreateQuery={props.manualCreateQuery}
       onCancel={props.onCancel}
       loading={props.loading}
       onSubmit={handleSubmit}
       selectedRating={selectedRating}
       onRatingChange={handleRatingChange}
     >
-      {/* Campos específicos de livros */}
-      {showProgressFields && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-700">
-          <Input
-            label="Página Atual"
-            type="number"
-            {...register('progress.currentPage', { valueAsNumber: true })}
-            error={errors.progress?.currentPage?.message}
-            placeholder="150"
-          />
-
-          <Input
-            label="Total de Páginas"
-            type="number"
-            {...register('progress.totalPages', { valueAsNumber: true })}
-            error={errors.progress?.totalPages?.message}
-            placeholder="300"
-          />
-        </div>
-      )}
+      <BookSpecificFields 
+        register={register}
+        errors={errors}
+      />
     </BaseMediaForm>
   );
 };
