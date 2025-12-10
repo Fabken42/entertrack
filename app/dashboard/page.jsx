@@ -1,19 +1,17 @@
 // /dashboard/page.jsx
 'use client';
-import { Layout } from '@/components/layout';
 import { Card, CardContent, CardHeader } from '@/components/ui';
 import { useAuth } from '@/lib/hooks/use-auth';
 
 export default function DashboardPage() {
   const { user } = useAuth();
- 
+
   return (
-    <Layout>
-      <div className="p-6 ">
+      <div className="py-12">
         <div className="max-w-7xl mx-auto min-h-screen">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white">
-              Olá, {user?.name}! 👋
+              Olá, {user?.name || 'convidado'}! 👋
             </h1>
             <p className="text-gray-300 mt-2">
               Bem-vindo de volta! Aqui está o resumo dos seus entretenimentos.
@@ -74,6 +72,5 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
-    </Layout>
   );
 }

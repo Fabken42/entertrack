@@ -57,10 +57,14 @@ const MediaFormModal = ({
         return <GameForm {...formProps} />;
       default:
         return (
-          <div className="p-6">
-            <p className="text-center text-gray-600 py-8">
-              Formulário para {mediaType} não disponível
-            </p>
+          <div className="text-center py-12 space-y-4">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-white/5 rounded-full">
+              <span className="text-2xl">📁</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-1">Formulário não disponível</h3>
+              <p className="text-white/60">Para o tipo: {mediaType}</p>
+            </div>
           </div>
         );
     }
@@ -74,9 +78,15 @@ const MediaFormModal = ({
       anime: 'Anime',
       manga: 'Mangá', 
       book: 'Livro',
-      game: 'Game',
+      game: 'Jogo',
     };
     return `${action} ${typeNames[mediaType] || mediaType}`;
+  };
+
+  const getModalSize = () => {
+    if (externalData || initialData) return 'xl';
+    if (manualCreateQuery) return 'lg';
+    return 'md';
   };
 
  return (
@@ -84,9 +94,9 @@ const MediaFormModal = ({
     isOpen={isOpen} 
     onClose={onClose}
     title={getTitle()}
-    size="lg"
+    size={getModalSize()}
   >
-    <div className="p-6 bg-gray-800">
+    <div className="p-6 animate-fade-in">
       {getFormComponent()}
     </div>
   </Modal>

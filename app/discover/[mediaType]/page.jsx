@@ -1,10 +1,9 @@
 // /app/discover/[mediaType]/page.jsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Layout } from '@/components/layout';
-import { Button, Card, CardContent, Select, Input } from '@/components/ui';
+import { Button, Select, Input } from '@/components/ui';
 import { Grid, List, Star, TrendingUp, Calendar, Search, Users } from 'lucide-react';
 import Pagination from '../../../components/ui/pagination/Pagination';
 import MediaCard from '../../../components/media/media-card/MediaCard';
@@ -209,7 +208,7 @@ export default function DiscoverPage() {
   if (!mediaType) {
     return (
       <Layout>
-        <div className="p-6">
+        <div className="py-12">
           <div className="text-center py-12">
             <div className="text-gray-400 text-6xl mb-4">❓</div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -255,9 +254,9 @@ export default function DiscoverPage() {
   };
 
   return (
-    <Layout>
-      <div className="p-6">
-        <div className="max-w-7xl mx-auto">
+    <>
+      <div className="p-12">
+        <div className="max-w-7xl mx-auto min-h-screen">
           <div className="mb-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
               <div className="flex items-center gap-3">
@@ -440,6 +439,6 @@ export default function DiscoverPage() {
         externalData={selectedMediaData}
         onSubmit={editingMedia ? handleEditMedia : handleAddMedia}
       />
-    </Layout>
+    </>
   );
 }

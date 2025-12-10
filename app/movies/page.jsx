@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { Layout } from '@/components/layout';
 import { Button, Card, CardContent } from '@/components/ui';
 import MediaGrid from '@/components/media/media-grid/MediaGrid';
 import MediaFilters from '@/components/media/media-filters/MediaFilters';
@@ -92,7 +91,7 @@ export default function MoviesPage() {
   };
 
   return (
-    <Layout>
+    <>
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
@@ -215,6 +214,6 @@ export default function MoviesPage() {
         manualCreateQuery={manualCreateQuery}
         onSubmit={editingMedia ? handleEditMovie : handleAddMovie}
       />
-    </Layout>
+    </>
   );
 }

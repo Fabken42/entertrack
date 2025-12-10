@@ -1,20 +1,23 @@
+// /media/media-card/Card.jsx
+
 'use client';
 import React from 'react';
 import { cn } from '@/lib/utils';
 
 const Card = React.forwardRef(
-  ({ className, variant = 'default', ...props }, ref) => {
+  ({ className, variant = 'glass', ...props }, ref) => {
     const variants = {
-      default: 'bg-gray-800 border border-gray-700',
-      outline: 'border border-gray-600 bg-transparent',
-      elevated: 'bg-gray-800 shadow-lg border border-gray-600'
+      glass: 'glass border-white/10 hover:border-white/20',
+      outline: 'border border-white/20 bg-transparent hover:border-white/40',
+      elevated: 'glass border-white/10 shadow-lg hover:shadow-xl shadow-blue-500/5',
+      solid: 'bg-gray-800/50 border border-white/10 hover:bg-gray-800/80'
     };
 
     return (
       <div
         ref={ref}
         className={cn(
-          'rounded-lg transition-all duration-200',
+          'rounded-2xl transition-all duration-300',
           variants[variant],
           className
         )}
@@ -32,7 +35,7 @@ export const CardHeader = React.forwardRef(
       ref={ref}
       className={cn(
         'flex flex-col space-y-1.5 p-6',
-        withBorder && 'border-b border-gray-700',
+        withBorder && 'border-b border-white/10',
         className
       )}
       {...props}
@@ -56,7 +59,7 @@ export const CardFooter = React.forwardRef(
       ref={ref}
       className={cn(
         'flex items-center p-6 pt-0',
-        withBorder && 'border-t border-gray-700',
+        withBorder && 'border-t border-white/10',
         className
       )}
       {...props}

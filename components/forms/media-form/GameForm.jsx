@@ -86,52 +86,66 @@ const GameForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  // Componente para os campos específicos
   const GameSpecificFields = ({ currentStatus, register, errors }) => {
     const showPendingTasks = currentStatus === 'in_progress';
-    
+
     if (!showPendingTasks) return null;
-    
+
     return (
-      <div className="pt-6 border-t border-gray-700">
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Tarefas Pendentes no Jogo
-          </label>
-          
-          {/* Lista de tarefas */}
-          {pendingTasks.length > 0 ? (
-            <div className="space-y-2 mb-4">
-              {pendingTasks.map((task, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
-                >
-                  <span className="text-white flex-1">{task}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTask(index)}
-                    className="ml-2 text-red-400 hover:text-red-300"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+      <div className={cn(
+        "glass border border-white/10 rounded-xl p-6 space-y-4",
+        "border-l-4 border-purple-500/30"
+      )}>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20">
+            <GamepadIcon className="w-5 h-5 text-purple-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-white">Missões Pendentes</h3>
+            <p className="text-sm text-white/60">Adicione tarefas ou objetivos que ainda precisa completar</p>
+          </div>
+        </div>
+
+        {/* Lista de tarefas */}
+        {pendingTasks.length > 0 ? (
+          <div className="space-y-2 mb-4">
+            {pendingTasks.map((task, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-white/5 rounded-lg group hover:bg-white/10 transition-colors"
+              >
+                <div className="flex items-center gap-3 flex-1">
+                  <Target className="w-4 h-4 text-purple-400" />
+                  <span className="text-white">{task}</span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-gray-400 text-sm mb-4 italic">
-              Nenhuma tarefa adicionada ainda
-            </div>
-          )}
-          
-          {/* Campo para adicionar nova tarefa */}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTask(index)}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-all duration-200"
+                  aria-label="Remover tarefa"
+                >
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 mb-4 bg-white/5 rounded-lg border border-dashed border-white/10">
+            <Trophy className="w-8 h-8 text-white/30 mb-2" />
+            <p className="text-white/60 text-sm italic">Nenhuma missão adicionada ainda</p>
+            <p className="text-white/40 text-xs mt-1">Adicione suas próximas conquistas</p>
+          </div>
+        )}
+
+        {/* Campo para adicionar nova tarefa */}
+        <div className="space-y-3">
           <div className="flex gap-2">
             <Input
               type="text"
               value={newTask}
               onChange={(e) => setNewTask(e.target.value)}
-              placeholder="Digite uma tarefa pendente..."
-              className="flex-1"
+              placeholder="Ex: Conquistar troféu platina, Completar modo história..."
+              variant="glass"
               onKeyPress={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -145,14 +159,24 @@ const GameForm = (props) => {
               onClick={handleAddTask}
               className="whitespace-nowrap"
               icon={Plus}
+              disabled={!newTask.trim()}
             >
               Adicionar
             </Button>
           </div>
-          
-          <p className="text-xs text-gray-400 mt-2">
-            Exemplos: Conquistar troféu X, Completar missão Y, Encontrar item Z
-          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            {['Conquistar todos os troféus', 'Completar modo difícil', 'Encontrar todos os segredos', 'Farmar 100k moedas'].map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => setNewTask(suggestion)}
+                className="text-xs text-white/60 hover:text-white p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors text-left"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -170,7 +194,8 @@ const GameForm = (props) => {
       selectedRating={selectedRating}
       onRatingChange={handleRatingChange}
     >
-      <GameSpecificFields 
+      <GameSpecificFields
+        currentStatus={watch('status')}
         register={register}
         errors={errors}
       />

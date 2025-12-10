@@ -1,12 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Loader2, Tv, Film, Book, GamepadIcon, Users, TrendingUp, Star } from 'lucide-react';
+import { Loader2, Tv, Film, Book, GamepadIcon, Users, TrendingUp, Star, Calendar, Clock, BookOpen, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-// Função para normalizar os resultados de diferentes APIs
 const normalizeSearchResults = (results, mediaType) => {
   if (!results || !Array.isArray(results)) return [];
-  
+
   if (mediaType === 'book') {
     return results.map(book => ({
       id: book.id,
@@ -47,7 +47,7 @@ const normalizeSearchResults = (results, mediaType) => {
       title: mediaType === 'movie' ? item.title : item.name,
       description: item.overview,
       imageUrl: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
-      releaseYear: mediaType === 'movie' ? 
+      releaseYear: mediaType === 'movie' ?
         (item.release_date ? new Date(item.release_date).getFullYear() : undefined) :
         (item.first_air_date ? new Date(item.first_air_date).getFullYear() : undefined),
       genres: [], // TMDB não fornece gêneros na busca básica
@@ -86,40 +86,46 @@ const SearchResults = ({
         title: 'Animes',
         icon: Tv,
         singular: 'anime',
-        plural: 'animes'
+        plural: 'animes',
+        color: 'text-pink-400'
       },
       movie: {
         title: 'Filmes',
         icon: Film,
         singular: 'filme',
-        plural: 'filmes'
+        plural: 'filmes',
+        color: 'text-cyan-400'
       },
       series: {
         title: 'Séries',
         icon: Tv,
         singular: 'série',
-        plural: 'séries'
+        plural: 'séries',
+        color: 'text-green-400'
       },
       manga: {
         title: 'Mangás',
-        icon: Book,
+        icon: BookOpen,
         singular: 'mangá',
-        plural: 'mangás'
+        plural: 'mangás',
+        color: 'text-red-400'
       },
       book: {
         title: 'Livros',
         icon: Book,
         singular: 'livro',
-        plural: 'livros'
+        plural: 'livros',
+        color: 'text-yellow-400'
       },
       game: {
         title: 'Jogos',
         icon: GamepadIcon,
         singular: 'jogo',
-        plural: 'jogos'
+        plural: 'jogos',
+        color: 'text-purple-400'
       }
     };
-    return configs[mediaType] || { title: 'Resultados', icon: null, singular: 'item', plural: 'itens' };
+    return configs[mediaType] || { title: 'Resultados', icon: null, singular: 'item', plural: 'itens', color: 'text-gray-400' };
   };
 
   const config = getMediaTypeConfig();
@@ -152,10 +158,18 @@ const SearchResults = ({
 
   if (loading) {
     return (
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-        <div className="p-4 text-center">
-          <Loader2 className="animate-spin mx-auto h-8 w-8 text-blue-500" />
-          <p className="text-gray-400 mt-2">Buscando {config.plural}...</p>
+      <div className="glass border border-white/10 rounded-2xl shadow-2xl max-h-96 overflow-y-auto">
+        <div className="p-8 text-center space-y-4">
+          <div className="relative inline-block">
+            <div className="w-12 h-12 border-3 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+            </div>
+          </div>
+          <div>
+            <p className="text-white/90 font-medium">Buscando {config.plural}</p>
+            <p className="text-sm text-white/60 mt-1">Aguarde enquanto procuramos por você...</p>
+          </div>
         </div>
       </div>
     );
@@ -163,9 +177,12 @@ const SearchResults = ({
 
   if (error) {
     return (
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
-        <div className="p-4 text-center text-red-400">
-          {error}
+      <div className="glass border border-red-500/20 rounded-2xl shadow-lg">
+        <div className="p-6 text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-red-500/10 rounded-full mb-3">
+            <span className="text-red-400 text-2xl">!</span>
+          </div>
+          <p className="text-red-300 font-medium">{error}</p>
         </div>
       </div>
     );
@@ -174,9 +191,15 @@ const SearchResults = ({
   if (!query || normalizedResults.length === 0) {
     if (query && normalizedResults.length === 0) {
       return (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
-          <div className="p-4 text-center text-gray-400">
-            Não encontramos "{query}"
+        <div className="glass border border-white/10 rounded-2xl shadow-lg">
+          <div className="p-8 text-center space-y-3">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-white/5 rounded-full">
+              <Search className="w-6 h-6 text-white/40" />
+            </div>
+            <div>
+              <p className="text-white/90 font-medium">Nenhum resultado encontrado</p>
+              <p className="text-sm text-white/60 mt-1">Não encontramos "<span className="text-white/80">{query}</span>"</p>
+            </div>
           </div>
         </div>
       );
@@ -185,165 +208,189 @@ const SearchResults = ({
   }
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-      <div className="p-4">
-        <div className="flex items-center gap-2 text-lg font-semibold text-white mb-3">
-          {MediaIcon && <MediaIcon className="w-5 h-5" />}
-          <span>{normalizedResults.length} {config.plural} encontrados</span>
+    <div className="glass border border-white/10 rounded-2xl shadow-2xl max-h-[500px] overflow-y-auto backdrop-blur-xl">
+      {/* Header */}
+      <div className="sticky top-0 z-10 p-4 border-b border-white/10 bg-gray-900/80 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {MediaIcon && (
+              <div className={cn("p-2 rounded-xl bg-white/5", config.color)}>
+                <MediaIcon className="w-5 h-5" />
+              </div>
+            )}
+            <div>
+              <h3 className="font-semibold text-white">
+                {normalizedResults.length} {normalizedResults.length === 1 ? `${config.singular} encontrado` : `${config.plural} encontrados`}
+              </h3>
+              <p className="text-sm text-white/60">Para: "<span className="text-white/80">{query}</span>"</p>
+            </div>
+          </div>
+          <div className="px-3 py-1.5 bg-white/5 rounded-full text-sm text-white/60">
+            {normalizedResults.length} itens
+          </div>
         </div>
-        
-        <div className="space-y-3">
-          {normalizedResults.map((item) => (
+      </div>
+
+      {/* Results List */}
+      <div className="p-3 space-y-2">
+        {normalizedResults.map((item, index) => {
+          const ratingDisplay = formatRating(item.rating);
+          const isHighRating = item.rating && item.rating >= 7.5;
+
+          return (
             <button
               key={item.id}
               onClick={() => onSelect(item)}
-              className="w-full flex items-start gap-4 p-4 rounded-lg border border-gray-600 hover:border-blue-500 hover:bg-gray-700 transition-colors text-left group"
-            >
-              {/* Imagem */}
-              {item.imageUrl ? (
-                <img
-                  src={item.imageUrl}
-                  alt={item.title}
-                  className="w-16 h-24 object-cover rounded-lg flex-shrink-0"
-                  onError={(e) => {
-                    e.target.src = '/placeholder-image.jpg';
-                  }}
-                />
-              ) : (
-                <div className="w-16 h-24 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
-                  {MediaIcon && <MediaIcon className="w-8 h-8 text-gray-500" />}
-                </div>
+              className={cn(
+                'w-full flex items-start gap-4 p-4 rounded-xl text-left group relative overflow-hidden transition-all duration-300',
+                'hover:bg-white/10 hover:border-white/20 border border-white/5',
+                'hover:shadow-lg hover:shadow-blue-500/10',
+                'hover-lift'
               )}
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              {/* Gradient background effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+
+              {/* Imagem */}
+              <div className="relative flex-shrink-0">
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    className="w-16 h-24 object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => {
+                      e.target.src = '/placeholder-image.jpg';
+                    }}
+                  />
+                ) : (
+                  <div className="w-16 h-24 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg flex items-center justify-center border border-white/10">
+                    {MediaIcon && <MediaIcon className="w-8 h-8 text-white/20" />}
+                  </div>
+                )}
+
+                {/* Badge de rating */}
+                {ratingDisplay && (
+                  <div className={cn(
+                    "absolute -top-2 -right-2 px-2 py-1 rounded-full text-xs font-semibold backdrop-blur-sm",
+                    "border border-white/10 shadow-lg",
+                    isHighRating
+                      ? "bg-gradient-to-r from-yellow-900/80 to-yellow-800/80 text-yellow-200"
+                      : "bg-gradient-to-r from-gray-900/80 to-gray-800/80 text-white/80"
+                  )}>
+                    <div className="flex items-center gap-1">
+                      <Star className="w-3 h-3 fill-current" />
+                      <span>{ratingDisplay}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Conteúdo */}
-              <div className="flex-1 min-w-0">
-                {/* Título e Nota */}
-                <div className="flex items-start justify-between mb-2">
-                  <h4 className="font-semibold text-white text-lg group-hover:text-blue-400 transition-colors">
-                    {item.title}
-                  </h4>
-                  
-                  {item.rating && (
-                    <div className="flex items-center gap-1 bg-yellow-900 text-yellow-300 px-2 py-1 rounded-full text-sm font-medium">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span>{formatRating(item.rating)}</span>
-                      {item.scoreCount && (
-                        <span className="text-xs text-yellow-400 ml-1">
-                          ({item.scoreCount.toLocaleString()})
-                        </span>
-                      )}
-                    </div>
+              <div className="flex-1 min-w-0 space-y-2">
+                {/* Título e informações básicas */}
+                <div className="space-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="font-semibold text-white text-lg group-hover:text-blue-400 transition-colors truncate">
+                      {item.title}
+                    </h4>
+                  </div>
+
+                  {/* Título em Inglês */}
+                  {item.englishTitle && item.englishTitle !== item.title && (
+                    <p className="text-sm text-white/60 italic truncate">
+                      {item.englishTitle}
+                    </p>
                   )}
                 </div>
 
-                {/* Título em Inglês (se disponível e diferente) */}
-                {item.englishTitle && item.englishTitle !== item.title && (
-                  <p className="text-sm text-gray-400 mb-2">
-                    {item.englishTitle}
-                  </p>
-                )}
-
                 {/* Informações específicas */}
-                <div className="text-sm text-gray-400 mb-2 space-y-1">
+                <div className="flex flex-wrap gap-2">
+                  {/* Anos e status */}
+                  {item.releaseYear && (
+                    <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
+                      <Calendar className="w-3 h-3" />
+                      <span>{item.releaseYear}</span>
+                    </div>
+                  )}
+
                   {/* Animes */}
                   {mediaType === 'anime' && item.episodes && (
-                    <p>{item.episodes} episódios{item.releaseYear && ` • ${item.releaseYear}`}</p>
+                    <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
+                      <span>{item.episodes} episódios</span>
+                    </div>
                   )}
 
                   {/* Mangás */}
                   {mediaType === 'manga' && (
-                    <p>
-                      {item.volumes ? `${item.volumes} volumes` : '? volumes'}
-                      {item.chapters && ` • ${item.chapters} capítulos`}
-                      {item.releaseYear && ` • ${item.releaseYear}`}
-                    </p>
+                    <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
+                      <span>
+                        {item.volumes ? `${item.volumes} vol` : '? vol'}
+                        {item.chapters && ` • ${item.chapters} cap`}
+                      </span>
+                    </div>
                   )}
 
                   {/* Filmes */}
-                  {mediaType === 'movie' && (
-                    <p>
-                      {item.releaseYear && `${item.releaseYear}`}
-                      {item.runtime && ` • ${item.runtime} min`}
-                    </p>
+                  {mediaType === 'movie' && item.runtime && (
+                    <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
+                      <Clock className="w-3 h-3" />
+                      <span>{item.runtime} min</span>
+                    </div>
                   )}
 
                   {/* Séries */}
-                  {mediaType === 'series' && (
-                    <p>
-                      {item.releaseYear && `Estreia: ${item.releaseYear}`}
-                      {item.numberOfSeasons && ` • ${item.numberOfSeasons} temporada${item.numberOfSeasons > 1 ? 's' : ''}`}
-                      {item.numberOfEpisodes && ` • ${item.numberOfEpisodes} episódios`}
-                    </p>
+                  {mediaType === 'series' && item.numberOfSeasons && (
+                    <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
+                      <span>{item.numberOfSeasons} temporada{item.numberOfSeasons > 1 ? 's' : ''}</span>
+                    </div>
                   )}
 
-                  {/* Livros */}
+                  {/* Livros - Autores */}
                   {mediaType === 'book' && item.metadata?.authors && item.metadata.authors.length > 0 && (
-                    <p>{item.metadata.authors.join(', ')}</p>
-                  )}
-
-                  {/* Jogos */}
-                  {mediaType === 'game' && item.releaseYear && (
-                    <p>Lançamento: {item.releaseYear}</p>
+                    <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full truncate max-w-[200px]">
+                      <span className="truncate">{item.metadata.authors.join(', ')}</span>
+                    </div>
                   )}
                 </div>
 
                 {/* Descrição */}
                 {item.description && (
-                  <p className="text-sm text-gray-400 line-clamp-2 mb-2">
+                  <p className="text-sm text-white/60 line-clamp-2 group-hover:line-clamp-3 transition-all">
                     {item.description}
                   </p>
                 )}
 
-                {/* Metadados da API */}
-                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                  {/* MyAnimeList */}
-                  {(item.scoreCount || item.popularity || item.members) && (
-                    <>
-                      {item.scoreCount && (
-                        <span>
-                          <strong className="text-gray-400">{item.scoreCount.toLocaleString()}</strong> votos
-                        </span>
-                      )}
-                      {item.popularity && (
-                        <span className="flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" />
-                          {formatPopularity(item.popularity)}
-                        </span>
-                      )}
-                      {item.members && (
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3 h-3" />
-                          {formatMembers(item.members)}
-                        </span>
-                      )}
-                    </>
+                {/* Estatísticas */}
+                <div className="flex items-center gap-4 pt-2 border-t border-white/10">
+                  {/* Contagem de votos/avaliações - UNIFICADO */}
+                  {item.scoreCount && (
+                    <div className="flex items-center gap-1 text-xs text-white/60">
+                      <span className="font-medium text-white/80">{item.scoreCount.toLocaleString()}</span>
+                      <span>votos</span>
+                    </div>
                   )}
-
-                  {/* TMDB, Google Books, RAWG */}
-                  {item.scoreCount && !item.members && (
-                    <span>
-                      <strong className="text-gray-400">{item.scoreCount.toLocaleString()}</strong> avaliações
-                    </span>
+                  
+                  {/* Popularidade */}
+                  {item.popularity && (
+                    <div className="flex items-center gap-1 text-xs text-white/60">
+                      <TrendingUp className="w-3 h-3" />
+                      <span>{formatPopularity(item.popularity)}</span>
+                    </div>
+                  )}
+                  
+                  {/* Membros */}
+                  {item.members && (
+                    <div className="flex items-center gap-1 text-xs text-white/60">
+                      <Users className="w-3 h-3" />
+                      <span>{formatMembers(item.members)} membros</span>
+                    </div>
                   )}
                 </div>
-
-                {/* Status */}
-                {item.status && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="inline-block px-2 py-1 bg-gray-700 text-gray-300 rounded-full text-xs capitalize">
-                      {item.status.replace('_', ' ')}
-                    </span>
-                    {item.rank && (
-                      <span className="inline-block px-2 py-1 bg-yellow-900 text-yellow-300 rounded-full text-xs">
-                        Rank #{item.rank}
-                      </span>
-                    )}
-                  </div>
-                )}
               </div>
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
     </div>
   );

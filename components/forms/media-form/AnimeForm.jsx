@@ -6,7 +6,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import BaseMediaForm from './BaseMediaForm';
-import { Input } from '@/components/ui';
+import { Input, Select } from '@/components/ui';
+import { Tv, Calendar, Hash } from 'lucide-react';
 
 const animeSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -78,17 +79,35 @@ const AnimeForm = (props) => {
     if (!showSeasonEpisode) return null;
     
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-700">
+      <div className="glass border border-white/10 rounded-xl p-6 space-y-6">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-pink-500/20 to-purple-500/20">
+            <Tv className="w-5 h-5 text-pink-400" />
+          </div>
+          <h3 className="font-semibold text-white">Progresso do Anime</h3>
+        </div>
         
-        {showSeasonEpisode && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Input
             label="Episódio Atual"
             type="number"
+            icon={Hash}
             {...register('progress.currentEpisode', { valueAsNumber: true })}
             error={errors.progress?.currentEpisode?.message}
             placeholder="12"
+            variant="glass"
           />
-        )}
+          
+          <Input
+            label="Temporada Atual"
+            type="number"
+            icon={Calendar}
+            {...register('progress.currentSeason', { valueAsNumber: true })}
+            error={errors.progress?.currentSeason?.message}
+            placeholder="1"
+            variant="glass"
+          />
+        </div>
       </div>
     );
   };
@@ -106,6 +125,7 @@ const AnimeForm = (props) => {
       onRatingChange={handleRatingChange}
     >
       <AnimeSpecificFields 
+        currentStatus={watch('status')}
         register={register}
         errors={errors}
       />

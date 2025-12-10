@@ -68,33 +68,75 @@ const SeriesForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  // Componente para os campos específicos
   const SeriesSpecificFields = ({ currentStatus, register, errors }) => {
     const showSeasonEpisode = currentStatus === 'in_progress';
-    
+
     if (!showSeasonEpisode) return null;
-    
+
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-700">
-        {showSeasonEpisode && (
-          <Input
-            label="Temporada Atual"
-            type="number"
-            {...register('progress.currentSeason', { valueAsNumber: true })}
-            error={errors.progress?.currentSeason?.message}
-            placeholder="1"
-          />
-        )}
-        
-        {showSeasonEpisode && (
-          <Input
-            label="Episódio Atual"
-            type="number"
-            {...register('progress.currentEpisode', { valueAsNumber: true })}
-            error={errors.progress?.currentEpisode?.message}
-            placeholder="5"
-          />
-        )}
+      <div className={cn(
+        "glass border border-white/10 rounded-xl p-6 space-y-4",
+        "border-l-4 border-green-500/30"
+      )}>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20">
+            <Tv className="w-5 h-5 text-green-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-white">Progresso da Série</h3>
+            <p className="text-sm text-white/60">Em qual temporada e episódio você está?</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded bg-white/5">
+                <Calendar className="w-4 h-4 text-green-400" />
+              </div>
+              <h5 className="text-sm font-medium text-white">Temporada Atual</h5>
+            </div>
+
+            <Input
+              label="Temporada"
+              type="number"
+              icon={Calendar}
+              {...register('progress.currentSeason', { valueAsNumber: true })}
+              error={errors.progress?.currentSeason?.message}
+              placeholder="1"
+              variant="glass"
+              min={1}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded bg-white/5">
+                <Hash className="w-4 h-4 text-green-400" />
+              </div>
+              <h5 className="text-sm font-medium text-white">Episódio Atual</h5>
+            </div>
+
+            <Input
+              label="Episódio"
+              type="number"
+              icon={Hash}
+              {...register('progress.currentEpisode', { valueAsNumber: true })}
+              error={errors.progress?.currentEpisode?.message}
+              placeholder="5"
+              variant="glass"
+              min={0}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mt-4 p-3 bg-white/5 rounded-lg border border-white/10">
+          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+          <div>
+            <p className="text-sm text-white/80">Dica:</p>
+            <p className="text-xs text-white/60">Episódio 0 indica que ainda não começou a temporada</p>
+          </div>
+        </div>
       </div>
     );
   };
@@ -111,7 +153,8 @@ const SeriesForm = (props) => {
       selectedRating={selectedRating}
       onRatingChange={handleRatingChange}
     >
-      <SeriesSpecificFields 
+      <SeriesSpecificFields
+        currentStatus={watch('status')}
         register={register}
         errors={errors}
       />

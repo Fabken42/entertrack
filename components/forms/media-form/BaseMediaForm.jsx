@@ -4,8 +4,9 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Button, Input, Select, Rating as RatingComponent } from '@/components/ui';
-import { Users, TrendingUp, Star } from 'lucide-react';
+import { Button, Input, Select, Rating as RatingComponent, TextArea } from '@/components/ui'; 
+import { Users, TrendingUp, Star, Calendar, BookOpen, Film, Tv, GamepadIcon, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const baseMediaSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -18,21 +19,15 @@ const baseMediaSchema = z.object({
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
 });
 
-// Função para formatar números (membros)
 const formatMembers = (members) => {
-  if (!members) return 'N/A';
-  if (members >= 1000000) {
-    return (members / 1000000).toFixed(1) + 'M';
-  }
-  if (members >= 1000) {
-    return (members / 1000).toFixed(1) + 'K';
-  }
+  if (!members) return '—';
+  if (members >= 1000000) return (members / 1000000).toFixed(1) + 'M';
+  if (members >= 1000) return (members / 1000).toFixed(1) + 'K';
   return members.toString();
 };
 
-// Função para formatar popularidade
 const formatPopularity = (popularity) => {
-  if (!popularity) return 'N/A';
+  if (!popularity) return '—';
   return `#${popularity.toLocaleString('pt-BR')}`;
 };
 
@@ -91,7 +86,31 @@ const BaseMediaForm = ({
   });
 
   const currentStatus = watch('status');
-  const showRatingAndComment = currentStatus === 'completed' || currentStatus === 'dropped'; // 🔥 NOVO
+  const showRatingAndComment = currentStatus === 'completed' || currentStatus === 'dropped';
+
+  const getMediaIcon = () => {
+    switch (mediaType) {
+      case 'movie': return Film;
+      case 'series': return Tv;
+      case 'anime': return Tv;
+      case 'manga': return BookOpen;
+      case 'book': return BookOpen;
+      case 'game': return GamepadIcon;
+      default: return Sparkles;
+    }
+  };
+
+  const getMediaColor = () => {
+    switch (mediaType) {
+      case 'movie': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+      case 'series': return 'bg-green-500/20 text-green-300 border-green-500/30';
+      case 'anime': return 'bg-pink-500/20 text-pink-300 border-pink-500/30';
+      case 'manga': return 'bg-red-500/20 text-red-300 border-red-500/30';
+      case 'book': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+      case 'game': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+      default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+    }
+  };
 
   const getApiSourceLabel = () => {
     switch (mediaType) {
@@ -121,30 +140,23 @@ const BaseMediaForm = ({
     setValue('genres', newGenres, { shouldValidate: true });
   };
 
-  // FUNÇÃO CORRIGIDA - usar nome diferente e chamar a prop
   const handleRatingChangeInternal = (rating) => {
-    // Atualizar estado local se necessário
-    if (setSelectedRating) {
-      setSelectedRating(rating);
-    }
-    setValue('rating', rating, { shouldValidate: true });
-    // Chamar a prop onRatingChange se existir
     if (onRatingChange) {
       onRatingChange(rating);
     }
+    setValue('rating', rating, { shouldValidate: true });
   };
 
   const onSubmitForm = (data) => {
     onSubmit({
       ...data,
-      rating: showRatingAndComment ? selectedRating : undefined, // 🔥 Só envia rating se permitido
-      comment: showRatingAndComment ? data.comment : undefined, // 🔥 Só envia comment se permitido
+      rating: showRatingAndComment ? selectedRating : undefined,
+      comment: showRatingAndComment ? data.comment : undefined,
       genres: selectedGenres,
       ...(externalData && {
         externalId: externalData.externalId,
         apiRating: externalData.apiRating,
         apiVoteCount: externalData.apiVoteCount,
-        // Adicionar dados específicos do MyAnimeList
         ...(mediaType === 'anime' && {
           episodes: externalData.episodes,
           popularity: externalData.popularity,
@@ -165,20 +177,18 @@ const BaseMediaForm = ({
   const formatApiRating = (rating, mediaType) => {
     if (!rating) return null;
 
-    // APIs que usam base 10: TMDB (filmes/séries) e MyAnimeList (animes/mangás)
     const base10Apis = ['movie', 'series', 'anime', 'manga'];
-    // APIs que usam base 5: RAWG (jogos) e Google Books (livros)
     const base5Apis = ['game', 'book'];
 
     if (base10Apis.includes(mediaType)) {
       return {
-        display: (rating / 2).toFixed(1), // Converte para base 5
+        display: (rating / 2).toFixed(1),
         original: rating.toFixed(1),
         base: 10
       };
     } else if (base5Apis.includes(mediaType)) {
       return {
-        display: rating.toFixed(1), // Mantém base 5
+        display: rating.toFixed(1),
         original: rating.toFixed(1),
         base: 5
       };
@@ -187,102 +197,84 @@ const BaseMediaForm = ({
     return {
       display: rating.toFixed(1),
       original: rating.toFixed(1),
-      base: 10 // Padrão
+      base: 10
     };
   };
 
   const statusOptions = [
-    { value: 'planned', label: 'Planejado' },
-    { value: 'in_progress', label: 'Em Progresso' },
-    { value: 'completed', label: 'Concluído' },
-    { value: 'dropped', label: 'Abandonado' },
+    { value: 'planned', label: '🟡 Planejado' },
+    { value: 'in_progress', label: '🔵 Em Progresso' },
+    { value: 'completed', label: '🟢 Concluído' },
+    { value: 'dropped', label: '🔴 Abandonado' },
   ];
 
   const availableGenres = ['Ação', 'Aventura', 'Comédia', 'Drama', 'Fantasia', 'Ficção Científica', 'Terror', 'Romance'];
 
+  const MediaIcon = getMediaIcon();
+  const mediaColor = getMediaColor();
+
   return (
-    <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
       {hasExternalData && (
-        <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-blue-300 mb-2">
-            📋 Dados importados {getApiSourceLabel()}
-          </h3>
+        <div className={cn("glass border rounded-xl p-6 space-y-4", mediaColor.replace('bg-', 'border-'))}>
+          <div className="flex items-center gap-3">
+            <div className={cn("p-2 rounded-lg", mediaColor)}>
+              <MediaIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white">
+                📋 Dados importados de {getApiSourceLabel()}
+              </h3>
+              <p className="text-sm text-white/60">Estes dados foram obtidos automaticamente</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {/* Avaliação */}
+            {/* Dados da API */}
             {externalData.apiRating && (
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-yellow-400" />
-                <span className="text-blue-300">Nota:</span>{' '}
-                <span className="font-medium text-white">
-                  {formatApiRating(externalData.apiRating, mediaType)?.display}/5
-                </span>
-                {externalData.apiVoteCount && (
-                  <span className="text-blue-400 text-xs">
-                    ({externalData.apiVoteCount.toLocaleString()} votos)
-                  </span>
-                )}
+              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                <div>
+                  <span className="text-white/80">Nota:</span>
+                  <div className="font-medium text-white">
+                    {formatApiRating(externalData.apiRating, mediaType)?.display}/5
+                  </div>
+                  {externalData.apiVoteCount && (
+                    <div className="text-xs text-white/60">
+                      ({externalData.apiVoteCount.toLocaleString()} votos)
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Popularidade */}
             {externalData.popularity && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <TrendingUp className="w-4 h-4 text-blue-400" />
-                <span className="text-blue-300">Popularidade:</span>{' '}
-                <span className="font-medium text-white">{formatPopularity(externalData.popularity)}</span>
+                <div>
+                  <span className="text-white/80">Popularidade:</span>
+                  <div className="font-medium text-white">{formatPopularity(externalData.popularity)}</div>
+                </div>
               </div>
             )}
 
-            {/* Membros */}
             {externalData.members && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Users className="w-4 h-4 text-green-400" />
-                <span className="text-blue-300">Membros:</span>{' '}
-                <span className="font-medium text-white">{formatMembers(externalData.members)}</span>
+                <div>
+                  <span className="text-white/80">Membros:</span>
+                  <div className="font-medium text-white">{formatMembers(externalData.members)}</div>
+                </div>
               </div>
             )}
 
-            {/* Rank */}
-            {externalData.rank && (
-              <div>
-                <span className="text-blue-300">Rank:</span>{' '}
-                <span className="font-medium text-white">#{externalData.rank}</span>
-              </div>
-            )}
-
-            {/* Ano */}
             {externalData.releaseYear && (
-              <div>
-                <span className="text-blue-300">Ano:</span>{' '}
-                <span className="font-medium text-white">{externalData.releaseYear}</span>
-              </div>
-            )}
-
-            {/* Episódios (anime) */}
-            {mediaType === 'anime' && externalData.episodes && (
-              <div>
-                <span className="text-blue-300">Episódios:</span>{' '}
-                <span className="font-medium text-white">{externalData.episodes}</span>
-              </div>
-            )}
-
-            {/* Volumes (manga) */}
-            {mediaType === 'manga' && (
-              <div>
-                <span className="text-blue-300">Volumes:</span>{' '}
-                <span className="font-medium text-white">
-                  {externalData.volumes || '?'}
-                </span>
-              </div>
-            )}
-
-            {/* Capítulos (manga) */}
-            {mediaType === 'manga' && (
-              <div>
-                <span className="text-blue-300">Capítulos:</span>{' '}
-                <span className="font-medium text-white">
-                  {externalData.chapters || '?'}
-                </span>
+              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                <Calendar className="w-4 h-4 text-white/60" />
+                <div>
+                  <span className="text-white/80">Ano:</span>
+                  <div className="font-medium text-white">{externalData.releaseYear}</div>
+                </div>
               </div>
             )}
           </div>
@@ -291,7 +283,10 @@ const BaseMediaForm = ({
 
       {hasExternalData && externalData.imageUrl && (
         <div className="flex justify-center">
-          <div className={`rounded-lg overflow-hidden border border-gray-600 ${mediaType === 'book' ? 'w-32 h-48' : 'w-48 h-64'}`}>
+          <div className={cn(
+            "rounded-xl overflow-hidden border glass",
+            mediaType === 'book' ? 'w-32 h-48' : 'w-48 h-64'
+          )}>
             <img
               src={externalData.imageUrl}
               alt={externalData.title}
@@ -302,8 +297,16 @@ const BaseMediaForm = ({
       )}
 
       {isManualEntry && (
-        <div className="space-y-6">
-          <h3 className="text-lg font-medium text-white">Informações Básicas</h3>
+        <div className="glass border border-white/10 rounded-xl p-6 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className={cn("p-2 rounded-lg", mediaColor)}>
+              <MediaIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white">Informações Básicas</h3>
+              <p className="text-sm text-white/60">Preencha os dados manualmente</p>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
@@ -311,14 +314,17 @@ const BaseMediaForm = ({
               {...register('title')}
               error={errors.title?.message}
               placeholder={`Título do ${mediaType}`}
+              variant="glass"
             />
 
             <Input
               label="Ano de Lançamento"
               type="number"
+              icon={Calendar}
               {...register('releaseYear', { valueAsNumber: true })}
               error={errors.releaseYear?.message}
               placeholder="2024"
+              variant="glass"
             />
 
             <div className="md:col-span-2">
@@ -327,27 +333,25 @@ const BaseMediaForm = ({
                 {...register('imageUrl')}
                 error={errors.imageUrl?.message}
                 placeholder="https://exemplo.com/imagem.jpg"
+                variant="glass"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-white mb-2">
               Descrição/Sinopse
             </label>
-            <textarea
+            <TextArea
               {...register('description')}
-              rows={4}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400"
               placeholder={`Descreva o ${mediaType}...`}
+              variant="glass"
+              rows={4}
             />
-            {errors.description && (
-              <p className="mt-1 text-sm text-red-400">{errors.description.message}</p>
-            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-white mb-2">
               Gêneros *
             </label>
             <div className="flex flex-wrap gap-2">
@@ -356,146 +360,71 @@ const BaseMediaForm = ({
                   key={genre}
                   type="button"
                   onClick={() => handleGenreToggle(genre)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${selectedGenres.includes(genre)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
+                    selectedGenres.includes(genre)
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+                      : 'bg-white/5 text-white/80 hover:bg-white/10'
+                  )}
                 >
                   {genre}
                 </button>
               ))}
             </div>
             {errors.genres && (
-              <p className="mt-1 text-sm text-red-400">{errors.genres.message}</p>
+              <p className="mt-2 text-sm text-red-400 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
+                {errors.genres.message}
+              </p>
             )}
           </div>
         </div>
       )}
 
-      {hasExternalData && (
-        <div className="space-y-4 border-t border-gray-700 pt-6">
-          <h3 className="text-lg font-medium text-white">
-            Informações do {getApiSourceLabel()}
-          </h3>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Título
-            </label>
-            <p className="text-white font-medium">{externalData.title}</p>
+      <div className="glass border border-white/10 rounded-xl p-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20">
+            <Star className="w-5 h-5 text-yellow-400" />
           </div>
-
-          {externalData.releaseYear && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Ano de Lançamento
-              </label>
-              <p className="text-white">{externalData.releaseYear}</p>
-            </div>
-          )}
-
-          {/* Informações específicas para animes */}
-          {mediaType === 'anime' && externalData.episodes && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Episódios
-              </label>
-              <p className="text-white">{externalData.episodes}</p>
-            </div>
-          )}
-
-          {/* Informações específicas para mangás */}
-          {mediaType === 'manga' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Volumes
-              </label>
-              <p className="text-white">{externalData.volumes || '?'}</p>
-            </div>
-          )}
-
-          {mediaType === 'manga' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Capítulos
-              </label>
-              <p className="text-white">{externalData.chapters || '?'}</p>
-            </div>
-          )}
-
-          {externalData.description && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Sinopse
-              </label>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                {externalData.description}
-              </p>
-            </div>
-          )}
-
-          {externalData.genres && externalData.genres.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Gêneros
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {externalData.genres.map((genre, index) => (
-                  <span
-                    key={typeof genre === 'object' ? genre.id || genre.name || index : genre}
-                    className={`px-3 py-1 text-sm rounded-full ${mediaType === 'book'
-                      ? 'bg-purple-900 text-purple-300'
-                      : mediaType === 'game'
-                        ? 'bg-green-900 text-green-300'
-                        : mediaType === 'anime' || mediaType === 'manga'
-                          ? 'bg-pink-900 text-pink-300'
-                          : 'bg-blue-900 text-blue-300'
-                      }`}
-                  >
-                    {typeof genre === 'object' ? genre.name : genre}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+          <div>
+            <h3 className="font-semibold text-white">
+              {hasExternalData ? 'Sua experiência' : 'Sua avaliação'}
+            </h3>
+            <p className="text-sm text-white/60">Como você avalia este conteúdo?</p>
+          </div>
         </div>
-      )}
-
-      <div className="border-t border-gray-700 pt-6 space-y-6">
-        <h3 className="text-lg font-medium text-white">
-          {hasExternalData ? 'Sua experiência' : 'Sua avaliação'}
-        </h3>
 
         <Select
           label="Status *"
           {...register('status')}
           error={errors.status?.message}
           options={statusOptions}
+          variant="glass"
         />
 
-        {/* 🔥 MODIFICAÇÃO: Só mostrar avaliação e comentário quando o status for completed ou dropped */}
         {showRatingAndComment && (
           <>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-white">
                 Sua avaliação
               </label>
               <RatingComponent
                 value={selectedRating}
                 onChange={handleRatingChangeInternal}
                 showLabel
+                size="lg"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-white mb-2">
                 Seu comentário
               </label>
-              <textarea
+              <TextArea
                 {...register('comment')}
-                rows={3}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400"
                 placeholder="Compartilhe suas impressões..."
+                variant="glass"
+                rows={3}
               />
             </div>
           </>
@@ -508,12 +437,13 @@ const BaseMediaForm = ({
           : child
       )}
 
-      <div className="flex justify-end gap-4 pt-6 border-t border-gray-700">
+      <div className="flex justify-end gap-4 pt-6 border-t border-white/10">
         <Button
           type="button"
           variant="outline"
           onClick={onCancel}
           disabled={loading}
+          className="min-w-[100px]"
         >
           Cancelar
         </Button>
@@ -521,8 +451,9 @@ const BaseMediaForm = ({
           type="submit"
           variant="primary"
           loading={loading}
+          className="min-w-[100px]"
         >
-          {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar manualmente'}
+          {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
         </Button>
       </div>
     </form>

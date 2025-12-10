@@ -1,3 +1,4 @@
+'use client';
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { Star } from 'lucide-react';
@@ -10,14 +11,16 @@ const Rating = ({
   onChange,
   size = 'md',
   readonly = false,
-  showLabel = false
+  showLabel = false,
+  className
 }) => {
   const [hoveredRating, setHoveredRating] = React.useState(null);
   
   const sizes = {
     sm: 'w-4 h-4',
     md: 'w-6 h-6',
-    lg: 'w-8 h-8'
+    lg: 'w-8 h-8',
+    xl: 'w-10 h-10'
   };
 
   const getStarColor = (ratingValue, index) => {
@@ -26,15 +29,15 @@ const Rating = ({
     const currentIndex = currentRating ? RATING_OPTIONS.indexOf(currentRating) : -1;
     
     if (index <= currentIndex) {
-      const colors = {
+      const gradients = {
         terrible: 'text-red-500',
         bad: 'text-orange-500',
-        ok: 'text-yellow-500',
-        good: 'text-lime-500',
-        great: 'text-green-500',
-        perfect: 'text-blue-500'
+        ok: 'text-yellow-400',
+        good: 'text-green-400',
+        great: 'text-emerald-500',
+        perfect: 'text-gradient-to-r from-blue-400 to-purple-400'
       };
-      return colors[ratingValue];
+      return gradients[ratingValue];
     }
     
     return 'text-gray-600';
@@ -47,10 +50,10 @@ const Rating = ({
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={cn('flex flex-col gap-3', className)}>
       <div 
         className={cn(
-          'flex gap-1',
+          'flex gap-1.5',
           !readonly && 'cursor-pointer'
         )}
       >
@@ -63,28 +66,44 @@ const Rating = ({
             onMouseEnter={() => !readonly && setHoveredRating(rating)}
             onMouseLeave={() => !readonly && setHoveredRating(null)}
             className={cn(
-              'transition-colors duration-150 disabled:cursor-default',
-              !readonly && 'hover:scale-110 transform transition-transform'
+              'transition-all duration-300 disabled:cursor-default group',
+              !readonly && 'hover:scale-110 transform'
             )}
+            aria-label={`Rate ${index + 1} stars`}
           >
-            <Star
-              className={cn(
-                sizes[size],
-                'fill-current transition-colors duration-150',
-                getStarColor(rating, index)
-              )}
-            />
+            <div className="relative">
+              <Star
+                className={cn(
+                  sizes[size],
+                  'text-gray-700 transition-all duration-300'
+                )}
+              />
+              <Star
+                className={cn(
+                  sizes[size],
+                  'fill-current absolute inset-0 transition-all duration-300',
+                  getStarColor(rating, index),
+                  !readonly && 'group-hover:drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+                )}
+              />
+            </div>
           </button>
         ))}
       </div>
       
       {showLabel && value && (
-        <span className={cn(
-          'text-sm font-medium transition-colors duration-150',
-          getStarColor(value, RATING_OPTIONS.indexOf(value))
-        )}>
-          {RATING_LABELS[value]}
-        </span>
+        <div className="flex items-center gap-2 animate-fade-in">
+          <span className={cn(
+            'text-sm font-semibold transition-all duration-300',
+            'bg-gradient-to-r from-gray-800 to-gray-900 px-3 py-1 rounded-full',
+            getStarColor(value, RATING_OPTIONS.indexOf(value))
+          )}>
+            {RATING_LABELS[value]}
+          </span>
+          <span className="text-xs text-gray-400">
+            ({RATING_OPTIONS.indexOf(value) + 1}/6)
+          </span>
+        </div>
       )}
     </div>
   );

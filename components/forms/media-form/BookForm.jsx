@@ -69,21 +69,38 @@ const BookForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  // Componente para os campos específicos
   const BookSpecificFields = ({ currentStatus, register, errors }) => {
     const showCurrentPage = currentStatus === 'in_progress';
-    
+
     if (!showCurrentPage) return null;
-    
+
     return (
-      <div className="pt-6 border-t border-gray-700">
+      <div className={cn(
+        "glass border border-white/10 rounded-xl p-6 space-y-4",
+        "border-l-4 border-yellow-500/30"
+      )}>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-yellow-500/20 to-orange-500/20">
+            <BookOpen className="w-5 h-5 text-yellow-400" />
+          </div>
+          <h3 className="font-semibold text-white">Progresso da Leitura</h3>
+        </div>
+
         <Input
           label="Página Atual"
           type="number"
+          icon={Hash}
           {...register('progress.currentPage', { valueAsNumber: true })}
           error={errors.progress?.currentPage?.message}
           placeholder="150"
+          variant="glass"
+          helperText="Em que página você parou de ler?"
         />
+
+        <div className="flex items-center gap-2 text-xs text-white/50 mt-2">
+          <div className="w-1.5 h-1.5 bg-yellow-500/50 rounded-full"></div>
+          <span>Para livros com progresso em andamento</span>
+        </div>
       </div>
     );
   };
@@ -100,12 +117,12 @@ const BookForm = (props) => {
       selectedRating={selectedRating}
       onRatingChange={handleRatingChange}
     >
-      <BookSpecificFields 
+      <BookSpecificFields
+        currentStatus={watch('status')}
         register={register}
         errors={errors}
       />
     </BaseMediaForm>
   );
 };
-
 export default BookForm;

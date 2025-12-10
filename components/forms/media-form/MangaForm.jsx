@@ -71,37 +71,64 @@ const MangaForm = (props) => {
     props.onSubmit(formData);
   };
 
-  // Componente para os campos específicos
   const MangaSpecificFields = ({ currentStatus, register, errors }) => {
     const showVolumePage = currentStatus === 'in_progress';
-    
-    if (!showVolumePage) return null;
-    
-    return (
-      <div className="space-y-6 pt-6 border-t border-gray-700">
-        <h4 className="text-md font-medium text-white">Progresso de Leitura</h4>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {showVolumePage && (
-            <div className="space-y-4">
-              <h5 className="text-sm font-medium text-gray-300">Posição Atual</h5>
-              <Input
-                label="Volume Atual"
-                type="number"
-                {...register('progress.currentVolume', { valueAsNumber: true })}
-                error={errors.progress?.currentVolume?.message}
-                placeholder="5"
-              />
 
-              <Input
-                label="Página Atual"
-                type="number"
-                {...register('progress.currentPage', { valueAsNumber: true })}
-                error={errors.progress?.currentPage?.message}
-                placeholder="42"
-              />
+    if (!showVolumePage) return null;
+
+    return (
+      <div className={cn(
+        "glass border border-white/10 rounded-xl p-6 space-y-4",
+        "border-l-4 border-red-500/30"
+      )}>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-red-500/20 to-orange-500/20">
+            <BookOpen className="w-5 h-5 text-red-400" />
+          </div>
+          <h3 className="font-semibold text-white">Progresso de Leitura</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded bg-white/5">
+                <Layers className="w-4 h-4 text-red-400" />
+              </div>
+              <h5 className="text-sm font-medium text-white">Posição Atual</h5>
             </div>
-          )}
+
+            <Input
+              label="Volume Atual"
+              type="number"
+              icon={Layers}
+              {...register('progress.currentVolume', { valueAsNumber: true })}
+              error={errors.progress?.currentVolume?.message}
+              placeholder="5"
+              variant="glass"
+            />
+
+            <Input
+              label="Página Atual"
+              type="number"
+              icon={Hash}
+              {...register('progress.currentPage', { valueAsNumber: true })}
+              error={errors.progress?.currentPage?.message}
+              placeholder="42"
+              variant="glass"
+            />
+          </div>
+
+          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+              <span className="text-sm font-medium text-white">Info de Mangá</span>
+            </div>
+            <div className="space-y-2 text-sm text-white/60">
+              <p>• Volume refere-se ao tankōbon</p>
+              <p>• Página dentro do volume atual</p>
+              <p>• Marque como "Concluído" quando finalizar</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -119,7 +146,8 @@ const MangaForm = (props) => {
       selectedRating={selectedRating}
       onRatingChange={handleRatingChange}
     >
-      <MangaSpecificFields 
+      <MangaSpecificFields
+        currentStatus={watch('status')}
         register={register}
         errors={errors}
       />
