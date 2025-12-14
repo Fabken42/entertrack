@@ -7,6 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import BaseMediaForm from './BaseMediaForm';
 import { Input } from '@/components/ui';
+import { BookOpen, Hash } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // Schema específico para livros
 const bookSchema = z.object({
@@ -16,7 +18,7 @@ const bookSchema = z.object({
   releaseYear: z.number().min(1900).max(new Date().getFullYear() + 5).optional(),
   genres: z.array(z.string()).min(1, 'Selecione pelo menos um gênero'),
   status: z.enum(['planned', 'in_progress', 'completed', 'dropped']),
-  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'great', 'perfect']).optional(),
+  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'perfect']).optional(),
   comment: z.string().optional(),
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   // Campos específicos de livros
@@ -53,7 +55,7 @@ const BookForm = (props) => {
     const formData = {
       ...baseData,
       mediaType: 'book',
-      progress: baseData.status === 'in_progress' ? {
+      progress: (baseData.status === 'in_progress' || baseData.status === 'dropped') ? {
         currentPage: baseData.progress?.currentPage || 0,
       } : undefined,
     };
@@ -70,7 +72,7 @@ const BookForm = (props) => {
   };
 
   const BookSpecificFields = ({ currentStatus, register, errors }) => {
-    const showCurrentPage = currentStatus === 'in_progress';
+    const showCurrentPage = currentStatus === 'in_progress' || currentStatus === 'dropped';
 
     if (!showCurrentPage) return null;
 

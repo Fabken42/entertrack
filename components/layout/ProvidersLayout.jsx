@@ -20,7 +20,7 @@ const ProvidersLayout = ({ children }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black bg-fixed flex flex-col">
       <Header showFullHeader={!isAuthenticated} />
       <div className="flex flex-1">
         <Sidebar />

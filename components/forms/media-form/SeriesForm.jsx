@@ -7,6 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import BaseMediaForm from './BaseMediaForm';
 import { Input } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { Tv, Calendar, Hash } from 'lucide-react';
 
 const seriesSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -14,7 +16,7 @@ const seriesSchema = z.object({
   releaseYear: z.number().min(1900).max(new Date().getFullYear() + 5).optional(),
   genres: z.array(z.string()).min(1, 'Selecione pelo menos um gênero'),
   status: z.enum(['planned', 'in_progress', 'completed', 'dropped']),
-  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'great', 'perfect']).optional(),
+  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'perfect']).optional(),
   comment: z.string().optional(),
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   progress: z.object({
@@ -24,6 +26,8 @@ const seriesSchema = z.object({
 });
 
 const SeriesForm = (props) => {
+  console.log('SeriesForm props:', props);
+
   const {
     register,
     formState: { errors },
@@ -51,7 +55,7 @@ const SeriesForm = (props) => {
     const formData = {
       ...baseData,
       mediaType: 'series',
-      progress: baseData.status === 'in_progress' ? {
+      progress: (baseData.status === 'in_progress' || baseData.status === 'dropped') ? {
         currentEpisode: baseData.progress?.currentEpisode || 0,
         currentSeason: baseData.progress?.currentSeason || 1,
       } : undefined,
@@ -69,7 +73,7 @@ const SeriesForm = (props) => {
   };
 
   const SeriesSpecificFields = ({ currentStatus, register, errors }) => {
-    const showSeasonEpisode = currentStatus === 'in_progress';
+    const showSeasonEpisode = currentStatus === 'in_progress' || currentStatus === 'dropped';
 
     if (!showSeasonEpisode) return null;
 
@@ -127,14 +131,6 @@ const SeriesForm = (props) => {
               variant="glass"
               min={0}
             />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 mt-4 p-3 bg-white/5 rounded-lg border border-white/10">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          <div>
-            <p className="text-sm text-white/80">Dica:</p>
-            <p className="text-xs text-white/60">Episódio 0 indica que ainda não começou a temporada</p>
           </div>
         </div>
       </div>

@@ -7,6 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import BaseMediaForm from './BaseMediaForm';
 import { Input } from '@/components/ui';
+import { Film, Hourglass, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // Schema específico para filmes
 const movieSchema = z.object({
@@ -16,7 +18,7 @@ const movieSchema = z.object({
   releaseYear: z.number().min(1900).max(new Date().getFullYear() + 5).optional(),
   genres: z.array(z.string()).min(1, 'Selecione pelo menos um gênero'),
   status: z.enum(['planned', 'in_progress', 'completed', 'dropped']),
-  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'great', 'perfect']).optional(),
+  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'perfect']).optional(),
   comment: z.string().optional(),
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   // Campos específicos de filmes
@@ -55,7 +57,7 @@ const MovieForm = (props) => {
     const formData = {
       ...baseData,
       mediaType: 'movie',
-      progress: baseData.status === 'in_progress' ? {
+      progress: (baseData.status === 'in_progress' || baseData.status === 'dropped') ? {
         currentTimeHours: baseData.progress?.currentTimeHours || 0,
         currentTimeMinutes: baseData.progress?.currentTimeMinutes || 0,
         currentTimeSeconds: baseData.progress?.currentTimeSeconds || 0,
@@ -74,7 +76,7 @@ const MovieForm = (props) => {
   };
 
   const MovieSpecificFields = ({ currentStatus, register, errors }) => {
-    const showCurrentTime = currentStatus === 'in_progress';
+    const showCurrentTime = currentStatus === 'in_progress' || currentStatus === 'dropped';
 
     if (!showCurrentTime) return null;
 

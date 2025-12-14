@@ -17,7 +17,9 @@ import {
   Library,
   LayoutDashboard,
   Users,
-  Sparkles
+  Sparkles,
+  Tv2,
+  BookText
 } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/use-auth';
 
@@ -92,10 +94,10 @@ const Sidebar = () => {
       items.push({
         name: 'Animes',
         href: '/animes',
-        icon: '🇯🇵',
+        icon: Tv2,
         color: 'text-pink-400'
       });
-      
+
       items.push({
         name: 'Mangás',
         href: '/mangas',
@@ -106,7 +108,7 @@ const Sidebar = () => {
       items.push({
         name: 'Livros',
         href: '/books',
-        icon: '📖',
+        icon: BookText,
         color: 'text-yellow-400'
       });
     }
@@ -144,7 +146,7 @@ const Sidebar = () => {
     items.push({
       name: 'Animes',
       href: '/discover/animes',
-      icon: '🇯🇵',
+      icon: Tv2,
       color: 'text-pink-400'
     });
 
@@ -158,7 +160,7 @@ const Sidebar = () => {
     items.push({
       name: 'Livros',
       href: '/discover/books',
-      icon: '📖',
+      icon: BookText,
       color: 'text-yellow-400'
     });
 
@@ -223,12 +225,12 @@ const Sidebar = () => {
       {/* Sidebar */}
       <aside
         className={cn(
-          'hidden lg:flex flex-col h-[calc(100vh-4rem)] bg-gray-900/95 backdrop-blur-xl border-r border-gray-800 fixed left-0 top-16 z-40 overflow-hidden transition-all duration-300 ease-in-out',
+          'hidden lg:flex flex-col h-[calc(100vh-4rem)] backdrop-blur-xl border-r border-gray-800 fixed left-0 top-16 z-40 overflow-hidden transition-all duration-300 ease-in-out',
           shouldShowExpanded ? 'w-64' : 'w-16'
         )}
         style={{
           boxShadow: '2px 0 30px rgba(0, 0, 0, 0.5)',
-          background: 'linear-gradient(180deg, rgba(17,24,39,0.98) 0%, rgba(31,41,55,0.95) 100%)'
+          background: 'rgba(30, 41, 59, 0.5)'
         }}
       >
         {/* Botão para recolher/expandir - SEMPRE VISÍVEL */}
@@ -256,7 +258,7 @@ const Sidebar = () => {
               </div>
               <div className="flex-1 overflow-hidden">
                 <div className="text-sm font-bold text-white truncate bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                  EnterTrack {isAuthenticated ? 'Pro' : ''}
+                  EnterTrack
                 </div>
                 <div className="text-xs text-gray-400 truncate">
                   {isAuthenticated ? `Olá, ${user?.name?.split(' ')[0] || 'Usuário'}` : 'Explore conteúdos'}
@@ -267,7 +269,7 @@ const Sidebar = () => {
         )}
 
         {/* Conteúdo da sidebar */}
-        <div className="flex-1 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900/50">
+        <div className="flex-1 py-4 overflow-y-auto sidebar-scrollbar">
           <nav className="space-y-1 px-2">
             {navigationItems.map((item, index) => {
               const isActive = !item.isTitle && (
@@ -275,13 +277,39 @@ const Sidebar = () => {
                 (item.href !== '/discover' && pathname.startsWith(item.href))
               );
 
-              // Se for um título/seção
+              // Se for um título/seção - MODIFICADO: Agora mostra ícone quando recolhida
               if (item.isTitle) {
-                if (!shouldShowExpanded) return null;
+                const isCollapsedState = !shouldShowExpanded;
+                
+                // Para estado recolhido: mostrar apenas o ícone como um item clicável visual
+                if (isCollapsedState) {
+                  return (
+                    <div
+                      key={`title-collapsed-${index}`}
+                      className="flex items-center justify-center px-3 py-3 mt-6 first:mt-2 relative group"
+                      title={item.name}
+                    >
+                      <div className="relative">
+                        {renderIcon(item, "w-6 h-6 opacity-80 group-hover:opacity-100 transition-opacity")}
+                        
+                        {/* Tooltip para ícone do título */}
+                        <div className="absolute left-full ml-3 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-2xl border border-gray-700 backdrop-blur-sm">
+                          <div className="font-bold">{item.name}</div>
+                          <div className="text-xs text-gray-300">Seção</div>
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+                        </div>
+                      </div>
+                      
+                      {/* Indicador visual para título recolhido */}
+                      <div className="absolute bottom-0 left-3 right-3 h-px bg-gradient-to-r from-transparent via-gray-700/30 to-transparent"></div>
+                    </div>
+                  );
+                }
 
+                // Para estado expandido: mostrar ícone + texto normalmente
                 return (
                   <div
-                    key={`title-${index}`}
+                    key={`title-expanded-${index}`}
                     className="px-3 py-2 mt-6 first:mt-2 relative"
                   >
                     <div className="text-xs font-bold text-gray-400 uppercase tracking-widest truncate flex items-center gap-2">
@@ -388,22 +416,166 @@ const Sidebar = () => {
 
       {/* Estilos globais */}
       <style jsx global>{`
-        .scrollbar-thin {
+        /* Estilo melhorado para scrollbar da sidebar */
+        .sidebar-scrollbar {
           scrollbar-width: thin;
+          scrollbar-color: rgba(99, 102, 241, 0.6) rgba(17, 24, 39, 0.2);
         }
-        .scrollbar-thin::-webkit-scrollbar {
-          width: 6px;
+        
+        .sidebar-scrollbar::-webkit-scrollbar {
+          width: 8px;
+          background: transparent;
         }
-        .scrollbar-thin::-webkit-scrollbar-track {
-          background: rgba(31, 41, 55, 0.3);
+        
+        .sidebar-scrollbar::-webkit-scrollbar-track {
+          background: rgba(17, 24, 39, 0.1);
           border-radius: 10px;
+          margin: 4px 0;
         }
-        .scrollbar-thin::-webkit-scrollbar-thumb {
-          background: linear-gradient(to bottom, #6b7280, #4b5563);
+        
+        .sidebar-scrollbar::-webkit-scrollbar-track:hover {
+          background: rgba(17, 24, 39, 0.3);
+        }
+        
+        .sidebar-scrollbar::-webkit-scrollbar-thumb {
+          background: linear-gradient(
+            to bottom,
+            rgba(59, 130, 246, 0.8),
+            rgba(139, 92, 246, 0.8)
+          );
           border-radius: 10px;
+          border: 2px solid rgba(17, 24, 39, 0.2);
+          transition: all 0.3s ease;
         }
-        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(to bottom, #9ca3af, #6b7280);
+        
+        .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(
+            to bottom,
+            rgba(59, 130, 246, 1),
+            rgba(139, 92, 246, 1)
+          );
+          border: 2px solid rgba(17, 24, 39, 0.4);
+          box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+        }
+        
+        .sidebar-scrollbar::-webkit-scrollbar-thumb:active {
+          background: linear-gradient(
+            to bottom,
+            rgba(29, 78, 216, 1),
+            rgba(124, 58, 237, 1)
+          );
+          border: 2px solid rgba(17, 24, 39, 0.5);
+        }
+        
+        /* Adicionar um glow sutil na parte superior e inferior da scrollbar */
+        .sidebar-scrollbar::-webkit-scrollbar-track:before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(59, 130, 246, 0.3),
+            transparent
+          );
+        }
+        
+        .sidebar-scrollbar::-webkit-scrollbar-track:after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(139, 92, 246, 0.3),
+            transparent
+          );
+        }
+        
+        /* Para Firefox */
+        .sidebar-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(50, 68, 97, 0.7) rgba(17, 24, 39, 0.2);
+        }
+        
+        /* Para navegadores antigos que não suportam scrollbar personalizada */
+        .sidebar-scrollbar {
+          -ms-overflow-style: -ms-autohiding-scrollbar;
+        }
+        
+        /* Ajustar o padding para a scrollbar não sobrepor o conteúdo */
+        .sidebar-scrollbar > nav {
+          padding-right: 2px;
+        }
+        
+        /* Animação sutil ao fazer scroll */
+        .sidebar-scrollbar::-webkit-scrollbar-thumb {
+          animation: fadeInScrollbar 0.5s ease-out;
+        }
+        
+        @keyframes fadeInScrollbar {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        /* Estilo quando a sidebar está recolhida */
+        aside.w-16 .sidebar-scrollbar {
+          scrollbar-width: none;
+        }
+        
+        aside.w-16 .sidebar-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        
+        /* Melhorar a experiência de rolagem com momentum scroll */
+        .sidebar-scrollbar {
+          -webkit-overflow-scrolling: touch;
+          scroll-behavior: smooth;
+        }
+        
+        /* Adicionar um efeito de brilho quando houver overflow */
+        .sidebar-scrollbar.has-overflow::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 20px;
+          background: linear-gradient(
+            to bottom,
+            rgba(31, 41, 55, 0.8),
+            transparent
+          );
+          pointer-events: none;
+          z-index: 10;
+        }
+        
+        .sidebar-scrollbar.has-overflow::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 20px;
+          background: linear-gradient(
+            to top,
+            rgba(31, 41, 55, 0.8),
+            transparent
+          );
+          pointer-events: none;
+          z-index: 10;
         }
       `}</style>
     </>

@@ -483,7 +483,7 @@ function processMangaResults(data, pagination, page, limit) {
       title: item.title,
       description: item.synopsis || 'Sem descrição disponível',
       imageUrl: jikanClient.getImageURL(item.images),
-      releaseYear: item.year,
+      releaseYear: item.published?.from ? new Date(item.published.from).getFullYear() : item.year,
       releaseDate: item.published?.from,
       rating: item.score || 0,
       rank: item.rank || 0,

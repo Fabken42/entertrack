@@ -1,3 +1,4 @@
+// /components/forms/media-form/MediaFormModal.jsx
 'use client';
 
 import React from 'react';
@@ -8,6 +9,7 @@ import AnimeForm from './AnimeForm';
 import MangaForm from './MangaForm';
 import BookForm from './BookForm';
 import GameForm from './GameForm';
+import toast from 'react-hot-toast';
 
 const MediaFormModal = ({
   isOpen,
@@ -16,19 +18,31 @@ const MediaFormModal = ({
   initialData,
   externalData,
   manualCreateQuery,
-  onSubmit
+  onSubmit 
 }) => {
   const [loading, setLoading] = React.useState(false);
 
-  const handleSubmit = async (data) => {
-    setLoading(true);
-    try {
-      await onSubmit(data);
-      onClose();
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-    } finally {
-      setLoading(false);
+  // A função onSubmit agora deve passar diretamente para os forms filhos
+  const handleFormSubmit = async (data) => {
+    console.log('MediaFormModal: handleFormSubmit called with:', data);
+    console.log('External data:', externalData);
+    console.log('Initial data:', initialData);
+
+    if (onSubmit) {
+      setLoading(true);
+      try {
+        // Passa os dados diretamente para a função onSubmit do DiscoverPage
+        await onSubmit(data);
+        onClose();
+      } catch (error) {
+        console.error('Error in MediaFormModal submit:', error);
+        toast.error('Erro ao salvar mídia');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      console.error('No onSubmit function provided to MediaFormModal');
+      toast.error('Erro: função de submit não encontrada');
     }
   };
 
@@ -37,7 +51,7 @@ const MediaFormModal = ({
       initialData,
       externalData,
       manualCreateQuery,
-      onSubmit: handleSubmit,
+      onSubmit: handleFormSubmit,
       onCancel: onClose,
       loading,
     };
@@ -49,7 +63,7 @@ const MediaFormModal = ({
         return <SeriesForm {...formProps} />;
       case 'anime':
         return <AnimeForm {...formProps} />;
-      case 'manga': 
+      case 'manga':
         return <MangaForm {...formProps} />;
       case 'book':
         return <BookForm {...formProps} />;
@@ -76,7 +90,7 @@ const MediaFormModal = ({
       movie: 'Filme',
       series: 'Série',
       anime: 'Anime',
-      manga: 'Mangá', 
+      manga: 'Mangá',
       book: 'Livro',
       game: 'Jogo',
     };
@@ -89,18 +103,18 @@ const MediaFormModal = ({
     return 'md';
   };
 
- return (
-  <Modal
-    isOpen={isOpen} 
-    onClose={onClose}
-    title={getTitle()}
-    size={getModalSize()}
-  >
-    <div className="p-6 animate-fade-in">
-      {getFormComponent()}
-    </div>
-  </Modal>
-);
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={getTitle()}
+      size={getModalSize()}
+    >
+      <div className="p-6 animate-fade-in">
+        {getFormComponent()}
+      </div>
+    </Modal>
+  );
 };
 
 export default MediaFormModal;

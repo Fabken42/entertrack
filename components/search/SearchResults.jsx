@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Loader2, Tv, Film, Book, GamepadIcon, Users, TrendingUp, Star, Calendar, Clock, BookOpen, Search } from 'lucide-react';
+import { Loader2, Tv, Film, Book, GamepadIcon, Users, TrendingUp, Star, Calendar, Clock, BookOpen, Search, Target, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const normalizeSearchResults = (results, mediaType) => {
@@ -15,8 +15,8 @@ const normalizeSearchResults = (results, mediaType) => {
       imageUrl: book.imageUrl,
       releaseYear: book.releaseYear || (book.publishedDate ? new Date(book.publishedDate).getFullYear() : undefined),
       genres: book.categories || [],
-      rating: book.averageRating,
-      scoreCount: book.ratingsCount,
+      apiRating: book.averageRating, // ← PADRÃO: apiRating
+      apiVoteCount: book.ratingsCount, // ← PADRÃO: apiVoteCount
       englishTitle: book.subtitle,
       metadata: {
         authors: book.authors || [],
@@ -33,8 +33,8 @@ const normalizeSearchResults = (results, mediaType) => {
       imageUrl: game.imageUrl,
       releaseYear: game.released ? new Date(game.released).getFullYear() : undefined,
       genres: game.genres || [],
-      rating: game.rating,
-      scoreCount: game.ratingsCount,
+      apiRating: game.rating, // ← PADRÃO: apiRating
+      apiVoteCount: game.ratingsCount, // ← PADRÃO: apiVoteCount
       metadata: {
         platforms: game.platforms,
         metacritic: game.metacritic,
@@ -50,24 +50,25 @@ const normalizeSearchResults = (results, mediaType) => {
       releaseYear: mediaType === 'movie' ?
         (item.release_date ? new Date(item.release_date).getFullYear() : undefined) :
         (item.first_air_date ? new Date(item.first_air_date).getFullYear() : undefined),
-      genres: [], // TMDB não fornece gêneros na busca básica
-      rating: item.vote_average,
-      scoreCount: item.vote_count,
+      genres: item.genre_ids ? item.genre_ids.map(id => id.toString()) : [], // ← IMPORTANTE: Array de IDs
+      apiRating: item.vote_average,
+      apiVoteCount: item.vote_count,
+      runtime: item.runtime || undefined, // ← Para filmes
+      // Adicionando campos que o MovieForm espera
+      externalId: item.id.toString(), // ← Campo necessário
+      synopsis: item.overview, // ← Campo que o handleAddToLibrary espera
       ...(mediaType === 'series' && {
         numberOfSeasons: item.number_of_seasons,
         numberOfEpisodes: item.number_of_episodes
-      }),
-      ...(mediaType === 'movie' && {
-        runtime: item.runtime
       })
     }));
   }
   // Para anime e manga (MyAnimeList) - já estão no formato correto
   return results.map(item => ({
     ...item,
-    // Garantir que os campos existam
-    rating: item.rating || item.score,
-    scoreCount: item.scoreCount || item.scored_by,
+    // Garantir que os campos padrão existam
+    apiRating: item.rating || item.score, // ← PADRÃO: apiRating
+    apiVoteCount: item.scored_by, // ← PADRÃO: apiVoteCount
     releaseYear: item.releaseYear || item.year
   }));
 };
@@ -134,6 +135,7 @@ const SearchResults = ({
   // Funções auxiliares
   const formatRating = (rating, maxRating = 10) => {
     if (!rating) return null;
+
     // Para Google Books (0-5) e RAWG (0-5), converte para 0-5
     if (mediaType === 'book' || mediaType === 'game') {
       return rating.toFixed(1);
@@ -234,8 +236,8 @@ const SearchResults = ({
       {/* Results List */}
       <div className="p-3 space-y-2">
         {normalizedResults.map((item, index) => {
-          const ratingDisplay = formatRating(item.rating);
-          const isHighRating = item.rating && item.rating >= 7.5;
+          const ratingDisplay = formatRating(item.apiRating); // ← USANDO apiRating
+          const isHighRating = item.apiRating && item.apiRating >= (mediaType === 'book' || mediaType === 'game' ? 4 : 7.5);
 
           return (
             <button
@@ -363,14 +365,15 @@ const SearchResults = ({
 
                 {/* Estatísticas */}
                 <div className="flex items-center gap-4 pt-2 border-t border-white/10">
-                  {/* Contagem de votos/avaliações - UNIFICADO */}
-                  {item.scoreCount && (
+                  {/* Contagem de votos/avaliações - USANDO apiVoteCount */}
+                  {item.apiVoteCount && (
                     <div className="flex items-center gap-1 text-xs text-white/60">
-                      <span className="font-medium text-white/80">{item.scoreCount.toLocaleString()}</span>
+                      <Star className="w-3 h-3 text-yellow-400" />
+                      <span className="font-medium text-white/80">{item.apiVoteCount.toLocaleString()}</span>
                       <span>votos</span>
                     </div>
                   )}
-                  
+
                   {/* Popularidade */}
                   {item.popularity && (
                     <div className="flex items-center gap-1 text-xs text-white/60">
@@ -378,7 +381,7 @@ const SearchResults = ({
                       <span>{formatPopularity(item.popularity)}</span>
                     </div>
                   )}
-                  
+
                   {/* Membros */}
                   {item.members && (
                     <div className="flex items-center gap-1 text-xs text-white/60">

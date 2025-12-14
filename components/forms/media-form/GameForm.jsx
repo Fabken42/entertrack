@@ -7,7 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import BaseMediaForm from './BaseMediaForm';
 import { Input, Button } from '@/components/ui';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, GamepadIcon, Trophy, Target } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // Schema específico para jogos
 const gameSchema = z.object({
@@ -17,7 +18,7 @@ const gameSchema = z.object({
   releaseYear: z.number().min(1900).max(new Date().getFullYear() + 5).optional(),
   genres: z.array(z.string()).min(1, 'Selecione pelo menos um gênero'),
   status: z.enum(['planned', 'in_progress', 'completed', 'dropped']),
-  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'great', 'perfect']).optional(),
+  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'perfect']).optional(),
   comment: z.string().optional(),
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   // Campos específicos de jogos para status in_progress
@@ -70,7 +71,7 @@ const GameForm = (props) => {
     const formData = {
       ...baseData,
       mediaType: 'game',
-      progress: baseData.status === 'in_progress' ? {
+      progress: (baseData.status === 'in_progress' || baseData.status === 'dropped') ? {
         pendingTasks: baseData.progress?.pendingTasks || [],
       } : undefined,
     };
@@ -87,7 +88,7 @@ const GameForm = (props) => {
   };
 
   const GameSpecificFields = ({ currentStatus, register, errors }) => {
-    const showPendingTasks = currentStatus === 'in_progress';
+    const showPendingTasks = currentStatus === 'in_progress' || currentStatus === 'dropped';
 
     if (!showPendingTasks) return null;
 

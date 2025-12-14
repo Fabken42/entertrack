@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { Star } from 'lucide-react';
 import { RATING_LABELS } from '@/constants';
 
-const RATING_OPTIONS = ['terrible', 'bad', 'ok', 'good', 'great', 'perfect'];
+const RATING_OPTIONS = ['terrible', 'bad', 'ok', 'good', 'perfect'];
 
 const Rating = ({
   value,
@@ -34,7 +34,6 @@ const Rating = ({
         bad: 'text-orange-500',
         ok: 'text-yellow-400',
         good: 'text-green-400',
-        great: 'text-emerald-500',
         perfect: 'text-gradient-to-r from-blue-400 to-purple-400'
       };
       return gradients[ratingValue];

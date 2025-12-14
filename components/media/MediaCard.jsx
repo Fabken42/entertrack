@@ -1,9 +1,8 @@
-// /media/media-card/MediaCard.jsx
-
+// /components/media/media-card/MediaCard.jsx
 import React from 'react';
-import Card from '../../ui/card/Card';
-import { CardContent } from '../../ui/card/Card';
-import Button from '../../ui/button/Button';
+import Card from '../ui/card/Card';
+import { CardContent } from '../ui/card/Card';
+import Button from '../ui/button/Button';
 import { Star, Users, TrendingUp, Edit, Calendar, Clock, BookOpen, Film, Tv, GamepadIcon, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +11,7 @@ export default function MediaCard({
   mediaType,
   viewMode,
   onAddToLibrary,
+  onDeleteClick,
   onEditClick,
   isLibrary = false
 }) {
@@ -87,6 +87,23 @@ export default function MediaCard({
     }
   };
 
+  // FUNÇÃO PRINCIPAL: CORES DE BORDA POR STATUS
+  const getStatusBorderColor = (status) => {
+    switch (status) {
+      case 'planned':
+        return 'border-yellow-500/50 hover:border-yellow-500';
+      case 'in_progress':
+        return 'border-blue-500/50 hover:border-blue-500';
+      case 'completed':
+        return 'border-emerald-500/50 hover:border-emerald-500';
+      case 'dropped':
+        return 'border-red-500/50 hover:border-red-500';
+      default:
+        return 'border-white/10 hover:border-white/30';
+    }
+  };
+
+  // Função para cores de fundo do badge de status
   const getStatusColor = (status) => {
     switch (status) {
       case 'planned': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
@@ -126,10 +143,20 @@ export default function MediaCard({
   const mediaColor = getMediaColor();
   const ratingInfo = formatRating(item.rating);
 
+  // NOVA VARIÁVEL: cor da borda baseada no status
+  const statusBorderColor = isLibrary && item.status
+    ? getStatusBorderColor(item.status)
+    : 'border-white/10 hover:border-white/30';
+
   if (viewMode === 'list') {
     return (
       <div
-        className="glass flex items-start gap-4 p-4 border border-white/10 rounded-xl hover:border-white/30 hover:bg-white/5 transition-all duration-300 cursor-pointer group hover-lift"
+        className={cn(
+          "glass flex items-start gap-4 p-4 rounded-xl transition-all duration-300 cursor-pointer group hover-lift",
+          // APLICA A BORDA COLORIDA AQUI:
+          statusBorderColor,
+          "border" // Adiciona a classe border
+        )}
         onClick={handleCardClick}
       >
         {/* Imagem */}
@@ -142,7 +169,7 @@ export default function MediaCard({
               e.target.src = '/images/icons/placeholder-image.png';
             }}
           />
-          
+
           {/* Badge de tipo */}
           <div className={cn(
             "absolute -top-2 -right-2 px-2 py-1 rounded-full text-xs font-semibold backdrop-blur-sm border",
@@ -168,11 +195,12 @@ export default function MediaCard({
                 </div>
               )}
             </div>
-            
+
             {/* Rating */}
             {ratingInfo && (
               <div className={cn(
                 "px-3 py-1 rounded-full text-sm font-semibold backdrop-blur-sm border border-white/10",
+                "bg-gray-800/60",
                 getRatingColor(item.rating, ratingInfo.max)
               )}>
                 <div className="flex items-center gap-1">
@@ -228,15 +256,35 @@ export default function MediaCard({
             icon={Edit}
           />
         )}
+
+        {/* Botão Deletar */}
+        {isLibrary && onDeleteClick && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm('Tem certeza que deseja excluir?')) {
+                onDeleteClick(item._id || item.id);
+              }
+            }}
+            className="absolute bottom-2 left-2 p-2 bg-gray-800/60 backdrop-blur-sm rounded-full shadow-lg hover:bg-red-900 border border-white/20 hover:scale-110 transition-all duration-300 opacity-0 group-hover:opacity-100"
+            title="Excluir"
+          >
+            <Trash2 className="w-4 h-4 text-red-400" />
+          </button>
+        )}
       </div>
     );
   }
 
-  // View Mode Grid
+  // View Mode Grid - ATUALIZADO COM BORDAS COLORIDAS
   return (
     <Card
       variant="glass"
-      className="h-full flex flex-col group cursor-pointer hover-lift relative overflow-hidden"
+      className={cn(
+        "h-full flex flex-col group cursor-pointer hover-lift relative overflow-hidden",
+        // APLICA A BORDA COLORIDA AQUI:
+        statusBorderColor
+      )}
       onClick={handleCardClick}
     >
       {/* Gradient background effect */}
@@ -273,6 +321,7 @@ export default function MediaCard({
             {ratingInfo && (
               <div className={cn(
                 "px-3 py-1 rounded-full text-sm font-semibold backdrop-blur-sm border border-white/10 shadow-lg",
+                "bg-gray-800/60",
                 getRatingColor(item.rating, ratingInfo.max)
               )}>
                 <div className="flex items-center gap-1">
@@ -290,7 +339,7 @@ export default function MediaCard({
                 e.stopPropagation();
                 onEditClick(item);
               }}
-              className="absolute bottom-2 right-2 p-2 bg-gray-900/80 backdrop-blur-sm rounded-full shadow-lg hover:bg-gray-900 border border-white/20 hover:scale-110 transition-all duration-300 opacity-0 group-hover:opacity-100"
+              className="absolute bottom-2 right-2 p-2 bg-gray-800/60 backdrop-blur-sm rounded-full shadow-lg hover:bg-gray-900 border border-white/20 hover:scale-110 transition-all duration-300 opacity-0 group-hover:opacity-100"
               title="Editar"
             >
               <Edit className="w-4 h-4 text-white" />
@@ -311,23 +360,24 @@ export default function MediaCard({
               <span>{item.releaseYear}</span>
             </div>
           )}
+
           {mediaType === 'animes' && item.episodes && (
-            <span className="flex items-center gap-1">
+            <>
               <span>•</span>
               <span>{item.episodes} eps</span>
-            </span>
+            </>
           )}
           {mediaType === 'mangas' && item.volumes && (
-            <span className="flex items-center gap-1">
+            <>
               <span>•</span>
               <span>{formatChaptersVolumes(item.volumes, item.status)} vol</span>
-            </span>
+            </>
           )}
           {mediaType === 'books' && item.pageCount && (
-            <span className="flex items-center gap-1">
+            <>
               <span>•</span>
               <span>{item.pageCount} pág</span>
-            </span>
+            </>
           )}
         </div>
 
@@ -389,16 +439,16 @@ export default function MediaCard({
         {/* Footer com estatísticas de rating */}
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/10">
           {ratingInfo && shouldShowCount(item.ratingsCount) && (
-            <div className="flex items-center gap-2 text-xs text-white/60">
-              <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-1 px-2 py-1 bg-gray-900/60 rounded-lg">
                 <Star className="w-3 h-3 text-yellow-400 fill-current" />
                 <span className="font-medium text-white">{ratingInfo.display}/5</span>
               </div>
               <span className="text-white/40">•</span>
-              <span>{formatNumber(item.ratingsCount)} avaliações</span>
+              <span className="text-white/60">{formatNumber(item.ratingsCount)} avaliações</span>
             </div>
           )}
-          
+
           {/* Indicador de tipo */}
           <div className={cn(
             "px-2 py-1 rounded-full text-xs font-medium backdrop-blur-sm border",

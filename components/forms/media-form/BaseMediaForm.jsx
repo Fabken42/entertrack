@@ -4,7 +4,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Button, Input, Select, Rating as RatingComponent, TextArea } from '@/components/ui'; 
+import { Button, Input, Select, Rating as RatingComponent, TextArea } from '@/components/ui';
 import { Users, TrendingUp, Star, Calendar, BookOpen, Film, Tv, GamepadIcon, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -14,9 +14,22 @@ const baseMediaSchema = z.object({
   releaseYear: z.number().min(1900).max(new Date().getFullYear() + 5).optional(),
   genres: z.array(z.string()).min(1, 'Selecione pelo menos um gênero'),
   status: z.enum(['planned', 'in_progress', 'completed', 'dropped']),
-  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'great', 'perfect']).optional(),
+  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'perfect']).optional(),
   comment: z.string().optional(),
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
+  // Campos específicos para anime/mangá
+  progress: z.object({
+    currentEpisode: z.number().min(0).optional(),
+    currentSeason: z.number().min(1).optional(),
+  }).optional(),
+  // Campos específicos para anime
+  episodes: z.number().optional(),
+  popularity: z.number().optional(),
+  members: z.number().optional(),
+  rank: z.number().optional(),
+  // Campos específicos para mangá
+  volumes: z.number().optional(),
+  chapters: z.number().optional(),
 });
 
 const formatMembers = (members) => {
@@ -36,12 +49,13 @@ const BaseMediaForm = ({
   initialData,
   externalData,
   manualCreateQuery,
-  onSubmit,
   onCancel,
   loading = false,
   children,
   selectedRating,
   onRatingChange,
+  onSubmit, // Recebe a função submit do componente pai
+  customSchema, // Permite passar schemas personalizados
 }) => {
   const [selectedGenres, setSelectedGenres] = React.useState(
     initialData?.genres || externalData?.genres || []
@@ -51,14 +65,18 @@ const BaseMediaForm = ({
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
 
+  // Usa o schema customizado se fornecido, caso contrário usa o base
+  const schemaToUse = customSchema || baseMediaSchema;
+
   const {
     register,
     handleSubmit,
     formState: { errors },
     setValue,
     watch,
+    control,
   } = useForm({
-    resolver: zodResolver(baseMediaSchema),
+    resolver: zodResolver(schemaToUse),
     defaultValues: initialData ? {
       title: initialData.title,
       description: initialData.description,
@@ -68,6 +86,17 @@ const BaseMediaForm = ({
       comment: initialData.comment,
       imageUrl: initialData.imageUrl,
       status: initialData.status,
+      progress: initialData.progress || {},
+      ...(mediaType === 'anime' && {
+        episodes: initialData.episodes,
+        popularity: initialData.popularity,
+        members: initialData.members,
+        rank: initialData.rank,
+      }),
+      ...(mediaType === 'manga' && {
+        volumes: initialData.volumes,
+        chapters: initialData.chapters,
+      }),
     } : externalData ? {
       title: externalData.title,
       description: externalData.description,
@@ -75,18 +104,32 @@ const BaseMediaForm = ({
       genres: externalData.genres,
       status: 'planned',
       imageUrl: externalData.imageUrl,
+      progress: {},
+      ...(mediaType === 'anime' && {
+        episodes: externalData.episodes,
+        popularity: externalData.popularity,
+        members: externalData.members,
+        rank: externalData.rank,
+      }),
+      ...(mediaType === 'manga' && {
+        volumes: externalData.volumes,
+        chapters: externalData.chapters,
+      }),
     } : manualCreateQuery ? {
       title: manualCreateQuery,
       status: 'planned',
       genres: [],
+      progress: {},
     } : {
       status: 'planned',
       genres: [],
+      progress: {},
     },
   });
 
   const currentStatus = watch('status');
   const showRatingAndComment = currentStatus === 'completed' || currentStatus === 'dropped';
+  const showProgressFields = currentStatus === 'in_progress' || currentStatus === 'dropped';
 
   const getMediaIcon = () => {
     switch (mediaType) {
@@ -148,30 +191,41 @@ const BaseMediaForm = ({
   };
 
   const onSubmitForm = (data) => {
-    onSubmit({
-      ...data,
-      rating: showRatingAndComment ? selectedRating : undefined,
-      comment: showRatingAndComment ? data.comment : undefined,
-      genres: selectedGenres,
-      ...(externalData && {
-        externalId: externalData.externalId,
-        apiRating: externalData.apiRating,
-        apiVoteCount: externalData.apiVoteCount,
-        ...(mediaType === 'anime' && {
-          episodes: externalData.episodes,
-          popularity: externalData.popularity,
-          members: externalData.members,
-          rank: externalData.rank,
-        }),
-        ...(mediaType === 'manga' && {
-          volumes: externalData.volumes,
-          chapters: externalData.chapters,
-          popularity: externalData.popularity,
-          members: externalData.members,
-          rank: externalData.rank,
-        }),
-      }),
-    });
+    console.log('BaseMediaForm: onSubmitForm chamado com:', data);
+    
+    // if (onSubmit) {
+    //   // Prepara os dados para enviar
+    //   const formData = {
+    //     ...data,
+    //     rating: showRatingAndComment ? selectedRating : undefined,
+    //     comment: showRatingAndComment ? data.comment : undefined,
+    //     genres: selectedGenres,
+    //     mediaType: mediaType, // Inclui o tipo de mídia
+    //     ...(externalData && {
+    //       externalId: externalData.externalId,
+    //       apiRating: externalData.apiRating,
+    //       apiVoteCount: externalData.apiVoteCount,
+    //       ...(mediaType === 'anime' && {
+    //         episodes: externalData.episodes,
+    //         popularity: externalData.popularity,
+    //         members: externalData.members,
+    //         rank: externalData.rank,
+    //       }),
+    //       ...(mediaType === 'manga' && {
+    //         volumes: externalData.volumes,
+    //         chapters: externalData.chapters,
+    //         popularity: externalData.popularity,
+    //         members: externalData.members,
+    //         rank: externalData.rank,
+    //       }),
+    //     }),
+    //   };
+      
+    //   console.log('BaseMediaForm: Enviando dados para onSubmit:', formData);
+    //   onSubmit(formData);
+    // } else {
+    //   console.error('BaseMediaForm: onSubmit não definido');
+    // }
   };
 
   const formatApiRating = (rating, mediaType) => {
@@ -213,6 +267,28 @@ const BaseMediaForm = ({
   const MediaIcon = getMediaIcon();
   const mediaColor = getMediaColor();
 
+  // Função para injetar props nos children
+  const renderChildren = () => {
+    return React.Children.map(children, child => {
+      if (React.isValidElement(child)) {
+        // Passa todas as props necessárias para os children
+        return React.cloneElement(child, {
+          currentStatus,
+          register,
+          errors,
+          watch,
+          setValue,
+          control,
+          selectedGenres,
+          onGenreToggle: handleGenreToggle,
+          mediaType,
+          showProgressFields,
+        });
+      }
+      return child;
+    });
+  };
+
   return (
     <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
       {hasExternalData && (
@@ -223,7 +299,7 @@ const BaseMediaForm = ({
             </div>
             <div>
               <h3 className="font-semibold text-white">
-                📋 Dados importados de {getApiSourceLabel()}
+                Dados importados de {getApiSourceLabel()}
               </h3>
               <p className="text-sm text-white/60">Estes dados foram obtidos automaticamente</p>
             </div>
@@ -296,6 +372,24 @@ const BaseMediaForm = ({
         </div>
       )}
 
+      {externalData?.description && (
+        <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className={cn("p-2 rounded-lg", mediaColor)}>
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white mb-3">
+                Sinopse
+              </h3>
+              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
+                {externalData.description}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isManualEntry && (
         <div className="glass border border-white/10 rounded-xl p-6 space-y-6">
           <div className="flex items-center gap-3">
@@ -340,7 +434,7 @@ const BaseMediaForm = ({
 
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              Descrição/Sinopse
+              Sinopse
             </label>
             <TextArea
               {...register('description')}
@@ -431,11 +525,8 @@ const BaseMediaForm = ({
         )}
       </div>
 
-      {React.Children.map(children, child =>
-        React.isValidElement(child)
-          ? React.cloneElement(child, { currentStatus })
-          : child
-      )}
+      {/* Renderiza os children com as props injetadas */}
+      {renderChildren()}
 
       <div className="flex justify-end gap-4 pt-6 border-t border-white/10">
         <Button

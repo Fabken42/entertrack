@@ -1,5 +1,5 @@
 import React from 'react';
-import MediaCard from '@/components/media/media-card/MediaCard';
+import MediaCard from '@/components/media/MediaCard';
 import { Film, Tv, BookOpen, GamepadIcon, Book, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -7,7 +7,10 @@ const MediaGrid = ({
   media, 
   emptyMessage = "Nenhum item encontrado",
   onEditClick,
-  mediaType = 'media'
+  onDeleteClick,
+  isLibrary = true,
+  mediaType = 'media',
+  viewMode = 'grid'
 }) => {
   if (media.length === 0) {
     return (

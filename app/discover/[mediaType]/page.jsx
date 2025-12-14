@@ -4,18 +4,17 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Select, Input } from '@/components/ui';
-import { Grid, List, Star, TrendingUp, Calendar, Search, Users } from 'lucide-react';
+import { Grid, List, Star, TrendingUp, Calendar, Search, Users, Filter, ArrowUpDown, Layers, Tag, RefreshCw, X, AlertCircle } from 'lucide-react';
 import Pagination from '../../../components/ui/pagination/Pagination';
-import MediaCard from '../../../components/media/media-card/MediaCard';
-// Remova os imports dos componentes de busca
+import MediaCard from '../../../components/media/MediaCard';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
+import { cn } from '@/lib/utils';
 
 export default function DiscoverPage() {
   const params = useParams();
   const mediaType = params.mediaType;
 
-  // ESTADOS EXISTENTES
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState(mediaType === 'books' ? 'relevance' : 'popularity');
@@ -48,7 +47,7 @@ export default function DiscoverPage() {
       setCurrentPage(1);
       fetchDiscoveryItems();
     }
-  }, [mediaType, sortBy, selectedGenre, searchQuery]); // Adicionado searchQuery
+  }, [mediaType, sortBy, selectedGenre, searchQuery]);
 
   useEffect(() => {
     if (mediaType) {
@@ -67,7 +66,7 @@ export default function DiscoverPage() {
       setError(null);
     } catch (error) {
       console.error('Error fetching genres:', error);
-      setError('Erro ao carregar gêneros');
+      setError('Erro ao carregar');
       setGenres([{ id: '', name: 'Todos os Gêneros' }]);
     }
   };
@@ -80,7 +79,7 @@ export default function DiscoverPage() {
         page: currentPage.toString(),
         limit: '20',
         ...(selectedGenre && { genre: selectedGenre }),
-        ...(searchQuery && { query: searchQuery }) // Adicionado query
+        ...(searchQuery && { query: searchQuery })
       });
 
       const response = await fetch(`/api/discover/${mediaType}?${queryParams}`);
@@ -95,7 +94,7 @@ export default function DiscoverPage() {
       setError(null);
     } catch (error) {
       console.error('Error fetching discovery items:', error);
-      setError('Erro ao carregar itens');
+      setError('Erro ao carregar');
       setItems([]);
       setTotalResults(0);
       setTotalPages(1);
@@ -116,11 +115,20 @@ export default function DiscoverPage() {
   };
 
   const handleAddMedia = async (data) => {
-    await addMedia({
-      ...data,
-      userId: 'user-1',
-      mediaType: getStoreMediaType(),
-    });
+    console.log('DiscoverPage: handleAddMedia called with:', data);
+    console.log('Current mediaType in DiscoverPage:', mediaType);
+    console.log('Store media type:', getStoreMediaType());
+
+    try {
+      const result = await addMedia({
+        ...data,
+        mediaType: getStoreMediaType(),
+      });
+      console.log('DiscoverPage: addMedia successful, result:', result);
+    } catch (error) {
+      console.error('DiscoverPage: addMedia error:', error);
+      alert('Erro ao adicionar mídia: ' + error.message);
+    }
   };
 
   const handleEditMedia = async (data) => {
@@ -166,8 +174,19 @@ export default function DiscoverPage() {
     return icons[mediaType] || '✨';
   };
 
+  const getMediaTypeColor = () => {
+    const colors = {
+      movies: 'from-blue-500/20 to-blue-600/20',
+      series: 'from-purple-500/20 to-purple-600/20',
+      animes: 'from-red-500/20 to-pink-600/20',
+      mangas: 'from-indigo-500/20 to-indigo-600/20',
+      books: 'from-emerald-500/20 to-emerald-600/20',
+      games: 'from-orange-500/20 to-orange-600/20'
+    };
+    return colors[mediaType] || 'from-gray-500/20 to-gray-600/20';
+  };
+
   const handleAddToLibrary = (item) => {
-    // Converte o item do discover para o formato do formulário
     const mediaData = {
       externalId: item.id?.toString(),
       title: item.title,
@@ -178,7 +197,6 @@ export default function DiscoverPage() {
       mediaType: getStoreMediaType(),
       apiRating: item.rating,
       apiVoteCount: item.ratingsCount,
-      // Campos específicos por tipo
       ...(mediaType === 'animes' && {
         episodes: item.episodes,
         popularity: item.popularity,
@@ -199,24 +217,28 @@ export default function DiscoverPage() {
         numberOfSeasons: item.numberOfSeasons,
         numberOfEpisodes: item.numberOfEpisodes,
       }),
+      synopsis: item.description || item.overview || item.summary,
     };
 
     setSelectedMediaData(mediaData);
     setIsFormOpen(true);
   };
 
+  const refreshItems = () => {
+    setCurrentPage(1);
+    fetchDiscoveryItems();
+  };
+
   if (!mediaType) {
     return (
-      <Layout>
-        <div className="py-12">
-          <div className="text-center py-12">
-            <div className="text-gray-400 text-6xl mb-4">❓</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Tipo de mídia não especificado
-            </h3>
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center py-12">
+          <div className="text-gray-400 text-6xl mb-4">❓</div>
+          <h3 className="text-lg font-medium text-white mb-2">
+            Tipo de mídia não especificado
+          </h3>
         </div>
-      </Layout>
+      </div>
     );
   }
 
@@ -254,130 +276,163 @@ export default function DiscoverPage() {
   };
 
   return (
-    <>
-      <div className="p-12">
-        <div className="max-w-7xl mx-auto min-h-screen">
-          <div className="mb-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+    <div className="min-h-screen">
+      <div className="p-6 md:p-8 lg:p-12">
+        <div className="max-w-7xl mx-auto">
+          {/* Header com gradiente e glass effect - REMOVIDO hover-lift */}
+          <div className="mb-8 glass rounded-2xl p-6 border border-white/10">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{getMediaTypeIcon()}</span>
+                {/* Container quadrado para o ícone */}
+                <div className={`p-3 rounded-lg w-12 h-12 flex items-center justify-center bg-gradient-to-br ${getMediaTypeColor()}`}>
+                  <span className="text-2xl leading-none">{getMediaTypeIcon()}</span>
+                </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-foreground">
-                    Descobrir {getMediaTypeLabel()}s
+                  <h1 className="text-3xl font-bold text-white">
+                    Descobrir <span className="text-gradient-primary">{getMediaTypeLabel()}s</span>
                   </h1>
-                  <p className="text-muted-foreground mt-1">
+                  <p className="text-white/60 mt-2">
                     Explore {getMediaTypeLabel().toLowerCase()}s populares, bem avaliados e recém-lançados
                   </p>
                 </div>
               </div>
-              {/* Botão removido - a busca agora está integrada nos filtros */}
             </div>
           </div>
 
-          {error && (
-            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
-              <p className="text-destructive text-sm">{error}</p>
-            </div>
-          )}
-
-          <div className="bg-card p-4 rounded-lg border border-border mb-6">
-            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-              <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
-                {/* Campo de Busca COM LABEL */}
-                <div className="w-full sm:w-64">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+          {/* Filtros com estilo glass escuro - IGUAL AO MediaCard */}
+          <div className="glass mb-8 p-6 rounded-2xl border border-white/10 bg-gray-900/80 backdrop-blur-xl">
+            <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
+              {/* Container principal dos filtros */}
+              <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto md:items-center">
+                {/* Campo de Busca */}
+                <div className="w-full md:w-72">
+                  <label className="block text-sm font-medium text-white mb-2 flex items-center gap-2">
+                    <Search className="w-4 h-4" />
                     Buscar {getMediaTypeLabel().toLowerCase()}s
                   </label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <Input
                       type="text"
-                      placeholder={`Digite o nome...`}
+                      placeholder={`Digite o nome do ${getMediaTypeLabel().toLowerCase()}...`}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-gray-800 border-gray-700 text-white"
+                      variant="glass"
+                      className="pl-10 bg-gray-800/50 border-white/10 text-white placeholder:text-white/40"
                     />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/60 w-4 h-4 group-hover:text-white transition-colors" />
                   </div>
                 </div>
 
-                {/* Genre Filter */}
-                <div className="w-full sm:w-48">
+                {/* Filtro de Gênero */}
+                <div className="w-full md:w-56">
+                  <label className="block text-sm font-medium text-white mb-2 flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Filtrar por Gênero
+                  </label>
                   <Select
-                    label="Filtrar por Gênero"
                     value={selectedGenre}
                     onChange={(e) => setSelectedGenre(e.target.value)}
                     options={genres.map(genre => ({
                       value: genre.id,
-                      label: genre.name
+                      label: genre.name,
+                      icon: genre.id === '' ? Layers : Tag
                     }))}
+                    variant="glass"
+                    className="bg-gray-800/50 border-white/10"
                   />
                 </div>
 
-                {/* Sort Filter */}
-                <div className="w-full sm:w-48">
+                {/* Ordenação */}
+                <div className="w-full md:w-56">
+                  <label className="block text-sm font-medium text-white mb-2 flex items-center gap-2">
+                    <ArrowUpDown className="w-4 h-4" />
+                    Ordenar por
+                  </label>
                   <Select
-                    label="Ordenar por"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
                     options={getSortOptions().map(option => ({
                       value: option.value,
-                      label: option.label
+                      label: option.label,
+                      icon: option.icon
                     }))}
+                    variant="glass"
+                    className="bg-gray-800/50 border-white/10"
                   />
                 </div>
               </div>
 
-              {/* View Mode */}
-              <div className="flex items-center gap-2 mt-4 lg:mt-0">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Visualização:</span>
-                <div className="flex bg-gray-800 rounded-lg p-1">
+              {/* Modo de Visualização */}
+              <div className="flex flex-col gap-2 w-full md:w-auto">
+                <label className="block text-sm font-medium text-white whitespace-nowrap">
+                  Visualização
+                </label>
+                <div className="flex bg-gray-800/50 rounded-xl p-1.5 border border-white/10">
                   <Button
                     variant={viewMode === 'grid' ? 'primary' : 'ghost'}
                     size="sm"
                     onClick={() => setViewMode('grid')}
-                    className="!p-2"
+                    className={`!p-2.5 rounded-lg transition-all duration-300 ${viewMode === 'grid'
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                      }`}
                     icon={Grid}
                   />
                   <Button
                     variant={viewMode === 'list' ? 'primary' : 'ghost'}
                     size="sm"
                     onClick={() => setViewMode('list')}
-                    className="!p-2"
+                    className={`!p-2.5 rounded-lg transition-all duration-300 ${viewMode === 'list'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                      }`}
                     icon={List}
                   />
                 </div>
               </div>
             </div>
+
+
           </div>
 
-          {/* Results Count - MODIFICADO para incluir informação da busca */}
+          {/* Informações de página */}
           {!loading && items.length > 0 && (
-            <div className="mb-4 flex justify-between items-center">
-              <p className="text-muted-foreground">
-                Mostrando {((currentPage - 1) * 20) + 1}-{((currentPage - 1) * 20) + items.length} de {totalResults} {getMediaTypeLabel().toLowerCase()}{totalResults !== 1 ? 's' : ''}
-                {searchQuery && ` para "${searchQuery}"`}
-                {selectedGenre && genres.find(g => g.id === selectedGenre) &&
-                  ` no gênero ${genres.find(g => g.id === selectedGenre).name}`
-                }
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Página {currentPage} de {totalPages}
-              </p>
+            <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <p className="text-white/80 text-sm">
+                  <span className="font-bold text-white">
+                    {((currentPage - 1) * 20) + 1}-{((currentPage - 1) * 20) + items.length}
+                  </span> de <span className="font-bold text-white">{totalResults.toLocaleString()}</span> {getMediaTypeLabel().toLowerCase()}{totalResults !== 1 ? 's' : ''}
+                  {searchQuery && (
+                    <span className="text-blue-300"> para "{searchQuery}"</span>
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-white/80">
+                  Página <span className="font-bold text-white">{currentPage}</span> de <span className="font-bold text-white">{totalPages}</span>
+                </p>
+              </div>
             </div>
           )}
 
-          {/* Results */}
+          {/* Loading State */}
           {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-muted-foreground mt-2">Carregando {getMediaTypeLabel().toLowerCase()}...</p>
+            <div className="text-center py-16 fade-in">
+              <p className="text-white/60 mt-4 text-lg">Carregando {getMediaTypeLabel().toLowerCase()}s...</p>
+              <p className="text-white/40 text-sm mt-2">Buscando os melhores conteúdos para você</p>
             </div>
           ) : (
             <>
-              <div className={viewMode === 'grid'
-                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8"
-                : "space-y-4 mb-8"
-              }>
+              {/* Grid/List de Resultados */}
+              <div className={cn(
+                viewMode === 'grid'
+                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8"
+                  : "space-y-4 mb-8",
+                "fade-in"
+              )}>
                 {items.map((item) => (
                   <MediaCard
                     key={item.id}
@@ -389,48 +444,67 @@ export default function DiscoverPage() {
                 ))}
               </div>
 
-              {/* PAGINAÇÃO */}
+              {/* Paginação */}
               {totalPages > 1 && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                  className="mt-8"
-                />
+                <div className="mt-12 fade-in">
+                  <div className="glass border border-white/10 rounded-2xl p-6">
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={handlePageChange}
+                      className="justify-center"
+                    />
+                  </div>
+                </div>
               )}
             </>
           )}
 
-          {!loading && items.length === 0 && !error && (
-            <div className="text-center py-12">
-              <div className="text-muted-foreground text-6xl mb-4">🔍</div>
-              <h3 className="text-lg font-medium text-foreground mb-2">
-                Nenhum resultado encontrado
-              </h3>
-              <p className="text-muted-foreground">
-                {searchQuery
-                  ? `Não encontramos ${getMediaTypeLabel().toLowerCase()}s para "${searchQuery}"`
-                  : selectedGenre
-                    ? `Não encontramos ${getMediaTypeLabel().toLowerCase()} no gênero selecionado. Tente outro gênero.`
-                    : `Tente alterar os filtros de ordenação.`
-                }
-              </p>
-              {searchQuery && (
-                <div className="mt-4">
+          {/* Estado Vazio ou Erro - COMPONENTE UNIFICADO */}
+          {(!loading && items.length === 0) || error ? (
+            <div className="text-center py-20 fade-in">
+              <div className="glass border border-white/10 rounded-2xl p-12 max-w-md mx-auto hover-lift">
+                {/* Ícone dinâmico baseado no estado */}
+                <div className="text-6xl mb-6 opacity-50">
+                  🔍
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-3">
+                  Nenhum resultado encontrado!
+                </h3>
+                <p className="text-white/60 mb-8">
+                  Ocorreu um erro ao buscar os itens. Tente novamente
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+
+                  {/* Botão principal de ação */}
                   <Button
-                    variant="outline"
-                    onClick={() => setSearchQuery('')}
+                    variant="primary"
+                    onClick={() => {
+                      // Se for erro, apenas tenta recarregar
+                      if (error) {
+                        setError(null);
+                        refreshItems();
+                      } else {
+                        // Se for estado vazio, limpa tudo e recarrega
+                        setSearchQuery('');
+                        setSelectedGenre('');
+                        setSortBy(mediaType === 'books' ? 'relevance' : 'popularity');
+                        setTimeout(refreshItems, 100);
+                      }
+                    }}
+                    className="bg-gradient-primary hover:bg-gradient-secondary"
+                    icon={RefreshCw}
                   >
-                    Limpar busca
+                    Tentar novamente
                   </Button>
                 </div>
-              )}
+              </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* FORMULÁRIO MODAL (mantido para adicionar à biblioteca) */}
+      {/* Modal de Formulário */}
       <MediaFormModal
         isOpen={isFormOpen}
         onClose={handleFormClose}
@@ -439,6 +513,6 @@ export default function DiscoverPage() {
         externalData={selectedMediaData}
         onSubmit={editingMedia ? handleEditMedia : handleAddMedia}
       />
-    </>
+    </div>
   );
 }

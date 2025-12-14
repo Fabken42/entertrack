@@ -7,6 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import BaseMediaForm from './BaseMediaForm';
 import { Input } from '@/components/ui';
+import { BookOpen, Layers, Hash } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const mangaSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -14,7 +16,7 @@ const mangaSchema = z.object({
   releaseYear: z.number().min(1900).max(new Date().getFullYear() + 5).optional(),
   genres: z.array(z.string()).min(1, 'Selecione pelo menos um gênero'),
   status: z.enum(['planned', 'in_progress', 'completed', 'dropped']),
-  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'great', 'perfect']).optional(),
+  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'perfect']).optional(),
   comment: z.string().optional(),
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   progress: z.object({
@@ -63,7 +65,7 @@ const MangaForm = (props) => {
     const formData = {
       ...baseData,
       mediaType: 'manga',
-      progress: baseData.status === 'in_progress' ? {
+      progress: (baseData.status === 'in_progress' || baseData.status === 'dropped') ? {
         currentVolume: baseData.progress?.currentVolume || 0,
         currentPage: baseData.progress?.currentPage || 0,
       } : undefined,
@@ -72,7 +74,7 @@ const MangaForm = (props) => {
   };
 
   const MangaSpecificFields = ({ currentStatus, register, errors }) => {
-    const showVolumePage = currentStatus === 'in_progress';
+    const showVolumePage = currentStatus === 'in_progress' || currentStatus === 'dropped';
 
     if (!showVolumePage) return null;
 
@@ -85,7 +87,10 @@ const MangaForm = (props) => {
           <div className="p-2 rounded-lg bg-gradient-to-br from-red-500/20 to-orange-500/20">
             <BookOpen className="w-5 h-5 text-red-400" />
           </div>
-          <h3 className="font-semibold text-white">Progresso de Leitura</h3>
+          <div>
+            <h3 className="font-semibold text-white">Progresso do Mangá</h3>
+            <p className="text-sm text-white/60">Em qual volume e capítulo você está?</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -94,40 +99,39 @@ const MangaForm = (props) => {
               <div className="p-1.5 rounded bg-white/5">
                 <Layers className="w-4 h-4 text-red-400" />
               </div>
-              <h5 className="text-sm font-medium text-white">Posição Atual</h5>
+              <h5 className="text-sm font-medium text-white">Volume Atual</h5>
             </div>
 
             <Input
-              label="Volume Atual"
+              label="Volume"
               type="number"
               icon={Layers}
               {...register('progress.currentVolume', { valueAsNumber: true })}
               error={errors.progress?.currentVolume?.message}
               placeholder="5"
               variant="glass"
-            />
-
-            <Input
-              label="Página Atual"
-              type="number"
-              icon={Hash}
-              {...register('progress.currentPage', { valueAsNumber: true })}
-              error={errors.progress?.currentPage?.message}
-              placeholder="42"
-              variant="glass"
+              min={0}
             />
           </div>
 
-          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-              <span className="text-sm font-medium text-white">Info de Mangá</span>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded bg-white/5">
+                <Hash className="w-4 h-4 text-red-400" />
+              </div>
+              <h5 className="text-sm font-medium text-white">Capítulo Atual</h5>
             </div>
-            <div className="space-y-2 text-sm text-white/60">
-              <p>• Volume refere-se ao tankōbon</p>
-              <p>• Página dentro do volume atual</p>
-              <p>• Marque como "Concluído" quando finalizar</p>
-            </div>
+
+            <Input
+              label="Capítulo"
+              type="number"
+              icon={Hash}
+              {...register('progress.currentChapter', { valueAsNumber: true })}
+              error={errors.progress?.currentChapter?.message}
+              placeholder="42"
+              variant="glass"
+              min={0}
+            />
           </div>
         </div>
       </div>

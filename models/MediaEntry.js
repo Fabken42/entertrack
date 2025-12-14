@@ -11,7 +11,7 @@ const progressSchema = new mongoose.Schema({
     type: Number, // em minutos
     min: 0,
   },
-  
+
   // Para séries e animes
   currentEpisode: {
     type: Number,
@@ -30,7 +30,7 @@ const progressSchema = new mongoose.Schema({
     type: Number,
     min: 0,
   },
-  
+
   // Para mangás
   currentVolume: {
     type: Number,
@@ -56,13 +56,13 @@ const progressSchema = new mongoose.Schema({
     type: Number,
     min: 0,
   },
-  
+
   // Para livros
   totalPagesBook: {
     type: Number,
     min: 0,
   },
-  
+
   // Para jogos
   hoursPlayed: {
     type: Number,
@@ -160,14 +160,14 @@ const mediaEntrySchema = new mongoose.Schema({
     required: true,
     index: true,
   },
-  
+
   // Informações básicas da mídia
   mediaType: {
     type: String,
     enum: ['movie', 'series', 'anime', 'manga', 'book', 'game'],
     required: true,
   },
-  
+
   // Dados gerais
   title: {
     type: String,
@@ -197,7 +197,7 @@ const mediaEntrySchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
-  
+
   // Informações de lançamento
   releaseYear: {
     type: Number,
@@ -207,7 +207,7 @@ const mediaEntrySchema = new mongoose.Schema({
   releaseDate: {
     type: Date,
   },
-  
+
   // Gêneros e categorias
   genres: [{
     type: String,
@@ -217,7 +217,7 @@ const mediaEntrySchema = new mongoose.Schema({
     type: String,
     trim: true,
   }],
-  
+
   // Status do usuário
   status: {
     type: String,
@@ -226,18 +226,18 @@ const mediaEntrySchema = new mongoose.Schema({
     required: true,
     index: true,
   },
-  
+
   // Progresso específico
   progress: {
     type: progressSchema,
     default: () => ({}),
   },
-  
+
   // Avaliação do usuário
   rating: {
     type: ratingSchema,
   },
-  
+
   // Metadados de controle
   priority: {
     type: Number,
@@ -253,25 +253,25 @@ const mediaEntrySchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  
+
   // Dados da timeline
   timeline: {
     type: timelineSchema,
     default: () => ({}),
   },
-  
+
   // Dados da API externa
   externalData: {
     type: externalDataSchema,
   },
-  
+
   // Campos específicos por tipo
   specificData: {
     // Para filmes
     runtime: {
       type: Number, // em minutos
     },
-    
+
     // Para séries e animes
     seasons: {
       type: Number,
@@ -282,7 +282,7 @@ const mediaEntrySchema = new mongoose.Schema({
     nextEpisodeDate: {
       type: Date,
     },
-    
+
     // Para animes
     animeType: {
       type: String,
@@ -291,7 +291,7 @@ const mediaEntrySchema = new mongoose.Schema({
     studio: {
       type: String,
     },
-    
+
     // Para mangás
     volumes: {
       type: Number,
@@ -303,7 +303,7 @@ const mediaEntrySchema = new mongoose.Schema({
       type: String,
       enum: ['Manga', 'Manhwa', 'Manhua', 'Novel'],
     },
-    
+
     // Para livros
     authors: [{
       type: String,
@@ -318,7 +318,7 @@ const mediaEntrySchema = new mongoose.Schema({
     pageCount: {
       type: Number,
     },
-    
+
     // Para jogos
     platforms: [{
       type: String,
@@ -334,14 +334,14 @@ const mediaEntrySchema = new mongoose.Schema({
       type: Number, // em horas
     },
   },
-  
+
   // Campos de controle
   lastUpdated: {
     type: Date,
     default: Date.now,
     index: true,
   },
-  
+
   // Rascunhos e revisões
   notes: {
     type: String,
@@ -353,7 +353,7 @@ const mediaEntrySchema = new mongoose.Schema({
     trim: true,
     maxlength: 10000,
   },
-  
+
   // Para busca e filtros
   searchableText: {
     type: String,
@@ -374,7 +374,7 @@ mediaEntrySchema.index({ userId: 1, priority: 1 });
 // Índice para garantir unicidade (usuário não pode ter a mesma mídia duas vezes)
 mediaEntrySchema.index(
   { userId: 1, mediaType: 1, 'externalData.externalId': 1 },
-  { 
+  {
     unique: true,
     partialFilterExpression: { 'externalData.externalId': { $exists: true } }
   }
@@ -383,46 +383,49 @@ mediaEntrySchema.index(
 // Índice para evitar duplicação de entradas manuais com mesmo título
 mediaEntrySchema.index(
   { userId: 1, mediaType: 1, title: 1, 'externalData.source': 'manual' },
-  { 
+  {
     unique: true,
     partialFilterExpression: { 'externalData.source': 'manual' }
   }
 );
 
 // Middleware para atualizar automaticamente as datas da timeline
-mediaEntrySchema.pre('save', function(next) {
+mediaEntrySchema.pre('save', function (next) {
   if (!this.timeline) {
     this.timeline = {};
   }
-  
+
   // Atualizar addedAt se for novo documento
   if (this.isNew) {
     this.timeline.addedAt = new Date();
   }
-  
-  // Atualizar startedAt se status mudou para in_progress
-  if (this.isModified('status') && this.status === 'in_progress' && !this.timeline.startedAt) {
+
+  // Atualizar startedAt se status mudou para in_progress ou dropped
+  if (this.isModified('status') &&
+    (this.status === 'in_progress' || this.status === 'dropped') &&
+    !this.timeline.startedAt) {
     this.timeline.startedAt = new Date();
   }
-  
+
   // Atualizar lastWatchedAt quando houver alteração no progresso
-  if (this.isModified('progress') && this.status === 'in_progress') {
+  if (this.isModified('progress') &&
+    (this.status === 'in_progress' || this.status === 'dropped')) {
     this.timeline.lastWatchedAt = new Date();
   }
-  
+
   // Atualizar completedAt se status mudou para completed
   if (this.isModified('status') && this.status === 'completed') {
     this.timeline.completedAt = new Date();
   }
-  
+
   // Atualizar droppedAt se status mudou para dropped
   if (this.isModified('status') && this.status === 'dropped') {
     this.timeline.droppedAt = new Date();
   }
-  
+
   // Atualizar lastUpdated
   this.lastUpdated = new Date();
-  
+
   // Criar campo searchableText para busca
   this.searchableText = [
     this.title,
@@ -436,7 +439,7 @@ mediaEntrySchema.pre('save', function(next) {
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
-  
+
   // Converter rating em valor numérico para ordenação
   if (this.rating?.value) {
     const ratingMap = {
@@ -444,89 +447,96 @@ mediaEntrySchema.pre('save', function(next) {
       bad: 2,
       ok: 3,
       good: 4,
-      great: 5,
-      perfect: 6,
+      perfect: 5,
     };
     this.rating.score = ratingMap[this.rating.value];
   }
-  
+
   next();
 });
 
 // Métodos de instância
-mediaEntrySchema.methods.getProgressPercentage = function() {
-  switch (this.mediaType) {
-    case 'movie':
-      if (this.progress.currentTime && this.specificData.runtime) {
-        return (this.progress.currentTime / this.specificData.runtime) * 100;
-      }
-      break;
-      
-    case 'series':
-    case 'anime':
-      if (this.progress.currentEpisode && this.specificData.episodes) {
-        return (this.progress.currentEpisode / this.specificData.episodes) * 100;
-      }
-      break;
-      
-    case 'manga':
-      if (this.progress.currentChapter && this.specificData.chapters) {
-        return (this.progress.currentChapter / this.specificData.chapters) * 100;
-      }
-      if (this.progress.currentVolume && this.specificData.volumes) {
-        return (this.progress.currentVolume / this.specificData.volumes) * 100;
-      }
-      break;
-      
-    case 'book':
-      if (this.progress.currentPage && this.specificData.pageCount) {
-        return (this.progress.currentPage / this.specificData.pageCount) * 100;
-      }
-      break;
-      
-    case 'game':
-      if (this.progress.completionPercentage) {
-        return this.progress.completionPercentage;
-      }
-      if (this.progress.hoursPlayed && this.specificData.averagePlaytime) {
-        return Math.min((this.progress.hoursPlayed / this.specificData.averagePlaytime) * 100, 100);
-      }
-      break;
+mediaEntrySchema.methods.getProgressPercentage = function () {
+  if (this.status === 'in_progress' || this.status === 'dropped') {
+    switch (this.mediaType) {
+      case 'movie':
+        if (this.progress?.currentTime && this.specificData?.runtime) {
+          return (this.progress.currentTime / this.specificData.runtime) * 100;
+        }
+        break;
+
+      case 'series':
+      case 'anime':
+        if (this.progress?.currentEpisode && this.specificData?.episodes) {
+          return (this.progress.currentEpisode / this.specificData.episodes) * 100;
+        }
+        break;
+
+      case 'manga':
+        if (this.progress?.currentChapter && this.specificData?.chapters) {
+          return (this.progress.currentChapter / this.specificData.chapters) * 100;
+        }
+        if (this.progress?.currentVolume && this.specificData?.volumes) {
+          return (this.progress.currentVolume / this.specificData.volumes) * 100;
+        }
+        break;
+
+      case 'book':
+        if (this.progress?.currentPage && this.specificData?.pageCount) {
+          return (this.progress.currentPage / this.specificData.pageCount) * 100;
+        }
+        break;
+
+      case 'game':
+        if (this.progress?.completionPercentage) {
+          return this.progress.completionPercentage;
+        }
+        if (this.progress?.hoursPlayed && this.specificData?.averagePlaytime) {
+          return Math.min((this.progress.hoursPlayed / this.specificData.averagePlaytime) * 100, 100);
+        }
+        break;
+    }
   }
-  
+
   return 0;
 };
 
-mediaEntrySchema.methods.getTimeDisplay = function() {
-  if (this.mediaType === 'movie' && this.progress.currentTime) {
+mediaEntrySchema.methods.getTimeDisplay = function () {
+  // Permitir para status in_progress e dropped
+  if ((this.status === 'in_progress' || this.status === 'dropped') &&
+    this.mediaType === 'movie' && this.progress?.currentTime) {
     const hours = Math.floor(this.progress.currentTime / 60);
     const minutes = this.progress.currentTime % 60;
     return `${hours}h ${minutes}m`;
   }
-  
-  if (this.mediaType === 'game' && this.progress.hoursPlayed) {
+
+  if ((this.status === 'in_progress' || this.status === 'dropped') &&
+    this.mediaType === 'game' && this.progress?.hoursPlayed) {
     return `${this.progress.hoursPlayed.toFixed(1)} horas`;
   }
-  
+
   return null;
 };
 
-mediaEntrySchema.methods.getEpisodeDisplay = function() {
-  if (['series', 'anime'].includes(this.mediaType) && this.progress.currentEpisode) {
-    const season = this.progress.currentSeason || 1;
-    return `S${season}E${this.progress.currentEpisode}`;
+mediaEntrySchema.methods.getEpisodeDisplay = function () {
+  // Permitir para status in_progress e dropped
+  if ((this.status === 'in_progress' || this.status === 'dropped')) {
+    if (['series', 'anime'].includes(this.mediaType) && this.progress?.currentEpisode) {
+      const season = this.progress.currentSeason || 1;
+      return `S${season}E${this.progress.currentEpisode}`;
+    }
+
+    if (this.mediaType === 'manga' && this.progress?.currentChapter) {
+      const volume = this.progress.currentVolume ? `V${this.progress.currentVolume} ` : '';
+      return `${volume}Cap. ${this.progress.currentChapter}`;
+    }
   }
-  
-  if (this.mediaType === 'manga' && this.progress.currentChapter) {
-    const volume = this.progress.currentVolume ? `V${this.progress.currentVolume} ` : '';
-    return `${volume}Cap. ${this.progress.currentChapter}`;
-  }
-  
+
   return null;
 };
 
 // Métodos estáticos
-mediaEntrySchema.statics.findByUserAndType = function(userId, mediaType, status) {
+mediaEntrySchema.statics.findByUserAndType = function (userId, mediaType, status) {
   const query = { userId, mediaType };
   if (status) {
     query.status = status;
@@ -534,11 +544,11 @@ mediaEntrySchema.statics.findByUserAndType = function(userId, mediaType, status)
   return this.find(query).sort({ lastUpdated: -1 });
 };
 
-mediaEntrySchema.statics.findFavorites = function(userId) {
+mediaEntrySchema.statics.findFavorites = function (userId) {
   return this.find({ userId, isFavorite: true }).sort({ lastUpdated: -1 });
 };
 
-mediaEntrySchema.statics.getStats = async function(userId) {
+mediaEntrySchema.statics.getStats = async function (userId) {
   const stats = await this.aggregate([
     { $match: { userId: mongoose.Types.ObjectId.createFromHexString(userId) } },
     {
@@ -563,7 +573,7 @@ mediaEntrySchema.statics.getStats = async function(userId) {
       }
     }
   ]);
-  
+
   return stats;
 };
 
