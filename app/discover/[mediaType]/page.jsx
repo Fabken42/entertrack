@@ -209,6 +209,7 @@ export default function DiscoverPage() {
         popularity: item.popularity,
         members: item.members,
         rank: item.rank,
+        authors: item.authors || [],
       }),
       ...(mediaType === 'movies' && {
         runtime: item.runtime,

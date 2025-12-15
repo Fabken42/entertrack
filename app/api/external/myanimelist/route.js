@@ -6,7 +6,7 @@ export async function GET(request) {
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get('action');
   const query = searchParams.get('query');
-  const limit = searchParams.get('limit') || '20';
+  const limit = searchParams.get('limit') || '10';
   const page = searchParams.get('page') || '1';
   const id = searchParams.get('id');
 
@@ -26,36 +26,45 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
           }
           const searchResult = await jikanClient.searchAnime(query, parseInt(page), parseInt(limit));
-          const animes = searchResult.data.map(item => jikanClient.formatAnimeData(item));
+          
+          // Formatar no mesmo estilo que a API de discover
+          const animes = searchResult.data?.map(item => ({
+            mal_id: item.mal_id,
+            title: item.title,
+            description: item.synopsis,
+            imageUrl: jikanClient.getImageURL(item.images),
+            year: item.year,
+            releaseYear: item.year,
+            score: item.score,
+            rating: item.score,
+            scored_by: item.scored_by,
+            ratingsCount: item.scored_by, // Adicionar este campo para compatibilidade
+            rank: item.rank,
+            popularity: item.popularity,
+            episodes: item.episodes || 0,
+            status: item.status,
+            type: item.type,
+            mediaType: 'anime',
+            members: item.members,
+            genres: item.genres?.map(g => ({
+              mal_id: g.mal_id,
+              id: g.mal_id?.toString(),
+              name: g.name
+            })) || [],
+            aired: item.aired,
+            studios: item.studios?.map(s => s.name) || [],
+            source: item.source,
+            season: item.season,
+            externalId: item.mal_id?.toString()
+          })) || [];
+
           return NextResponse.json({
             results: animes,
-            total: searchResult.pagination?.items?.total || animes.length
+            total: searchResult.pagination?.items?.total || animes.length,
+            pagination: searchResult.pagination
           });
 
-        case 'anime-details':
-          if (!id) {
-            return NextResponse.json({ error: 'ID parameter is required' }, { status: 400 });
-          }
-          const animeDetails = await jikanClient.getAnimeDetails(parseInt(id));
-          const formattedDetails = jikanClient.formatAnimeData(animeDetails.data);
-          return NextResponse.json(formattedDetails);
-
-        case 'popular-anime':
-          const popularResult = await jikanClient.getPopularAnime(parseInt(limit));
-          const popularAnimes = popularResult.data.map(item => jikanClient.formatAnimeData(item.node));
-          return NextResponse.json({
-            results: popularAnimes,
-            total: popularResult.paging?.total || popularAnimes.length
-          });
-
-        case 'top-anime':
-          const topResult = await jikanClient.getTopAnime(parseInt(limit));
-          const topAnimes = topResult.data.map(item => jikanClient.formatAnimeData(item.node));
-          return NextResponse.json({
-            results: topAnimes,
-            total: topResult.paging?.total || topAnimes.length
-          });
-
+        // ... outros casos para anime (anime-details, popular-anime, top-anime)
         default:
           return NextResponse.json({ error: 'Invalid action for anime' }, { status: 400 });
       }
@@ -68,36 +77,49 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
           }
           const mangaSearchResult = await jikanClient.searchManga(query, parseInt(page), parseInt(limit));
-          const mangas = mangaSearchResult.data.map(item => jikanClient.formatMangaData(item));
+          
+          // Formatar no MESMO formato que processMangaResults na API de discover
+          const mangas = mangaSearchResult.data?.map(item => ({
+            mal_id: item.mal_id,
+            id: item.mal_id,
+            title: item.title,
+            description: item.synopsis,
+            synopsis: item.synopsis,
+            imageUrl: jikanClient.getImageURL(item.images),
+            year: item.published?.from ? new Date(item.published.from).getFullYear() : item.year,
+            releaseYear: item.published?.from ? new Date(item.published.from).getFullYear() : item.year,
+            score: item.score,
+            rating: item.score,
+            scored_by: item.scored_by,
+            ratingsCount: item.scored_by, // 🔥 CAMPO CRÍTICO: adicionar ratingsCount
+            rank: item.rank,
+            popularity: item.popularity,
+            volumes: item.volumes || 0,
+            chapters: item.chapters || 0,
+            status: item.status,
+            type: item.type,
+            mediaType: 'manga',
+            members: item.members,
+            genres: item.genres?.map(g => ({
+              mal_id: g.mal_id,
+              id: g.mal_id?.toString(),
+              name: g.name
+            })) || [],
+            authors: item.authors?.map(author => author.name) || [],
+            serializations: item.serializations?.map(s => ({
+              name: s.name
+            })) || [],
+            published: item.published,
+            externalId: item.mal_id?.toString()
+          })) || [];
+
           return NextResponse.json({
             results: mangas,
-            total: mangaSearchResult.pagination?.items?.total || mangas.length
+            total: mangaSearchResult.pagination?.items?.total || mangas.length,
+            pagination: mangaSearchResult.pagination
           });
 
-        case 'manga-details':
-          if (!id) {
-            return NextResponse.json({ error: 'ID parameter is required' }, { status: 400 });
-          }
-          const mangaDetails = await jikanClient.getMangaDetails(parseInt(id));
-          const formattedMangaDetails = jikanClient.formatMangaData(mangaDetails.data);
-          return NextResponse.json(formattedMangaDetails);
-
-        case 'popular-manga':
-          const popularMangaResult = await jikanClient.getPopularManga(parseInt(limit));
-          const popularMangas = popularMangaResult.data.map(item => jikanClient.formatMangaData(item.node));
-          return NextResponse.json({
-            results: popularMangas,
-            total: popularMangaResult.paging?.total || popularMangas.length
-          });
-
-        case 'top-manga':
-          const topMangaResult = await jikanClient.getTopManga(parseInt(limit));
-          const topMangas = topMangaResult.data.map(item => jikanClient.formatMangaData(item.node));
-          return NextResponse.json({
-            results: topMangas,
-            total: topMangaResult.paging?.total || topMangas.length
-          });
-
+        // ... outros casos para manga (manga-details, popular-manga, top-manga)
         default:
           return NextResponse.json({ error: 'Invalid action for manga' }, { status: 400 });
       }

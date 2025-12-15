@@ -379,9 +379,10 @@ function processAnimeResults(data, pagination, page, limit) {
       releaseYear: item.year,
       releaseDate: item.aired?.from,
       rating: item.score || 0,
+      ratingsCount: item.scored_by || 0,
       rank: item.rank || 0,
       popularity: item.popularity || 0,
-      episodes: item.episodes,
+      episodes: item.episodes || 0, // 🔥 Mude aqui também se quiser
       status: item.status || 'Unknown',
       mediaType: item.type || 'TV',
       members: item.members || 0,
@@ -486,10 +487,11 @@ function processMangaResults(data, pagination, page, limit) {
       releaseYear: item.published?.from ? new Date(item.published.from).getFullYear() : item.year,
       releaseDate: item.published?.from,
       rating: item.score || 0,
+      ratingsCount: item.scored_by || 0,
       rank: item.rank || 0,
       popularity: item.popularity || 0,
-      volumes: item.volumes,
-      chapters: item.chapters,
+      volumes: item.volumes || 0, // 🔥 Mude aqui
+      chapters: item.chapters || 0, // 🔥 Mude aqui
       status: item.status || 'Unknown',
       mediaType: item.type || 'Manga',
       members: item.members || 0,

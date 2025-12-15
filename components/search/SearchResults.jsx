@@ -15,8 +15,8 @@ const normalizeSearchResults = (results, mediaType) => {
       imageUrl: book.imageUrl,
       releaseYear: book.releaseYear || (book.publishedDate ? new Date(book.publishedDate).getFullYear() : undefined),
       genres: book.categories || [],
-      apiRating: book.averageRating, // ← PADRÃO: apiRating
-      apiVoteCount: book.ratingsCount, // ← PADRÃO: apiVoteCount
+      apiRating: book.averageRating,
+      apiVoteCount: book.ratingsCount,
       englishTitle: book.subtitle,
       metadata: {
         authors: book.authors || [],
@@ -33,8 +33,8 @@ const normalizeSearchResults = (results, mediaType) => {
       imageUrl: game.imageUrl,
       releaseYear: game.released ? new Date(game.released).getFullYear() : undefined,
       genres: game.genres || [],
-      apiRating: game.rating, // ← PADRÃO: apiRating
-      apiVoteCount: game.ratingsCount, // ← PADRÃO: apiVoteCount
+      apiRating: game.rating,
+      apiVoteCount: game.ratingsCount,
       metadata: {
         platforms: game.platforms,
         metacritic: game.metacritic,
@@ -50,25 +50,84 @@ const normalizeSearchResults = (results, mediaType) => {
       releaseYear: mediaType === 'movie' ?
         (item.release_date ? new Date(item.release_date).getFullYear() : undefined) :
         (item.first_air_date ? new Date(item.first_air_date).getFullYear() : undefined),
-      genres: item.genre_ids ? item.genre_ids.map(id => id.toString()) : [], // ← IMPORTANTE: Array de IDs
+      genres: item.genre_ids ? item.genre_ids.map(id => id.toString()) : [],
       apiRating: item.vote_average,
       apiVoteCount: item.vote_count,
-      runtime: item.runtime || undefined, // ← Para filmes
-      // Adicionando campos que o MovieForm espera
-      externalId: item.id.toString(), // ← Campo necessário
-      synopsis: item.overview, // ← Campo que o handleAddToLibrary espera
+      runtime: item.runtime || undefined,
+      externalId: item.id.toString(),
+      synopsis: item.overview,
       ...(mediaType === 'series' && {
         numberOfSeasons: item.number_of_seasons,
         numberOfEpisodes: item.number_of_episodes
       })
     }));
+  } else if (mediaType === 'manga' || mediaType === 'anime') {
+    return results.map(item => {
+      // Extrair dados comuns para ambos anime/manga
+      const baseItem = {
+        id: item.mal_id || item.id,
+        title: item.title,
+        description: item.synopsis || item.description,
+        imageUrl: item.images?.jpg?.large_image_url || item.imageUrl,
+        releaseYear: item.year || item.releaseYear,
+        // Garantir que genres seja array de objetos {id, name}
+        genres: Array.isArray(item.genres) ? item.genres.map(g => ({
+          id: g.mal_id?.toString() || g.id?.toString() || '0',
+          name: g.name
+        })) : [],
+        // Campos essenciais para o MangaForm/AnimeForm
+        apiRating: item.score || item.rating || item.apiRating,
+        // CRUCIAL: usar ratingsCount se disponível, senão scored_by, senão apiVoteCount
+        apiVoteCount: item.ratingsCount || item.scored_by || item.apiVoteCount || 0,
+        externalId: (item.mal_id || item.id || item.externalId)?.toString(),
+        synopsis: item.synopsis || item.description,
+        // Campos comuns
+        popularity: item.popularity,
+        members: item.members,
+        rank: item.rank,
+        status: item.status || 'Unknown',
+        mediaType: item.type || mediaType,
+        releaseDate: item.published?.from || item.aired?.from
+      };
+
+      // Campos específicos para mangás
+      if (mediaType === 'manga') {
+        return {
+          ...baseItem,
+          volumes: item.volumes || 0,
+          chapters: item.chapters || 0,
+          // Processar autores - pode vir como array de strings ou array de objetos
+          authors: Array.isArray(item.authors) 
+            ? item.authors.map(author => {
+                if (typeof author === 'string') return author;
+                return author.name || author;
+              })
+            : [],
+          serialization: item.serializations?.[0]?.name || item.serialization || ''
+        };
+      }
+
+      // Campos específicos para animes
+      if (mediaType === 'anime') {
+        return {
+          ...baseItem,
+          episodes: item.episodes || 0,
+          // Outros campos específicos de anime se necessário
+          studios: item.studios?.map(s => s.name) || [],
+          source: item.source,
+          season: item.season
+        };
+      }
+
+      return baseItem;
+    });
   }
-  // Para anime e manga (MyAnimeList) - já estão no formato correto
+
+  // Fallback para outros tipos
   return results.map(item => ({
     ...item,
-    // Garantir que os campos padrão existam
-    apiRating: item.rating || item.score, // ← PADRÃO: apiRating
-    apiVoteCount: item.scored_by, // ← PADRÃO: apiVoteCount
+    apiRating: item.rating || item.score || item.apiRating,
+    apiVoteCount: item.scored_by || item.ratingsCount || item.apiVoteCount || 0,
     releaseYear: item.releaseYear || item.year
   }));
 };

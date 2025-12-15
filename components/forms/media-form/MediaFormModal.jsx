@@ -22,16 +22,11 @@ const MediaFormModal = ({
 }) => {
   const [loading, setLoading] = React.useState(false);
 
-  // A função onSubmit agora deve passar diretamente para os forms filhos
   const handleFormSubmit = async (data) => {
-    console.log('MediaFormModal: handleFormSubmit called with:', data);
-    console.log('External data:', externalData);
-    console.log('Initial data:', initialData);
 
     if (onSubmit) {
       setLoading(true);
       try {
-        // Passa os dados diretamente para a função onSubmit do DiscoverPage
         await onSubmit(data);
         onClose();
       } catch (error) {
