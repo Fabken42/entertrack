@@ -1,7 +1,7 @@
 import React from 'react';
 import MediaCard from '@/components/media/MediaCard';
 import { Film, Tv, BookOpen, GamepadIcon, Book, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 const MediaGrid = ({ 
   media, 

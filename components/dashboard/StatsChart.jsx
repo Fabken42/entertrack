@@ -1,7 +1,7 @@
 // /components/dashboard/StatsChart.jsx
 'use client';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 export function StatsChart({ stats, className }) {
   if (!stats?.byType || stats.byType.length === 0) return null;

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 import { Button } from '@/components/ui';
 import { User, LogOut, Menu, X, LogIn, UserPlus, Bell, Home, BarChart3, Settings, Film, Tv, BookOpen, GamepadIcon, ChevronDown, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/use-auth';

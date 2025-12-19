@@ -12,7 +12,7 @@ import InlineSearch from '@/components/search/InlineSearch';
 import SearchResults from '@/components/search/SearchResults';
 import { useGoogleBooksSearch } from '@/lib/hooks/use-google-books';
 import { useSession } from 'next-auth/react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 export default function BooksPage() {
   const { data: session, status } = useSession();

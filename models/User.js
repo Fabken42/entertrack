@@ -1,3 +1,4 @@
+// /models/User.js
 import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
@@ -91,4 +92,7 @@ UserSchema.methods.getPublicProfile = function() {
   return userObject;
 };
 
-export default mongoose.models.User || mongoose.model('User', UserSchema);
+// 🔥 PADRÃO CORRETO: Verificar se o modelo já existe
+const User = mongoose.models.User || mongoose.model('User', UserSchema);
+
+export default User;

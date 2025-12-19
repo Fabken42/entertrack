@@ -1,8 +1,15 @@
 'use client';
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
-const Input = React.forwardRef(({ className, label, error, icon: Icon, variant = 'glass', ...props }, ref) => {
+const Input = React.forwardRef(({ 
+  className, 
+  label, 
+  error, 
+  icon: Icon, 
+  variant = 'glass', 
+  ...props 
+}, ref) => {
   const variants = {
     glass: 'glass border-white/10 focus:border-blue-400 focus:ring-blue-400/30',
     outline: 'border-white/20 focus:border-blue-500 focus:ring-blue-500/30 bg-gray-900/50',
@@ -33,7 +40,7 @@ const Input = React.forwardRef(({ className, label, error, icon: Icon, variant =
             error && 'border-red-500 focus:border-red-500 focus:ring-red-500/30',
             className
           )}
-          {...props}
+          {...props} // 🔥 Agora só contém props válidas para input
         />
         
         {/* Efeito de brilho na borda */}
@@ -43,6 +50,7 @@ const Input = React.forwardRef(({ className, label, error, icon: Icon, variant =
           error ? "group-focus-within:border-red-500/30" : "group-focus-within:border-blue-500/30"
         )}></div>
       </div>
+      
       {error && (
         <p className="mt-1 text-sm text-red-400 flex items-center gap-2 animate-fade-in">
           <span className="w-1 h-1 bg-red-400 rounded-full"></span>

@@ -5,11 +5,11 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Select, Input } from '@/components/ui';
 import { Grid, List, Star, TrendingUp, Calendar, Search, Users, Filter, ArrowUpDown, Layers, Tag, RefreshCw, X, AlertCircle } from 'lucide-react';
-import Pagination from '../../../components/ui/pagination/Pagination';
-import MediaCard from '../../../components/media/MediaCard';
+import Pagination from '@/components/ui/pagination/Pagination';
+import MediaCard from '@/components/media/MediaCard';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 export default function DiscoverPage() {
   const params = useParams();
@@ -26,15 +26,12 @@ export default function DiscoverPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
 
-  // NOVO ESTADO para busca
   const [searchQuery, setSearchQuery] = useState('');
 
-  // ESTADOS para formulário (mantidos apenas para adicionar à biblioteca)
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedMediaData, setSelectedMediaData] = useState(null);
-  const [editingMedia, setEditingMedia] = useState(null);
 
-  const { addMedia, updateMedia } = useMediaStore();
+  const { addMedia } = useMediaStore();
 
   useEffect(() => {
     if (mediaType) {
@@ -103,10 +100,60 @@ export default function DiscoverPage() {
     }
   };
 
+  const handleAddToLibrary = (item) => {
+    const sourceApiMap = {
+      'movies': 'tmdb',
+      'series': 'tmdb',
+      'animes': 'jikan',
+      'mangas': 'jikan',
+      'games': 'rawg',
+      'books': 'google_books'
+    };
+
+    const mediaData = {
+      sourceApi: sourceApiMap[mediaType],
+      externalId: item.id?.toString(),
+      title: item.title,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      releaseYear: item.releaseYear, 
+      mediaType: getStoreMediaType(),
+
+      ...(mediaType === 'animes' && {
+        episodes: item.episodes,
+        popularity: item.popularity,       
+        members: item.members,             
+        studios: item.studios || [],       
+        apiRating: item.apiRating || item.rating,
+        apiVoteCount: item.apiVoteCount || item.ratingsCount,
+        genres: item.genres || [],
+      }),
+      ...(mediaType === 'mangas' && {
+        volumes: item.volumes,
+        chapters: item.chapters,
+        popularity: item.popularity,
+        members: item.members,
+        authors: item.authors || [],
+        apiRating: item.apiRating || item.rating,
+        apiVoteCount: item.apiVoteCount || item.ratingsCount,
+        genres: item.genres || [],
+      }),
+      ...(mediaType === 'movies' && {
+        runtime: item.runtime,
+      }),
+      ...(mediaType === 'series' && {
+        numberOfSeasons: item.numberOfSeasons,
+        numberOfEpisodes: item.numberOfEpisodes,
+      }),
+    };
+
+    setSelectedMediaData(mediaData);
+    setIsFormOpen(true);
+  };
+
   const handleFormClose = () => {
     setIsFormOpen(false);
     setSelectedMediaData(null);
-    setEditingMedia(null);
   };
 
   const handlePageChange = (newPage) => {
@@ -115,26 +162,13 @@ export default function DiscoverPage() {
   };
 
   const handleAddMedia = async (data) => {
-    console.log('DiscoverPage: handleAddMedia called with:', data);
-    console.log('Current mediaType in DiscoverPage:', mediaType);
-    console.log('Store media type:', getStoreMediaType());
-
     try {
-      const result = await addMedia({
+      await addMedia({
         ...data,
         mediaType: getStoreMediaType(),
       });
-      console.log('DiscoverPage: addMedia successful, result:', result);
     } catch (error) {
       console.error('DiscoverPage: addMedia error:', error);
-      alert('Erro ao adicionar mídia: ' + error.message);
-    }
-  };
-
-  const handleEditMedia = async (data) => {
-    if (editingMedia) {
-      await updateMedia(editingMedia.id, data);
-      setEditingMedia(null);
     }
   };
 
@@ -184,45 +218,6 @@ export default function DiscoverPage() {
       games: 'from-orange-500/20 to-orange-600/20'
     };
     return colors[mediaType] || 'from-gray-500/20 to-gray-600/20';
-  };
-
-  const handleAddToLibrary = (item) => {
-    const mediaData = {
-      externalId: item.id?.toString(),
-      title: item.title,
-      description: item.description,
-      imageUrl: item.imageUrl,
-      releaseYear: item.releaseYear,
-      genres: item.genres || [],
-      mediaType: getStoreMediaType(),
-      apiRating: item.rating,
-      apiVoteCount: item.ratingsCount,
-      ...(mediaType === 'animes' && {
-        episodes: item.episodes,
-        popularity: item.popularity,
-        members: item.members,
-        rank: item.rank,
-      }),
-      ...(mediaType === 'mangas' && {
-        volumes: item.volumes,
-        chapters: item.chapters,
-        popularity: item.popularity,
-        members: item.members,
-        rank: item.rank,
-        authors: item.authors || [],
-      }),
-      ...(mediaType === 'movies' && {
-        runtime: item.runtime,
-      }),
-      ...(mediaType === 'series' && {
-        numberOfSeasons: item.numberOfSeasons,
-        numberOfEpisodes: item.numberOfEpisodes,
-      }),
-      synopsis: item.description || item.overview || item.summary,
-    };
-
-    setSelectedMediaData(mediaData);
-    setIsFormOpen(true);
   };
 
   const refreshItems = () => {
@@ -280,7 +275,6 @@ export default function DiscoverPage() {
     <div className="min-h-screen">
       <div className="p-6 md:p-8 lg:p-12">
         <div className="max-w-7xl mx-auto">
-          {/* Header com gradiente e glass effect - REMOVIDO hover-lift */}
           <div className="mb-8 glass rounded-2xl p-6 border border-white/10">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
               <div className="flex items-center gap-3">
@@ -510,9 +504,8 @@ export default function DiscoverPage() {
         isOpen={isFormOpen}
         onClose={handleFormClose}
         mediaType={getStoreMediaType()}
-        initialData={editingMedia || undefined}
         externalData={selectedMediaData}
-        onSubmit={editingMedia ? handleEditMedia : handleAddMedia}
+        onSubmit={handleAddMedia}
       />
     </div>
   );

@@ -29,7 +29,7 @@ import {
   ChevronRight,
   Bookmark
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 import { signIn, useSession } from 'next-auth/react';
 
 export default function HomePage() {

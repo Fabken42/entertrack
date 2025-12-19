@@ -6,10 +6,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Input, Select, Rating as RatingComponent, TextArea } from '@/components/ui';
-import { GamepadIcon, Trophy, Target, Plus, Trash2, Star, Calendar, Users, TrendingUp } from 'lucide-react';
-import { cn, formatApiRating, statusOptions } from '@/lib/utils';
+import { Gamepad, Clock, Star, Calendar, TrendingUp } from 'lucide-react';
+import { cn, formatApiRating } from '@/lib/utils/general-utils';
+import { statusColors } from '@/constants';
 
-// Schema específico para jogos
+
+// Schema específico para jogo
 const gameSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
@@ -22,13 +24,13 @@ const gameSchema = z.object({
   progress: z.object({
     pendingTasks: z.array(z.string()).optional(),
   }).optional(),
-  // Campos específicos do RAWG
-  playtime: z.number().optional(),
-  metacritic: z.number().min(0).max(100).optional(),
-  platforms: z.array(z.string()).optional(),
-  developers: z.array(z.string()).optional(),
-  publishers: z.array(z.string()).optional(),
 });
+
+const formatPlaytime = (hours) => {
+  if (!hours) return '—';
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  return `${hours.toFixed(1)}h`;
+};
 
 const GameForm = (props) => {
   const {
@@ -40,19 +42,70 @@ const GameForm = (props) => {
     onSubmit,
   } = props;
 
-  console.log('GameForm props:', props);
+  // Converte genres de objetos {id, name} para array de strings
+  const getInitialGenres = () => {
+    if (initialData?.genres) {
+      return initialData.genres.map(g => typeof g === 'object' ? g.name : g);
+    }
+    if (externalData?.genres) {
+      return externalData.genres.map(g => typeof g === 'object' ? g.name : g);
+    }
+    return [];
+  };
 
-  const [selectedGenres, setSelectedGenres] = React.useState(
-    initialData?.genres || externalData?.genres || []
-  );
+  const [selectedGenres, setSelectedGenres] = React.useState(getInitialGenres);
   const [selectedRating, setSelectedRating] = React.useState(
     initialData?.rating
   );
-  const [newTask, setNewTask] = React.useState('');
 
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
+
+  // Prepara os valores padrão com genres convertidos para strings
+  const getDefaultValues = () => {
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        releaseYear: initialData.releaseYear,
+        genres: initialData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        rating: initialData.rating,
+        comment: initialData.comment,
+        imageUrl: initialData.imageUrl,
+        status: initialData.status,
+        progress: initialData.progress || {},
+      };
+    }
+    
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        releaseYear: externalData.releaseYear,
+        genres: externalData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        status: 'planned',
+        imageUrl: externalData.imageUrl,
+        progress: {},
+        rating: undefined,
+      };
+    }
+    
+    if (manualCreateQuery) {
+      return {
+        title: manualCreateQuery,
+        status: 'planned',
+        genres: [],
+        progress: {},
+      };
+    }
+    
+    return {
+      status: 'planned',
+      genres: [],
+      progress: {},
+    };
+  };
 
   const {
     register,
@@ -62,57 +115,12 @@ const GameForm = (props) => {
     watch,
   } = useForm({
     resolver: zodResolver(gameSchema),
-    defaultValues: initialData ? {
-      title: initialData.title,
-      description: initialData.description,
-      releaseYear: initialData.releaseYear,
-      genres: initialData.genres,
-      rating: initialData.rating,
-      comment: initialData.comment,
-      imageUrl: initialData.imageUrl,
-      status: initialData.status,
-      progress: initialData.progress || { pendingTasks: [] },
-      playtime: initialData.playtime,
-      metacritic: initialData.metacritic,
-      platforms: initialData.platforms,
-      developers: initialData.developers,
-      publishers: initialData.publishers,
-    } : externalData ? {
-      title: externalData.title,
-      description: externalData.description,
-      releaseYear: externalData.releaseYear,
-      genres: externalData.genres,
-      status: 'planned',
-      imageUrl: externalData.imageUrl,
-      progress: { pendingTasks: [] },
-      rating: undefined,
-      playtime: externalData.playtime,
-      metacritic: externalData.metacritic,
-      platforms: externalData.platforms,
-      developers: externalData.developers,
-      publishers: externalData.publishers,
-    } : manualCreateQuery ? {
-      title: manualCreateQuery,
-      status: 'planned',
-      genres: [],
-      progress: { pendingTasks: [] },
-      platforms: [],
-      developers: [],
-      publishers: [],
-    } : {
-      status: 'planned',
-      genres: [],
-      progress: { pendingTasks: [] },
-      platforms: [],
-      developers: [],
-      publishers: [],
-    },
+    defaultValues: getDefaultValues(),
   });
 
   const currentStatus = watch('status');
   const showRatingAndComment = currentStatus === 'completed' || currentStatus === 'dropped';
   const showProgressFields = currentStatus === 'in_progress' || currentStatus === 'dropped';
-  const pendingTasks = watch('progress.pendingTasks') || [];
 
   const handleGenreToggle = (genre) => {
     if (hasExternalData && !isEditMode) return;
@@ -130,26 +138,12 @@ const GameForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  const handleAddTask = () => {
-    if (newTask.trim()) {
-      const updatedTasks = [...pendingTasks, newTask.trim()];
-      setValue('progress.pendingTasks', updatedTasks, { shouldValidate: true });
-      setNewTask('');
-    }
-  };
-
-  const handleRemoveTask = (index) => {
-    const updatedTasks = pendingTasks.filter((_, i) => i !== index);
-    setValue('progress.pendingTasks', updatedTasks, { shouldValidate: true });
-  };
-
-  const onSubmitForm = (data) => {
-    console.log('GameForm: onSubmitForm chamado com:', data);
-    
+  const onSubmitForm = (data) => {    
     if (onSubmit) {
       const formData = {
         ...data,
         mediaType: 'game',
+        sourceApi: 'rawg', // Adicionar sourceApi
         rating: showRatingAndComment ? selectedRating : undefined,
         comment: showRatingAndComment ? data.comment : undefined,
         genres: selectedGenres,
@@ -158,6 +152,7 @@ const GameForm = (props) => {
         } : undefined,
         ...(externalData && {
           externalId: externalData.externalId,
+          sourceApi: externalData.sourceApi || 'rawg',
           apiRating: externalData.apiRating,
           apiVoteCount: externalData.apiVoteCount,
           playtime: externalData.playtime,
@@ -175,21 +170,17 @@ const GameForm = (props) => {
     }
   };
 
-  const availableGenres = [
-    'Ação', 'Aventura', 'RPG', 'Estratégia', 'Esportes', 'Corrida',
-    'Tiro', 'Luta', 'Quebra-cabeça', 'Simulação', 'Terror', 'Sobrevivência',
-    'Plataforma', 'Indie', 'MMO', 'MOBA', 'Battle Royale', 'Casual'
-  ];
+  const availableGenres = ['Ação', 'Aventura', 'RPG', 'Estratégia', 'Esportes', 'Corrida', 'Luta', 'Tiro', 'Simulação', 'Quebra-cabeça', 'Terror', 'Indie', 'Arcade', 'Plataforma'];
 
-  const mediaColor = 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+  const mediaColor = 'bg-orange-500/20 text-orange-300 border-orange-500/30';
 
   return (
     <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
       {hasExternalData && (
-        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-purple-500/30")}>
+        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-orange-500/30")}>
           <div className="flex items-center gap-3">
             <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <GamepadIcon className="w-5 h-5" />
+              <Gamepad className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-white">
@@ -206,7 +197,7 @@ const GameForm = (props) => {
                 <div>
                   <span className="text-white/80">Nota:</span>
                   <div className="font-medium text-white">
-                    {formatApiRating(externalData.apiRating, 1)?.display}/5
+                    {formatApiRating(externalData.apiRating)?.display}/5
                   </div>
                   {externalData.apiVoteCount && (
                     <div className="text-xs text-white/60">
@@ -217,30 +208,22 @@ const GameForm = (props) => {
               </div>
             )}
 
-            {externalData.metacritic && (
+            {externalData.playtime && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Target className="w-4 h-4 text-green-400" />
+                <Clock className="w-4 h-4 text-blue-400" />
                 <div>
-                  <span className="text-white/80">Metacritic:</span>
-                  <div className={cn(
-                    "font-bold",
-                    externalData.metacritic >= 75 ? "text-green-400" :
-                    externalData.metacritic >= 50 ? "text-yellow-400" : "text-red-400"
-                  )}>
-                    {externalData.metacritic}
-                  </div>
+                  <span className="text-white/80">Tempo médio:</span>
+                  <div className="font-medium text-white">{formatPlaytime(externalData.playtime)}</div>
                 </div>
               </div>
             )}
 
-            {externalData.playtime && (
+            {externalData.metacritic && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <GamepadIcon className="w-4 h-4 text-blue-400" />
+                <TrendingUp className="w-4 h-4 text-green-400" />
                 <div>
-                  <span className="text-white/80">Tempo de jogo:</span>
-                  <div className="font-medium text-white">
-                    {externalData.playtime}h
-                  </div>
+                  <span className="text-white/80">Metacritic:</span>
+                  <div className="font-medium text-white">{externalData.metacritic}/100</div>
                 </div>
               </div>
             )}
@@ -256,24 +239,13 @@ const GameForm = (props) => {
             )}
 
             {externalData.platforms && externalData.platforms.length > 0 && (
-              <div className="md:col-span-2 flex items-start gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-purple-400 mt-1 flex-shrink-0" />
+              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg md:col-span-2">
+                <Gamepad className="w-4 h-4 text-orange-400" />
                 <div>
                   <span className="text-white/80">Plataformas:</span>
                   <div className="font-medium text-white">
-                    {externalData.platforms.join(', ')}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {externalData.developers && externalData.developers.length > 0 && (
-              <div className="md:col-span-2 flex items-start gap-2 p-2 bg-white/5 rounded-lg">
-                <Users className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
-                <div>
-                  <span className="text-white/80">Desenvolvedores:</span>
-                  <div className="font-medium text-white">
-                    {externalData.developers.join(', ')}
+                    {externalData.platforms.slice(0, 3).join(', ')}
+                    {externalData.platforms.length > 3 && '...'}
                   </div>
                 </div>
               </div>
@@ -298,7 +270,7 @@ const GameForm = (props) => {
         <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
           <div className="flex items-center gap-3">
             <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <GamepadIcon className="w-5 h-5" />
+              <Gamepad className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-white mb-3">
@@ -316,7 +288,7 @@ const GameForm = (props) => {
         <div className="glass border border-white/10 rounded-xl p-6 space-y-6">
           <div className="flex items-center gap-3">
             <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <GamepadIcon className="w-5 h-5" />
+              <Gamepad className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-white">Informações Básicas</h3>
@@ -352,39 +324,6 @@ const GameForm = (props) => {
                 variant="glass"
               />
             </div>
-
-            <div className="md:col-span-2">
-              <Input
-                label="Plataformas"
-                {...register('platforms')}
-                error={errors.platforms?.message}
-                placeholder="PC, PlayStation 5, Xbox Series X"
-                variant="glass"
-                helperText="Separe as plataformas com vírgula"
-              />
-            </div>
-
-            <Input
-              label="Tempo de Jogo (horas)"
-              type="number"
-              icon={GamepadIcon}
-              {...register('playtime', { valueAsNumber: true })}
-              error={errors.playtime?.message}
-              placeholder="40"
-              variant="glass"
-            />
-
-            <Input
-              label="Metacritic (0-100)"
-              type="number"
-              icon={Target}
-              {...register('metacritic', { valueAsNumber: true })}
-              error={errors.metacritic?.message}
-              placeholder="85"
-              variant="glass"
-              min={0}
-              max={100}
-            />
           </div>
 
           <div>
@@ -412,7 +351,7 @@ const GameForm = (props) => {
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
                     selectedGenres.includes(genre)
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
                       : 'bg-white/5 text-white/80 hover:bg-white/10'
                   )}
                 >
@@ -447,7 +386,7 @@ const GameForm = (props) => {
           label="Status *"
           {...register('status')}
           error={errors.status?.message}
-          options={statusOptions}
+          options={statusColors}
           variant="glass"
         />
 
@@ -484,89 +423,35 @@ const GameForm = (props) => {
       {showProgressFields && (
         <div className={cn(
           "glass border border-white/10 rounded-xl p-6 space-y-4",
-          "border-l-4 border-purple-500/30"
+          "border-l-4 border-orange-500/30"
         )}>
           <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20">
-              <GamepadIcon className="w-5 h-5 text-purple-400" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20">
+              <Gamepad className="w-5 h-5 text-orange-400" />
             </div>
             <div>
-              <h3 className="font-semibold text-white">Missões Pendentes</h3>
-              <p className="text-sm text-white/60">Adicione tarefas ou objetivos que ainda precisa completar</p>
+              <h3 className="font-semibold text-white">Progresso do Jogo</h3>
+              <p className="text-sm text-white/60">Quais missões/objetivos faltam?</p>
             </div>
           </div>
 
-          {/* Lista de tarefas */}
-          {pendingTasks.length > 0 ? (
-            <div className="space-y-2 mb-4">
-              {pendingTasks.map((task, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 bg-white/5 rounded-lg group hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3 flex-1">
-                    <Target className="w-4 h-4 text-purple-400" />
-                    <span className="text-white">{task}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTask(index)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded transition-all duration-200"
-                    aria-label="Remover tarefa"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-400" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 mb-4 bg-white/5 rounded-lg border border-dashed border-white/10">
-              <Trophy className="w-8 h-8 text-white/30 mb-2" />
-              <p className="text-white/60 text-sm italic">Nenhuma missão adicionada ainda</p>
-              <p className="text-white/40 text-xs mt-1">Adicione suas próximas conquistas</p>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              Tarefas Pendentes
+            </label>
+            <TextArea
+              {...register('progress.pendingTasks')}
+              placeholder="Separe cada tarefa com uma vírgula...
+Ex: Completar a missão principal, Encontrar todos os colecionáveis, Derrotar o chefão final"
+              variant="glass"
+              rows={4}
+              helperText="Liste as tarefas que ainda precisa completar no jogo"
+            />
+          </div>
 
-          {/* Campo para adicionar nova tarefa */}
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                value={newTask}
-                onChange={(e) => setNewTask(e.target.value)}
-                placeholder="Ex: Conquistar troféu platina, Completar modo história..."
-                variant="glass"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTask();
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleAddTask}
-                className="whitespace-nowrap"
-                icon={Plus}
-                disabled={!newTask.trim()}
-              >
-                Adicionar
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {['Conquistar todos os troféus', 'Completar modo difícil', 'Encontrar todos os segredos', 'Farmar 100k moedas'].map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => setNewTask(suggestion)}
-                  className="text-xs text-white/60 hover:text-white p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors text-left"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-2 text-xs text-white/50 mt-2">
+            <div className="w-1.5 h-1.5 bg-orange-500/50 rounded-full"></div>
+            <span>Para jogos em progresso ou abandonados</span>
           </div>
         </div>
       )}
@@ -585,7 +470,7 @@ const GameForm = (props) => {
           type="submit"
           variant="primary"
           loading={loading}
-          className="min-w-[100px] bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+          className="min-w-[100px] bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
         >
           {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
         </Button>

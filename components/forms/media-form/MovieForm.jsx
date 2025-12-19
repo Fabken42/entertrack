@@ -6,11 +6,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Input, Select, Rating as RatingComponent, TextArea } from '@/components/ui';
-import { Film, Hourglass, Clock, Star, Calendar, Users, TrendingUp } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatRuntime, formatCurrency, formatApiRating, statusOptions } from '@/lib/utils';
+import { Film, Clock, Star, Calendar, Users, TrendingUp } from 'lucide-react';
+import { cn, formatApiRating } from '@/lib/utils/general-utils';
+import { statusColors } from '@/constants';
 
-// Schema específico para filmes
+// Schema específico para filme
 const movieSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
@@ -21,19 +21,18 @@ const movieSchema = z.object({
   comment: z.string().optional(),
   imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
   progress: z.object({
-    currentTimeHours: z.number().min(0).max(23).optional(),
+    currentTimeHours: z.number().min(0).max(10).optional(),
     currentTimeMinutes: z.number().min(0).max(59).optional(),
     currentTimeSeconds: z.number().min(0).max(59).optional(),
   }).optional(),
-  // Campos específicos do TMDB
-  runtime: z.number().optional(),
-  director: z.string().optional(),
-  cast: z.array(z.string()).optional(),
-  popularity: z.number().optional(),
-  voteCount: z.number().optional(),
-  budget: z.number().optional(),
-  revenue: z.number().optional(),
 });
+
+const formatRuntime = (minutes) => {
+  if (!minutes) return '—';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}m`;
+};
 
 const MovieForm = (props) => {
   const {
@@ -45,11 +44,18 @@ const MovieForm = (props) => {
     onSubmit,
   } = props;
 
-  console.log('MovieForm props:', props);
+  // Converte genres de objetos {id, name} para array de strings
+  const getInitialGenres = () => {
+    if (initialData?.genres) {
+      return initialData.genres.map(g => typeof g === 'object' ? g.name : g);
+    }
+    if (externalData?.genres) {
+      return externalData.genres.map(g => typeof g === 'object' ? g.name : g);
+    }
+    return [];
+  };
 
-  const [selectedGenres, setSelectedGenres] = React.useState(
-    initialData?.genres || externalData?.genres || []
-  );
+  const [selectedGenres, setSelectedGenres] = React.useState(getInitialGenres);
   const [selectedRating, setSelectedRating] = React.useState(
     initialData?.rating
   );
@@ -57,6 +63,51 @@ const MovieForm = (props) => {
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
+
+  // Prepara os valores padrão com genres convertidos para strings
+  const getDefaultValues = () => {
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        releaseYear: initialData.releaseYear,
+        genres: initialData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        rating: initialData.rating,
+        comment: initialData.comment,
+        imageUrl: initialData.imageUrl,
+        status: initialData.status,
+        progress: initialData.progress || {},
+      };
+    }
+    
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        releaseYear: externalData.releaseYear,
+        genres: externalData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        status: 'planned',
+        imageUrl: externalData.imageUrl,
+        progress: {},
+        rating: undefined,
+      };
+    }
+    
+    if (manualCreateQuery) {
+      return {
+        title: manualCreateQuery,
+        status: 'planned',
+        genres: [],
+        progress: {},
+      };
+    }
+    
+    return {
+      status: 'planned',
+      genres: [],
+      progress: {},
+    };
+  };
 
   const {
     register,
@@ -66,51 +117,7 @@ const MovieForm = (props) => {
     watch,
   } = useForm({
     resolver: zodResolver(movieSchema),
-    defaultValues: initialData ? {
-      title: initialData.title,
-      description: initialData.description,
-      releaseYear: initialData.releaseYear,
-      genres: initialData.genres,
-      rating: initialData.rating,
-      comment: initialData.comment,
-      imageUrl: initialData.imageUrl,
-      status: initialData.status,
-      progress: initialData.progress || {},
-      runtime: initialData.runtime,
-      director: initialData.director,
-      cast: initialData.cast,
-      popularity: initialData.popularity,
-      voteCount: initialData.voteCount,
-      budget: initialData.budget,
-      revenue: initialData.revenue,
-    } : externalData ? {
-      title: externalData.title,
-      description: externalData.description,
-      releaseYear: externalData.releaseYear,
-      genres: externalData.genres,
-      status: 'planned',
-      imageUrl: externalData.imageUrl,
-      progress: {},
-      rating: undefined,
-      runtime: externalData.runtime,
-      director: externalData.director,
-      cast: externalData.cast,
-      popularity: externalData.popularity,
-      voteCount: externalData.voteCount,
-      budget: externalData.budget,
-      revenue: externalData.revenue,
-    } : manualCreateQuery ? {
-      title: manualCreateQuery,
-      status: 'planned',
-      genres: [],
-      progress: {},
-      cast: [],
-    } : {
-      status: 'planned',
-      genres: [],
-      progress: {},
-      cast: [],
-    },
+    defaultValues: getDefaultValues(),
   });
 
   const currentStatus = watch('status');
@@ -133,13 +140,12 @@ const MovieForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  const onSubmitForm = (data) => {
-    console.log('MovieForm: onSubmitForm chamado com:', data);
-    
+  const onSubmitForm = (data) => {    
     if (onSubmit) {
       const formData = {
         ...data,
         mediaType: 'movie',
+        sourceApi: 'tmdb', // Adicionar sourceApi
         rating: showRatingAndComment ? selectedRating : undefined,
         comment: showRatingAndComment ? data.comment : undefined,
         genres: selectedGenres,
@@ -150,6 +156,7 @@ const MovieForm = (props) => {
         } : undefined,
         ...(externalData && {
           externalId: externalData.externalId,
+          sourceApi: externalData.sourceApi || 'tmdb',
           apiRating: externalData.apiRating,
           apiVoteCount: externalData.apiVoteCount,
           runtime: externalData.runtime,
@@ -169,12 +176,7 @@ const MovieForm = (props) => {
     }
   };
 
-  const availableGenres = [
-    'Ação', 'Aventura', 'Animação', 'Comédia', 'Crime', 'Documentário',
-    'Drama', 'Família', 'Fantasia', 'História', 'Terror', 'Mistério',
-    'Musical', 'Romance', 'Ficção Científica', 'Suspense', 'Guerra',
-    'Faroeste', 'Biografia', 'Esportes', 'Thriller'
-  ];
+  const availableGenres = ['Ação', 'Aventura', 'Animação', 'Comédia', 'Crime', 'Documentário', 'Drama', 'Família', 'Fantasia', 'Ficção Científica', 'Terror', 'Mistério', 'Romance', 'Suspense', 'Guerra', 'Western'];
 
   const mediaColor = 'bg-blue-500/20 text-blue-300 border-blue-500/30';
 
@@ -222,16 +224,6 @@ const MovieForm = (props) => {
               </div>
             )}
 
-            {externalData.releaseYear && (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Calendar className="w-4 h-4 text-white/60" />
-                <div>
-                  <span className="text-white/80">Ano:</span>
-                  <div className="font-medium text-white">{externalData.releaseYear}</div>
-                </div>
-              </div>
-            )}
-
             {externalData.popularity && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <TrendingUp className="w-4 h-4 text-green-400" />
@@ -242,45 +234,36 @@ const MovieForm = (props) => {
               </div>
             )}
 
-            {externalData.director && (
+            {externalData.releaseYear && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Film className="w-4 h-4 text-purple-400" />
+                <Calendar className="w-4 h-4 text-white/60" />
                 <div>
-                  <span className="text-white/80">Diretor:</span>
-                  <div className="font-medium text-white">{externalData.director}</div>
+                  <span className="text-white/80">Ano:</span>
+                  <div className="font-medium text-white">{externalData.releaseYear}</div>
                 </div>
               </div>
             )}
 
-            {externalData.cast && externalData.cast.length > 0 && (
-              <div className="md:col-span-2 flex items-start gap-2 p-2 bg-white/5 rounded-lg">
-                <Users className="w-4 h-4 text-orange-400 mt-1 flex-shrink-0" />
+            {externalData.budget && externalData.budget > 0 && (
+              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                <TrendingUp className="w-4 h-4 text-purple-400" />
                 <div>
-                  <span className="text-white/80">Elenco principal:</span>
-                  <div className="font-medium text-white text-xs">
-                    {externalData.cast.slice(0, 3).join(', ')}
-                    {externalData.cast.length > 3 && ` e mais ${externalData.cast.length - 3}`}
+                  <span className="text-white/80">Orçamento:</span>
+                  <div className="font-medium text-white">
+                    ${(externalData.budget / 1000000).toFixed(1)}M
                   </div>
                 </div>
               </div>
             )}
 
-            {externalData.budget && (
+            {externalData.revenue && externalData.revenue > 0 && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <Users className="w-4 h-4 text-emerald-400" />
                 <div>
-                  <span className="text-white/80">Orçamento:</span>
-                  <div className="font-medium text-white">{formatCurrency(externalData.budget)}</div>
-                </div>
-              </div>
-            )}
-
-            {externalData.revenue && (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-green-400" />
-                <div>
-                  <span className="text-white/80">Receita:</span>
-                  <div className="font-medium text-white">{formatCurrency(externalData.revenue)}</div>
+                  <span className="text-white/80">Bilheteria:</span>
+                  <div className="font-medium text-white">
+                    ${(externalData.revenue / 1000000).toFixed(1)}M
+                  </div>
                 </div>
               </div>
             )}
@@ -358,35 +341,6 @@ const MovieForm = (props) => {
                 variant="glass"
               />
             </div>
-
-            <Input
-              label="Duração (minutos)"
-              type="number"
-              icon={Clock}
-              {...register('runtime', { valueAsNumber: true })}
-              error={errors.runtime?.message}
-              placeholder="120"
-              variant="glass"
-            />
-
-            <Input
-              label="Diretor"
-              {...register('director')}
-              error={errors.director?.message}
-              placeholder="Nome do diretor"
-              variant="glass"
-            />
-
-            <div className="md:col-span-2">
-              <Input
-                label="Elenco"
-                {...register('cast')}
-                error={errors.cast?.message}
-                placeholder="Ator 1, Ator 2, Ator 3"
-                variant="glass"
-                helperText="Separe os atores com vírgula"
-              />
-            </div>
           </div>
 
           <div>
@@ -449,7 +403,7 @@ const MovieForm = (props) => {
           label="Status *"
           {...register('status')}
           error={errors.status?.message}
-          options={statusOptions}
+          options={statusColors}
           variant="glass"
         />
 
@@ -493,70 +447,52 @@ const MovieForm = (props) => {
               <Film className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h3 className="font-semibold text-white">Minutagem do Filme</h3>
-              <p className="text-sm text-white/60">Em que ponto você parou de assistir?</p>
+              <h3 className="font-semibold text-white">Progresso do Filme</h3>
+              <p className="text-sm text-white/60">Até onde você assistiu?</p>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded bg-white/5">
-                <Hourglass className="w-4 h-4 text-blue-400" />
-              </div>
-              <h5 className="text-sm font-medium text-white">Tempo Atual</h5>
-            </div>
+          <div className="grid grid-cols-3 gap-4">
+            <Input
+              label="Horas"
+              type="number"
+              icon={Clock}
+              {...register('progress.currentTimeHours', { valueAsNumber: true })}
+              error={errors.progress?.currentTimeHours?.message}
+              placeholder="1"
+              variant="glass"
+              min={0}
+              max={10}
+            />
 
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-white/80 mb-2">Horas</label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="23"
-                  icon={Clock}
-                  {...register('progress.currentTimeHours', { valueAsNumber: true })}
-                  error={errors.progress?.currentTimeHours?.message}
-                  placeholder="1"
-                  variant="glass"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/80 mb-2">Minutos</label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="59"
-                  icon={Clock}
-                  {...register('progress.currentTimeMinutes', { valueAsNumber: true })}
-                  error={errors.progress?.currentTimeMinutes?.message}
-                  placeholder="30"
-                  variant="glass"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/80 mb-2">Segundos</label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="59"
-                  icon={Clock}
-                  {...register('progress.currentTimeSeconds', { valueAsNumber: true })}
-                  error={errors.progress?.currentTimeSeconds?.message}
-                  placeholder="45"
-                  variant="glass"
-                />
-              </div>
-            </div>
+            <Input
+              label="Minutos"
+              type="number"
+              icon={Clock}
+              {...register('progress.currentTimeMinutes', { valueAsNumber: true })}
+              error={errors.progress?.currentTimeMinutes?.message}
+              placeholder="30"
+              variant="glass"
+              min={0}
+              max={59}
+            />
 
-            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-white/60">Formato:</span>
-                <code className="px-2 py-1 bg-white/10 rounded text-white text-xs">
-                  HH:MM:SS
-                </code>
-                <span className="text-white/40 text-xs ml-auto">Ex: 1:30:45 = 1h 30min 45s</span>
-              </div>
-            </div>
+            <Input
+              label="Segundos"
+              type="number"
+              icon={Clock}
+              {...register('progress.currentTimeSeconds', { valueAsNumber: true })}
+              error={errors.progress?.currentTimeSeconds?.message}
+              placeholder="45"
+              variant="glass"
+              min={0}
+              max={59}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-white/50 mt-2">
+            <div className="w-1.5 h-1.5 bg-blue-500/50 rounded-full"></div>
+            <span>Para filmes assistidos parcialmente</span>
           </div>
         </div>
       )}

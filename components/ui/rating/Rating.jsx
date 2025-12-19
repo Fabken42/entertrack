@@ -1,10 +1,9 @@
+//to-do: MODIFICAR CONFORME RETORNO DO ANIMES FORM
 'use client';
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 import { Star } from 'lucide-react';
-import { RATING_LABELS } from '@/constants';
-
-const RATING_OPTIONS = ['terrible', 'bad', 'ok', 'good', 'perfect'];
+import { RATING_LABELS, RATING_OPTIONS } from '@/constants';
 
 const Rating = ({
   value,
@@ -100,7 +99,7 @@ const Rating = ({
             {RATING_LABELS[value]}
           </span>
           <span className="text-xs text-gray-400">
-            ({RATING_OPTIONS.indexOf(value) + 1}/6)
+            ({RATING_OPTIONS.indexOf(value) + 1}/5)
           </span>
         </div>
       )}

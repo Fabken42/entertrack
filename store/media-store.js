@@ -1,222 +1,353 @@
-// /store/media-store.js (atualizado)
+// /store/media-store.js
+'use client';
+
 import { create } from 'zustand';
+import toast from 'react-hot-toast';
+import { JikanClient } from '@/lib/api/jikan';
 
-export const useMediaStore = create((set, get) => ({
-  // Estado inicial
-  media: [],
-  loading: false,
+const useMediaStore = create((set, get) => ({
+  userMedia: [],
+  isLoading: false,
   error: null,
-  
-  // Inicializar store com dados do backend
-  initializeStore: async () => {
-    set({ loading: true, error: null });
+
+  // Buscar mídia do usuário
+  fetchUserMedia: async () => {
+    set({ isLoading: true });
     try {
-      const response = await fetch('/api/media');
+      const response = await fetch('/api/user/media');
+      if (!response.ok) throw new Error('Failed to fetch media');
       const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error);
-      
-      set({ media: data.data || [], loading: false });
+      set({ userMedia: data, isLoading: false, error: null });
     } catch (error) {
-      set({ error: error.message, loading: false });
-      console.error('Erro ao inicializar store:', error);
+      set({ error: error.message, isLoading: false });
+      toast.error('Erro ao carregar sua lista');
     }
   },
 
-  // Buscar mídias do backend por tipo
-  fetchMediaByType: async (mediaType) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await fetch(`/api/media?mediaType=${mediaType}`);
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error);
-      
-      // Atualizar apenas mídias do tipo especificado, mantendo outras
-      set(state => {
-        const otherMedia = state.media.filter(item => item.mediaType !== mediaType);
-        return {
-          media: [...otherMedia, ...(data.data || [])],
-          loading: false
-        };
-      });
-    } catch (error) {
-      set({ error: error.message, loading: false });
-      throw error;
+  addMedia: async (mediaData) => {
+    // Para entradas manuais, gerar um externalId se não existir
+    if (!mediaData.externalId && mediaData.sourceApi === 'manual') {
+      mediaData.externalId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
-  },
 
-  // Ações assíncronas para API
-  addMedia: async (newMedia) => {
+    if (!mediaData.externalId) {
+      toast.error('Erro interno: ID da mídia não encontrado');
+      throw new Error('externalId é obrigatório para cache');
+    }
+
     try {
-      const response = await fetch('/api/media', {
+      const sourceId = mediaData.externalId.toString();
+      const sourceApi = mediaData.sourceApi || 'jikan';
+      const mediaType = mediaData.mediaType;
+
+      // Para entradas manuais, usar imagem placeholder
+      const coverImage = sourceApi === 'manual'
+        ? '/images/icons/placeholder-image.png'
+        : mediaData.imageUrl || '';
+
+      const cachePayload = {
+        sourceApi: sourceApi,
+        sourceId: sourceId,
+        mediaType: mediaType,
+        essentialData: {
+          title: mediaData.title || 'Título não disponível',
+          description: mediaData.description || '',
+          coverImage: coverImage,
+          backdropImage: '',
+          releaseYear: mediaData.releaseYear || null,
+          status: 'finished',
+          episodes: mediaData.episodes || null,
+          genres: Array.isArray(mediaData.genres)
+            ? mediaData.genres.map(g => {
+              // Se for entrada manual, g é um ID de gênero (string)
+              if (typeof g === 'string') {
+                const genreObj = JikanClient.getAllGenres().find(genre => genre.id === g);
+                return {
+                  id: g,
+                  name: genreObj?.name || g
+                };
+              }
+              // Se for objeto (de dados externos)
+              if (typeof g === 'object') {
+                return {
+                  id: g.id?.toString() || g.name.toLowerCase().replace(/\s+/g, '-'),
+                  name: g.name
+                };
+              }
+              // Se for string simples
+              return {
+                id: g.toLowerCase().replace(/\s+/g, '-'),
+                name: g
+              };
+            })
+            : [],
+          averageRating: mediaData.apiRating || null,
+          ratingCount: mediaData.apiVoteCount || null,
+          popularity: mediaData.popularity || null,
+          members: mediaData.members || null,
+          studios: mediaData.studios || [],
+          authors: mediaData.authors || [],
+          source: sourceApi,
+          externalId: sourceId
+        }
+      };
+
+      // Primeiro, verificar/criar cache da mídia
+      const cacheResponse = await fetch('/api/media/cache', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMedia),
+        body: JSON.stringify(cachePayload)
       });
-      
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error);
-      
-      // Atualizar estado local
+
+      if (!cacheResponse.ok) {
+        const errorText = await cacheResponse.text();
+        console.error('❌ Erro detalhado do cache:', errorText);
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(`Failed to cache media data: ${errorJson.error || errorJson.details || 'Unknown error'}`);
+        } catch (e) {
+          throw new Error(`Failed to cache media data: ${cacheResponse.status} ${cacheResponse.statusText}`);
+        }
+      }
+
+      const cacheResult = await cacheResponse.json();
+      // Agora criar a UserMedia
+      const userMediaPayload = {
+        mediaCacheId: cacheResult.cacheId,
+        status: mediaData.status || 'planned',
+        userRating: mediaData.userRating || null,
+        personalNotes: mediaData.personalNotes || '',
+        progress: mediaData.progress ? {
+          current: mediaData.progress.currentEpisode || mediaData.progress.current || 0,
+          unit: 'episodes',
+          lastUpdated: new Date()
+        } : undefined,
+        ...(mediaData.status === 'in_progress' && { startedAt: new Date() }),
+        ...(mediaData.status === 'completed' && { completedAt: new Date() }),
+        ...(mediaData.status === 'dropped' && { droppedAt: new Date() })
+      };
+
+      const userMediaResponse = await fetch('/api/user/media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userMediaPayload)
+      });
+
+      if (!userMediaResponse.ok) {
+        const errorText = await userMediaResponse.text();
+        console.error('❌ Erro na resposta da UserMedia:', errorText);
+
+        try {
+          const errorJson = JSON.parse(errorText);
+          toast.error(errorJson.error || 'Erro ao adicionar mídia');
+        } catch {
+          toast.error('Erro ao adicionar mídia');
+        }
+        throw new Error('Failed to add media to your list');
+      }
+
+      const newMedia = await userMediaResponse.json();
+
+      // Atualizar store local
       set(state => ({
-        media: [...state.media, data.data]
+        userMedia: [...state.userMedia, newMedia]
       }));
-      
-      return data.data;
+
+      toast.success('Mídia adicionada com sucesso!');
+      return newMedia;
+
     } catch (error) {
-      set({ error: error.message });
+      console.error('Error adding media:', error);
       throw error;
     }
   },
-  
-  updateMedia: async (id, updates) => {
+
+  updateMedia: async (userMediaId, updateData) => {
     try {
-      const response = await fetch(`/api/media/${id}`, {
+      // Preparar o payload para atualização
+      const updatePayload = {
+        status: updateData.status,
+        userRating: updateData.userRating || null,
+        personalNotes: updateData.personalNotes || '',
+        progress: updateData.progress ? {
+          current: updateData.progress.currentEpisode || updateData.progress.current || 0,
+          unit: updateData.mediaType === 'anime' ? 'episodes' :
+            updateData.mediaType === 'manga' ? 'chapters' : 'pages',
+          lastUpdated: new Date()
+        } : undefined,
+        // Datas específicas se fornecidas
+        ...(updateData.startedAt && { startedAt: updateData.startedAt }),
+        ...(updateData.completedAt && { completedAt: updateData.completedAt }),
+        ...(updateData.droppedAt && { droppedAt: updateData.droppedAt })
+      };
+
+      const response = await fetch(`/api/user/media/${userMediaId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(updatePayload)
       });
-      
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error);
-      
-      // Atualizar estado local
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Erro na resposta:', errorData);
+        throw new Error(errorData.error || 'Failed to update media');
+      }
+
+      const updatedMedia = await response.json();
+
+      // Atualizar store local
       set(state => ({
-        media: state.media.map(item => 
-          item._id === id ? { ...item, ...data.data } : item
+        userMedia: state.userMedia.map(media =>
+          media._id === userMediaId ? updatedMedia : media
         )
       }));
-      
-      return data.data;
+
+      toast.success('Mídia atualizada com sucesso!');
+      return updatedMedia;
+
     } catch (error) {
-      set({ error: error.message });
+      console.error('Error updating media:', error);
+      toast.error('Erro ao atualizar mídia: ' + error.message);
       throw error;
     }
   },
-  
-  deleteMedia: async (id) => {
+
+  removeMedia: async (userMediaId) => {
     try {
-      const response = await fetch(`/api/media/${id}`, {
-        method: 'DELETE',
+      const response = await fetch(`/api/user/media/${userMediaId}`, {
+        method: 'DELETE'
       });
-      
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error);
-      
-      // Atualizar estado local
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove media');
+      }
+
+      const result = await response.json();
+      // Atualizar store local
       set(state => ({
-        media: state.media.filter(item => item._id !== id)
+        userMedia: state.userMedia.filter(media => media._id !== userMediaId)
       }));
-      
-      return data;
+
+      toast.success('Mídia removida com sucesso!');
+      return result;
+
     } catch (error) {
-      set({ error: error.message });
+      console.error('Error removing media:', error);
+      toast.error('Erro ao remover mídia: ' + error.message);
       throw error;
     }
   },
-  
-  // Funções de conveniência (compatibilidade com código existente)
-  setMediaStatus: async (id, status) => {
-    const updates = { status };
-    const mediaItem = get().getMediaById(id);
-    
-    // Atualizar timeline baseado no status
-    const timelineUpdates = {};
-    
-    if (status === 'completed' && !mediaItem?.timeline?.completedAt) {
-      timelineUpdates.completedAt = new Date();
-    } else if (status === 'in_progress' && !mediaItem?.timeline?.startedAt) {
-      timelineUpdates.startedAt = new Date();
-    } else if (status === 'dropped' && !mediaItem?.timeline?.droppedAt) {
-      timelineUpdates.droppedAt = new Date();
-    }
-    
-    if (Object.keys(timelineUpdates).length > 0) {
-      updates.timeline = { ...mediaItem?.timeline, ...timelineUpdates };
-    }
-    
-    return get().updateMedia(id, updates);
+
+  getMediaByType: (mediaType) => {
+    const { userMedia } = get();
+    return userMedia.filter(item =>
+      item.mediaCacheId?.mediaType === mediaType
+    );
   },
-  
-  setMediaRating: async (id, rating) => {
-    const ratingValue = typeof rating === 'string' 
-      ? { value: rating, score: mapRatingToScore(rating) }
-      : rating;
-    
-    return get().updateMedia(id, { rating: ratingValue });
+
+  // Filtrar por status
+  getMediaByStatus: (mediaType, status) => {
+    const { userMedia } = get();
+    return userMedia.filter(item =>
+      item.mediaCacheId?.mediaType === mediaType &&
+      item.status === status
+    );
   },
-  
-  setMediaProgress: async (id, progress) => {
-    return get().updateMedia(id, { progress });
+
+  // Buscar por título
+  searchMedia: (mediaType, query) => {
+    const { userMedia } = get();
+    const searchTerm = query.toLowerCase();
+
+    return userMedia.filter(item => {
+      if (item.mediaCacheId?.mediaType !== mediaType) return false;
+
+      const title = item.mediaCacheId?.essentialData?.title?.toLowerCase() || '';
+      return title.includes(searchTerm);
+    });
   },
-  
-  // Getters (compatibilidade com código existente)
-  getMediaByType: (type) => {
-    return get().media.filter(item => item.mediaType === type);
-  },
-  
-  getMediaByStatus: (status) => {
-    return get().media.filter(item => item.status === status);
-  },
-  
+
+  // Método auxiliar para buscar mídia específica por ID
   getMediaById: (id) => {
-    return get().media.find(item => item._id === id || item.id === id);
+    const { userMedia } = get();
+    return userMedia.find(media => media._id === id);
   },
 
-  // Métodos auxiliares para estatísticas
-  getStats: () => {
-    const media = get().media;
-    return {
-      total: media.length,
-      planned: media.filter(m => m.status === 'planned').length,
-      inProgress: media.filter(m => m.status === 'in_progress').length,
-      completed: media.filter(m => m.status === 'completed').length,
-      dropped: media.filter(m => m.status === 'dropped').length,
-      favorites: media.filter(m => m.isFavorite).length,
-    };
+  // Método para atualizar notas pessoais diretamente
+  updatePersonalNotes: async (userMediaId, personalNotes) => {
+    try {
+      const response = await fetch(`/api/user/media/${userMediaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personalNotes: personalNotes || ''
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update notes');
+      }
+
+      const updatedMedia = await response.json();
+
+      // Atualizar store local
+      set(state => ({
+        userMedia: state.userMedia.map(media =>
+          media._id === userMediaId ? updatedMedia : media
+        )
+      }));
+
+      toast.success('Notas atualizadas com sucesso!');
+      return updatedMedia;
+
+    } catch (error) {
+      console.error('Error updating notes:', error);
+      toast.error('Erro ao atualizar notas: ' + error.message);
+      throw error;
+    }
   },
 
-  // Método para buscar mídias com filtros avançados
-  getFilteredMedia: (filters = {}) => {
-    let filtered = [...get().media];
-    
-    if (filters.mediaType) {
-      filtered = filtered.filter(item => item.mediaType === filters.mediaType);
+  // Método para atualizar rating diretamente
+  updateRating: async (userMediaId, rating) => {
+    try {
+      // Garantir que o rating seja um número válido
+      const normalizedRating = typeof rating === 'number'
+        ? Math.max(1, Math.min(5, rating))
+        : null;
+
+      const response = await fetch(`/api/user/media/${userMediaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userRating: normalizedRating
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update rating');
+      }
+
+      const updatedMedia = await response.json();
+
+      // Atualizar store local
+      set(state => ({
+        userMedia: state.userMedia.map(media =>
+          media._id === userMediaId ? updatedMedia : media
+        )
+      }));
+
+      toast.success('Avaliação atualizada com sucesso!');
+      return updatedMedia;
+
+    } catch (error) {
+      console.error('Error updating rating:', error);
+      toast.error('Erro ao atualizar avaliação: ' + error.message);
+      throw error;
     }
-    
-    if (filters.status && filters.status !== 'all') {
-      filtered = filtered.filter(item => item.status === filters.status);
-    }
-    
-    if (filters.searchQuery) {
-      const query = filters.searchQuery.toLowerCase();
-      filtered = filtered.filter(item => 
-        item.title?.toLowerCase().includes(query) ||
-        item.description?.toLowerCase().includes(query) ||
-        item.genres?.some(genre => genre.toLowerCase().includes(query))
-      );
-    }
-    
-    if (filters.isFavorite) {
-      filtered = filtered.filter(item => item.isFavorite);
-    }
-    
-    return filtered;
   }
 }));
 
-// Função auxiliar para mapear rating para score
-function mapRatingToScore(rating) {
-  const ratingMap = {
-    'terrible': 1,
-    'bad': 2,
-    'ok': 3,
-    'good': 4,
-    'perfect': 5,
-  };
-  return ratingMap[rating] || 3;
-}
+export { useMediaStore };

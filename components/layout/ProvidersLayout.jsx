@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/hooks/use-auth';
 import Header from './header/Header';
 import Footer from './footer/Footer';
 import Sidebar from './sidebar/Sidebar';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 const ProvidersLayout = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();

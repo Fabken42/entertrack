@@ -1,136 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Loader2, Tv, Film, Book, GamepadIcon, Users, TrendingUp, Star, Calendar, Clock, BookOpen, Search, Target, Trophy } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
-const normalizeSearchResults = (results, mediaType) => {
-  if (!results || !Array.isArray(results)) return [];
-
-  if (mediaType === 'book') {
-    return results.map(book => ({
-      id: book.id,
-      title: book.title,
-      description: book.description,
-      imageUrl: book.imageUrl,
-      releaseYear: book.releaseYear || (book.publishedDate ? new Date(book.publishedDate).getFullYear() : undefined),
-      genres: book.categories || [],
-      apiRating: book.averageRating,
-      apiVoteCount: book.ratingsCount,
-      englishTitle: book.subtitle,
-      metadata: {
-        authors: book.authors || [],
-        pageCount: book.pageCount,
-        publisher: book.publisher,
-        isbn: book.isbn
-      }
-    }));
-  } else if (mediaType === 'game') {
-    return results.map(game => ({
-      id: game.id,
-      title: game.name,
-      description: game.description,
-      imageUrl: game.imageUrl,
-      releaseYear: game.released ? new Date(game.released).getFullYear() : undefined,
-      genres: game.genres || [],
-      apiRating: game.rating,
-      apiVoteCount: game.ratingsCount,
-      metadata: {
-        platforms: game.platforms,
-        metacritic: game.metacritic,
-        playtime: game.playtime
-      }
-    }));
-  } else if (mediaType === 'movie' || mediaType === 'series') {
-    return results.map(item => ({
-      id: item.id,
-      title: mediaType === 'movie' ? item.title : item.name,
-      description: item.overview,
-      imageUrl: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
-      releaseYear: mediaType === 'movie' ?
-        (item.release_date ? new Date(item.release_date).getFullYear() : undefined) :
-        (item.first_air_date ? new Date(item.first_air_date).getFullYear() : undefined),
-      genres: item.genre_ids ? item.genre_ids.map(id => id.toString()) : [],
-      apiRating: item.vote_average,
-      apiVoteCount: item.vote_count,
-      runtime: item.runtime || undefined,
-      externalId: item.id.toString(),
-      synopsis: item.overview,
-      ...(mediaType === 'series' && {
-        numberOfSeasons: item.number_of_seasons,
-        numberOfEpisodes: item.number_of_episodes
-      })
-    }));
-  } else if (mediaType === 'manga' || mediaType === 'anime') {
-    return results.map(item => {
-      // Extrair dados comuns para ambos anime/manga
-      const baseItem = {
-        id: item.mal_id || item.id,
-        title: item.title,
-        description: item.synopsis || item.description,
-        imageUrl: item.images?.jpg?.large_image_url || item.imageUrl,
-        releaseYear: item.year || item.releaseYear,
-        // Garantir que genres seja array de objetos {id, name}
-        genres: Array.isArray(item.genres) ? item.genres.map(g => ({
-          id: g.mal_id?.toString() || g.id?.toString() || '0',
-          name: g.name
-        })) : [],
-        // Campos essenciais para o MangaForm/AnimeForm
-        apiRating: item.score || item.rating || item.apiRating,
-        // CRUCIAL: usar ratingsCount se disponível, senão scored_by, senão apiVoteCount
-        apiVoteCount: item.ratingsCount || item.scored_by || item.apiVoteCount || 0,
-        externalId: (item.mal_id || item.id || item.externalId)?.toString(),
-        synopsis: item.synopsis || item.description,
-        // Campos comuns
-        popularity: item.popularity,
-        members: item.members,
-        rank: item.rank,
-        status: item.status || 'Unknown',
-        mediaType: item.type || mediaType,
-        releaseDate: item.published?.from || item.aired?.from
-      };
-
-      // Campos específicos para mangás
-      if (mediaType === 'manga') {
-        return {
-          ...baseItem,
-          volumes: item.volumes || 0,
-          chapters: item.chapters || 0,
-          // Processar autores - pode vir como array de strings ou array de objetos
-          authors: Array.isArray(item.authors) 
-            ? item.authors.map(author => {
-                if (typeof author === 'string') return author;
-                return author.name || author;
-              })
-            : [],
-          serialization: item.serializations?.[0]?.name || item.serialization || ''
-        };
-      }
-
-      // Campos específicos para animes
-      if (mediaType === 'anime') {
-        return {
-          ...baseItem,
-          episodes: item.episodes || 0,
-          // Outros campos específicos de anime se necessário
-          studios: item.studios?.map(s => s.name) || [],
-          source: item.source,
-          season: item.season
-        };
-      }
-
-      return baseItem;
-    });
-  }
-
-  // Fallback para outros tipos
-  return results.map(item => ({
-    ...item,
-    apiRating: item.rating || item.score || item.apiRating,
-    apiVoteCount: item.scored_by || item.ratingsCount || item.apiVoteCount || 0,
-    releaseYear: item.releaseYear || item.year
-  }));
-};
+import { cn } from '@/lib/utils/general-utils';
+import { normalizeSearchResults } from '@/lib/utils/media-utils';
+import { formatMembers, formatPopularity } from '@/lib/utils/general-utils';
+import { formatRating } from '@/lib/utils/media-utils';
 
 const SearchResults = ({
   results,
@@ -191,31 +66,12 @@ const SearchResults = ({
   const config = getMediaTypeConfig();
   const MediaIcon = config.icon;
 
-  // Funções auxiliares
-  const formatRating = (rating, maxRating = 10) => {
-    if (!rating) return null;
-
-    // Para Google Books (0-5) e RAWG (0-5), converte para 0-5
-    if (mediaType === 'book' || mediaType === 'game') {
-      return rating.toFixed(1);
-    }
-    // Para TMDB (0-10) e MyAnimeList (0-10), converte para 0-5
-    return (rating / 2).toFixed(1);
-  };
-
-  const formatMembers = (members) => {
-    if (!members) return null;
-    if (members >= 1000000) return (members / 1000000).toFixed(1) + 'M';
-    if (members >= 1000) return (members / 1000).toFixed(1) + 'K';
-    return members.toString();
-  };
-
-  const formatPopularity = (popularity) => {
-    if (!popularity) return null;
-    return `#${popularity.toLocaleString('pt-BR')}`;
-  };
 
   const normalizedResults = normalizeSearchResults(results, mediaType);
+
+  useEffect(() => {
+    console.log('results: ', results) //nunca mostra algum resultado
+  }, [results])
 
   if (loading) {
     return (
@@ -295,7 +151,9 @@ const SearchResults = ({
       {/* Results List */}
       <div className="p-3 space-y-2">
         {normalizedResults.map((item, index) => {
-          const ratingDisplay = formatRating(item.apiRating); // ← USANDO apiRating
+          // CORREÇÃO AQUI:
+          const ratingInfo = formatRating(item.apiRating, mediaType);
+          const ratingDisplay = ratingInfo?.display || (item.apiRating ? item.apiRating.toFixed(1) : 'N/A');
           const isHighRating = item.apiRating && item.apiRating >= (mediaType === 'book' || mediaType === 'game' ? 4 : 7.5);
 
           return (
@@ -331,7 +189,7 @@ const SearchResults = ({
                 )}
 
                 {/* Badge de rating */}
-                {ratingDisplay && (
+                {ratingDisplay && ratingDisplay !== 'N/A' && (
                   <div className={cn(
                     "absolute -top-2 -right-2 px-2 py-1 rounded-full text-xs font-semibold backdrop-blur-sm",
                     "border border-white/10 shadow-lg",

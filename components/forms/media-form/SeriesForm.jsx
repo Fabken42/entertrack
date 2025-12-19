@@ -6,11 +6,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Input, Select, Rating as RatingComponent, TextArea } from '@/components/ui';
-import { Tv, Calendar, Hash, Star, Users, TrendingUp, Clock, Layers } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatApiRating, formatRuntime, statusOptions } from '@/lib/utils';
+import { Tv, Hash, Star, Calendar, Users, TrendingUp } from 'lucide-react';
+import { cn, formatApiRating } from '@/lib/utils/general-utils';
+import { statusColors } from '@/constants';
 
-// Schema específico para séries
+// Schema específico para série
 const seriesSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
@@ -24,17 +24,15 @@ const seriesSchema = z.object({
     currentEpisode: z.number().min(0).optional(),
     currentSeason: z.number().min(1).optional(),
   }).optional(),
-  // Campos específicos do TMDB para séries
-  numberOfSeasons: z.number().optional(),
-  numberOfEpisodes: z.number().optional(),
-  episodeRuntime: z.number().optional(),
-  popularity: z.number().optional(),
-  voteCount: z.number().optional(),
-  creators: z.array(z.string()).optional(),
-  cast: z.array(z.string()).optional(),
-  networks: z.array(z.string()).optional(),
-  status: z.string().optional(), // status da série (ex: "Returning Series", "Ended")
 });
+
+const formatEpisodeRuntime = (runtime) => {
+  if (!runtime) return '—';
+  if (runtime < 60) return `${runtime}m`;
+  const hours = Math.floor(runtime / 60);
+  const mins = runtime % 60;
+  return `${hours}h ${mins}m`;
+};
 
 const SeriesForm = (props) => {
   const {
@@ -46,11 +44,18 @@ const SeriesForm = (props) => {
     onSubmit,
   } = props;
 
-  console.log('SeriesForm props:', props);
+  // Converte genres de objetos {id, name} para array de strings
+  const getInitialGenres = () => {
+    if (initialData?.genres) {
+      return initialData.genres.map(g => typeof g === 'object' ? g.name : g);
+    }
+    if (externalData?.genres) {
+      return externalData.genres.map(g => typeof g === 'object' ? g.name : g);
+    }
+    return [];
+  };
 
-  const [selectedGenres, setSelectedGenres] = React.useState(
-    initialData?.genres || externalData?.genres || []
-  );
+  const [selectedGenres, setSelectedGenres] = React.useState(getInitialGenres);
   const [selectedRating, setSelectedRating] = React.useState(
     initialData?.rating
   );
@@ -58,6 +63,51 @@ const SeriesForm = (props) => {
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
+
+  // Prepara os valores padrão com genres convertidos para strings
+  const getDefaultValues = () => {
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        releaseYear: initialData.releaseYear,
+        genres: initialData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        rating: initialData.rating,
+        comment: initialData.comment,
+        imageUrl: initialData.imageUrl,
+        status: initialData.status,
+        progress: initialData.progress || {},
+      };
+    }
+    
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        releaseYear: externalData.releaseYear,
+        genres: externalData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        status: 'planned',
+        imageUrl: externalData.imageUrl,
+        progress: {},
+        rating: undefined,
+      };
+    }
+    
+    if (manualCreateQuery) {
+      return {
+        title: manualCreateQuery,
+        status: 'planned',
+        genres: [],
+        progress: {},
+      };
+    }
+    
+    return {
+      status: 'planned',
+      genres: [],
+      progress: {},
+    };
+  };
 
   const {
     register,
@@ -67,59 +117,7 @@ const SeriesForm = (props) => {
     watch,
   } = useForm({
     resolver: zodResolver(seriesSchema),
-    defaultValues: initialData ? {
-      title: initialData.title,
-      description: initialData.description,
-      releaseYear: initialData.releaseYear,
-      genres: initialData.genres,
-      rating: initialData.rating,
-      comment: initialData.comment,
-      imageUrl: initialData.imageUrl,
-      status: initialData.status,
-      progress: initialData.progress || {},
-      numberOfSeasons: initialData.numberOfSeasons,
-      numberOfEpisodes: initialData.numberOfEpisodes,
-      episodeRuntime: initialData.episodeRuntime,
-      popularity: initialData.popularity,
-      voteCount: initialData.voteCount,
-      creators: initialData.creators,
-      cast: initialData.cast,
-      networks: initialData.networks,
-      seriesStatus: initialData.seriesStatus,
-    } : externalData ? {
-      title: externalData.title,
-      description: externalData.description,
-      releaseYear: externalData.releaseYear,
-      genres: externalData.genres,
-      status: 'planned',
-      imageUrl: externalData.imageUrl,
-      progress: {},
-      rating: undefined,
-      numberOfSeasons: externalData.numberOfSeasons,
-      numberOfEpisodes: externalData.numberOfEpisodes,
-      episodeRuntime: externalData.episodeRuntime,
-      popularity: externalData.popularity,
-      voteCount: externalData.voteCount,
-      creators: externalData.creators,
-      cast: externalData.cast,
-      networks: externalData.networks,
-      seriesStatus: externalData.seriesStatus,
-    } : manualCreateQuery ? {
-      title: manualCreateQuery,
-      status: 'planned',
-      genres: [],
-      progress: {},
-      creators: [],
-      cast: [],
-      networks: [],
-    } : {
-      status: 'planned',
-      genres: [],
-      progress: {},
-      creators: [],
-      cast: [],
-      networks: [],
-    },
+    defaultValues: getDefaultValues(),
   });
 
   const currentStatus = watch('status');
@@ -142,13 +140,12 @@ const SeriesForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  const onSubmitForm = (data) => {
-    console.log('SeriesForm: onSubmitForm chamado com:', data);
-    
+  const onSubmitForm = (data) => {    
     if (onSubmit) {
       const formData = {
         ...data,
         mediaType: 'series',
+        sourceApi: 'tmdb', // Adicionar sourceApi
         rating: showRatingAndComment ? selectedRating : undefined,
         comment: showRatingAndComment ? data.comment : undefined,
         genres: selectedGenres,
@@ -158,6 +155,7 @@ const SeriesForm = (props) => {
         } : undefined,
         ...(externalData && {
           externalId: externalData.externalId,
+          sourceApi: externalData.sourceApi || 'tmdb',
           apiRating: externalData.apiRating,
           apiVoteCount: externalData.apiVoteCount,
           numberOfSeasons: externalData.numberOfSeasons,
@@ -179,20 +177,14 @@ const SeriesForm = (props) => {
     }
   };
 
-  const availableGenres = [
-    'Ação', 'Aventura', 'Animação', 'Comédia', 'Crime', 'Documentário',
-    'Drama', 'Família', 'Fantasia', 'História', 'Terror', 'Mistério',
-    'Musical', 'Romance', 'Ficção Científica', 'Suspense', 'Guerra',
-    'Faroeste', 'Biografia', 'Esportes', 'Thriller', 'Reality Show',
-    'Talk Show', 'Game Show', 'Novela', 'Minissérie', 'Sitcom'
-  ];
+  const availableGenres = ['Ação', 'Aventura', 'Animação', 'Comédia', 'Crime', 'Documentário', 'Drama', 'Família', 'Fantasia', 'Ficção Científica', 'Terror', 'Mistério', 'Romance', 'Suspense', 'Reality Show', 'Talk Show'];
 
-  const mediaColor = 'bg-green-500/20 text-green-300 border-green-500/30';
+  const mediaColor = 'bg-purple-500/20 text-purple-300 border-purple-500/30';
 
   return (
     <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
       {hasExternalData && (
-        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-green-500/30")}>
+        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-purple-500/30")}>
           <div className="flex items-center gap-3">
             <div className={cn("p-2 rounded-lg", mediaColor)}>
               <Tv className="w-5 h-5" />
@@ -225,7 +217,7 @@ const SeriesForm = (props) => {
 
             {externalData.numberOfSeasons && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Layers className="w-4 h-4 text-green-400" />
+                <Tv className="w-4 h-4 text-purple-400" />
                 <div>
                   <span className="text-white/80">Temporadas:</span>
                   <div className="font-medium text-white">{externalData.numberOfSeasons}</div>
@@ -235,20 +227,10 @@ const SeriesForm = (props) => {
 
             {externalData.numberOfEpisodes && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Tv className="w-4 h-4 text-blue-400" />
+                <Hash className="w-4 h-4 text-blue-400" />
                 <div>
                   <span className="text-white/80">Episódios:</span>
                   <div className="font-medium text-white">{externalData.numberOfEpisodes}</div>
-                </div>
-              </div>
-            )}
-
-            {externalData.episodeRuntime && (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Clock className="w-4 h-4 text-purple-400" />
-                <div>
-                  <span className="text-white/80">Duração/ep:</span>
-                  <div className="font-medium text-white">{formatRuntime(externalData.episodeRuntime)}</div>
                 </div>
               </div>
             )}
@@ -265,7 +247,7 @@ const SeriesForm = (props) => {
 
             {externalData.popularity && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-orange-400" />
+                <TrendingUp className="w-4 h-4 text-green-400" />
                 <div>
                   <span className="text-white/80">Popularidade:</span>
                   <div className="font-medium text-white">{externalData.popularity.toFixed(1)}</div>
@@ -273,58 +255,12 @@ const SeriesForm = (props) => {
               </div>
             )}
 
-            {externalData.creators && externalData.creators.length > 0 && (
-              <div className="md:col-span-2 flex items-start gap-2 p-2 bg-white/5 rounded-lg">
-                <Users className="w-4 h-4 text-emerald-400 mt-1 flex-shrink-0" />
-                <div>
-                  <span className="text-white/80">Criadores:</span>
-                  <div className="font-medium text-white">
-                    {externalData.creators.join(', ')}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {externalData.cast && externalData.cast.length > 0 && (
-              <div className="md:col-span-2 flex items-start gap-2 p-2 bg-white/5 rounded-lg">
-                <Users className="w-4 h-4 text-orange-400 mt-1 flex-shrink-0" />
-                <div>
-                  <span className="text-white/80">Elenco principal:</span>
-                  <div className="font-medium text-white text-xs">
-                    {externalData.cast.slice(0, 3).join(', ')}
-                    {externalData.cast.length > 3 && ` e mais ${externalData.cast.length - 3}`}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {externalData.networks && externalData.networks.length > 0 && (
-              <div className="md:col-span-2 flex items-start gap-2 p-2 bg-white/5 rounded-lg">
-                <Tv className="w-4 h-4 text-blue-400 mt-1 flex-shrink-0" />
-                <div>
-                  <span className="text-white/80">Emissoras:</span>
-                  <div className="font-medium text-white">
-                    {externalData.networks.join(', ')}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {externalData.seriesStatus && (
+            {externalData.episodeRuntime && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Calendar className="w-4 h-4 text-cyan-400" />
+                <Tv className="w-4 h-4 text-pink-400" />
                 <div>
-                  <span className="text-white/80">Status da série:</span>
-                  <div className={cn(
-                    "font-medium",
-                    externalData.seriesStatus === 'Returning Series' ? 'text-green-400' :
-                    externalData.seriesStatus === 'Ended' ? 'text-red-400' :
-                    'text-yellow-400'
-                  )}>
-                    {externalData.seriesStatus === 'Returning Series' ? 'Em produção' :
-                     externalData.seriesStatus === 'Ended' ? 'Finalizada' :
-                     externalData.seriesStatus}
-                  </div>
+                  <span className="text-white/80">Duração:</span>
+                  <div className="font-medium text-white">{formatEpisodeRuntime(externalData.episodeRuntime)}</div>
                 </div>
               </div>
             )}
@@ -402,72 +338,6 @@ const SeriesForm = (props) => {
                 variant="glass"
               />
             </div>
-
-            <Input
-              label="Número de Temporadas"
-              type="number"
-              icon={Layers}
-              {...register('numberOfSeasons', { valueAsNumber: true })}
-              error={errors.numberOfSeasons?.message}
-              placeholder="5"
-              variant="glass"
-              min={1}
-            />
-
-            <Input
-              label="Número de Episódios"
-              type="number"
-              icon={Tv}
-              {...register('numberOfEpisodes', { valueAsNumber: true })}
-              error={errors.numberOfEpisodes?.message}
-              placeholder="100"
-              variant="glass"
-              min={1}
-            />
-
-            <Input
-              label="Duração do Episódio (min)"
-              type="number"
-              icon={Clock}
-              {...register('episodeRuntime', { valueAsNumber: true })}
-              error={errors.episodeRuntime?.message}
-              placeholder="45"
-              variant="glass"
-              min={1}
-            />
-
-            <div className="md:col-span-2">
-              <Input
-                label="Criadores"
-                {...register('creators')}
-                error={errors.creators?.message}
-                placeholder="Criador 1, Criador 2"
-                variant="glass"
-                helperText="Separe os criadores com vírgula"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <Input
-                label="Elenco Principal"
-                {...register('cast')}
-                error={errors.cast?.message}
-                placeholder="Ator 1, Ator 2, Ator 3"
-                variant="glass"
-                helperText="Separe os atores com vírgula"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <Input
-                label="Emissoras/Streaming"
-                {...register('networks')}
-                error={errors.networks?.message}
-                placeholder="Netflix, HBO, etc."
-                variant="glass"
-                helperText="Separe as emissoras com vírgula"
-              />
-            </div>
           </div>
 
           <div>
@@ -495,7 +365,7 @@ const SeriesForm = (props) => {
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
                     selectedGenres.includes(genre)
-                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
                       : 'bg-white/5 text-white/80 hover:bg-white/10'
                   )}
                 >
@@ -530,7 +400,7 @@ const SeriesForm = (props) => {
           label="Status *"
           {...register('status')}
           error={errors.status?.message}
-          options={statusOptions}
+          options={statusColors}
           variant="glass"
         />
 
@@ -567,64 +437,46 @@ const SeriesForm = (props) => {
       {showProgressFields && (
         <div className={cn(
           "glass border border-white/10 rounded-xl p-6 space-y-4",
-          "border-l-4 border-green-500/30"
+          "border-l-4 border-purple-500/30"
         )}>
           <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20">
-              <Tv className="w-5 h-5 text-green-400" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20">
+              <Tv className="w-5 h-5 text-purple-400" />
             </div>
             <div>
               <h3 className="font-semibold text-white">Progresso da Série</h3>
-              <p className="text-sm text-white/60">Em qual temporada e episódio você está?</p>
+              <p className="text-sm text-white/60">Em qual episódio/temporada você está?</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded bg-white/5">
-                  <Calendar className="w-4 h-4 text-green-400" />
-                </div>
-                <h5 className="text-sm font-medium text-white">Temporada Atual</h5>
-              </div>
+            <Input
+              label="Episódio Atual"
+              type="number"
+              icon={Hash}
+              {...register('progress.currentEpisode', { valueAsNumber: true })}
+              error={errors.progress?.currentEpisode?.message}
+              placeholder="12"
+              variant="glass"
+              min={0}
+              helperText="Em que episódio você parou?"
+            />
 
-              <Input
-                label="Temporada"
-                type="number"
-                icon={Calendar}
-                {...register('progress.currentSeason', { valueAsNumber: true })}
-                error={errors.progress?.currentSeason?.message}
-                placeholder="1"
-                variant="glass"
-                min={1}
-                helperText="Qual temporada você está assistindo?"
-              />
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded bg-white/5">
-                  <Hash className="w-4 h-4 text-green-400" />
-                </div>
-                <h5 className="text-sm font-medium text-white">Episódio Atual</h5>
-              </div>
-
-              <Input
-                label="Episódio"
-                type="number"
-                icon={Hash}
-                {...register('progress.currentEpisode', { valueAsNumber: true })}
-                error={errors.progress?.currentEpisode?.message}
-                placeholder="5"
-                variant="glass"
-                min={0}
-                helperText="Qual episódio você está assistindo?"
-              />
-            </div>
+            <Input
+              label="Temporada"
+              type="number"
+              icon={Tv}
+              {...register('progress.currentSeason', { valueAsNumber: true })}
+              error={errors.progress?.currentSeason?.message}
+              placeholder="1"
+              variant="glass"
+              min={1}
+              helperText="Qual temporada você está assistindo?"
+            />
           </div>
 
           <div className="flex items-center gap-2 text-xs text-white/50 mt-2">
-            <div className="w-1.5 h-1.5 bg-green-500/50 rounded-full"></div>
+            <div className="w-1.5 h-1.5 bg-purple-500/50 rounded-full"></div>
             <span>Para séries com progresso em andamento</span>
           </div>
         </div>
@@ -644,7 +496,7 @@ const SeriesForm = (props) => {
           type="submit"
           variant="primary"
           loading={loading}
-          className="min-w-[100px] bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+          className="min-w-[100px] bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
         >
           {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
         </Button>

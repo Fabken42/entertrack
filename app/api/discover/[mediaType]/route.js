@@ -95,7 +95,6 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
             description: movie.overview,
             imageUrl: tmdbClient.getImageURL(movie.poster_path),
             releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-            releaseDate: movie.release_date,
             rating: movie.vote_average,
             ratingsCount: movie.vote_count,
             genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
@@ -114,7 +113,6 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
           description: movie.overview,
           imageUrl: tmdbClient.getImageURL(movie.poster_path),
           releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-          releaseDate: movie.release_date,
           rating: movie.vote_average,
           ratingsCount: movie.vote_count,
           genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
@@ -159,7 +157,6 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
         description: movie.overview,
         imageUrl: tmdbClient.getImageURL(movie.poster_path),
         releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-        releaseDate: movie.release_date,
         rating: movie.vote_average,
         ratingsCount: movie.vote_count,
         genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
@@ -178,7 +175,6 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
       description: movie.overview,
       imageUrl: tmdbClient.getImageURL(movie.poster_path),
       releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-      releaseDate: movie.release_date,
       rating: movie.vote_average,
       ratingsCount: movie.vote_count,
       genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
@@ -218,7 +214,6 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
             description: series.overview,
             imageUrl: tmdbClient.getImageURL(series.poster_path),
             releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
-            releaseDate: series.first_air_date,
             rating: series.vote_average,
             ratingsCount: series.vote_count,
             genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
@@ -237,7 +232,6 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
           description: series.overview,
           imageUrl: tmdbClient.getImageURL(series.poster_path),
           releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
-          releaseDate: series.first_air_date,
           rating: series.vote_average,
           ratingsCount: series.vote_count,
           genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
@@ -282,7 +276,6 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
         description: series.overview,
         imageUrl: tmdbClient.getImageURL(series.poster_path),
         releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
-        releaseDate: series.first_air_date,
         rating: series.vote_average,
         ratingsCount: series.vote_count,
         genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
@@ -301,7 +294,6 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
       description: series.overview,
       imageUrl: tmdbClient.getImageURL(series.poster_path),
       releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
-      releaseDate: series.first_air_date,
       rating: series.vote_average,
       ratingsCount: series.vote_count,
       genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
@@ -317,9 +309,7 @@ async function discoverAnimes(genre, sortBy, page, limit, query = '') {
   console.log(`🔍 discoverAnimes called with:`, { genre, sortBy, page, limit, query });
 
   try {
-    // Se houver query, usar search (independente de gênero)
     if (query && query.trim() !== '') {
-      console.log(`🔍 Searching anime with query: ${query}`);
       const response = await jikanClient.searchAnime(query, page, limit);
 
       if (!response.data) {
@@ -329,10 +319,7 @@ async function discoverAnimes(genre, sortBy, page, limit, query = '') {
       return processAnimeResults(response.data, response.pagination, page, limit);
     }
 
-    // SEM GÊNERO ESPECÍFICO (Todos os Gêneros)
     if (!genre || genre === '') {
-      console.log(`🔍 No genre selected, using getAllAnimeSorted with sort: ${sortBy}`);
-
       // Usar getAllAnimeSorted que NÃO envia parâmetro genres
       const response = await jikanClient.getAllAnimeSorted(sortBy, page, limit);
 
@@ -376,13 +363,14 @@ function processAnimeResults(data, pagination, page, limit) {
       title: item.title,
       description: item.synopsis || 'Sem descrição disponível',
       imageUrl: jikanClient.getImageURL(item.images),
-      releaseYear: item.year,
-      releaseDate: item.aired?.from,
+      releaseYear: new Date(item.aired.from).getFullYear() || null,
       rating: item.score || 0,
       ratingsCount: item.scored_by || 0,
-      rank: item.rank || 0,
+      apiRating: item.score || 0,
+      apiVoteCount: item.scored_by || 0,
       popularity: item.popularity || 0,
-      episodes: item.episodes || 0, // 🔥 Mude aqui também se quiser
+      studios: item.studios?.map(studio => studio.name) || [],
+      episodes: item.episodes || 0,
       status: item.status || 'Unknown',
       mediaType: item.type || 'TV',
       members: item.members || 0,
@@ -416,8 +404,6 @@ function processAnimeResults(data, pagination, page, limit) {
 }
 
 async function discoverMangas(genre, sortBy, page, limit, query = '') {
-  console.log(`🔍 discoverMangas called with:`, { genre, sortBy, page, limit, query });
-
   try {
     // Se houver query, usar search
     if (query && query.trim() !== '') {
@@ -431,31 +417,20 @@ async function discoverMangas(genre, sortBy, page, limit, query = '') {
       return processMangaResults(response.data, response.pagination, page, limit);
     }
 
-    // SEM GÊNERO ESPECÍFICO (Todos os Gêneros)
     if (!genre || genre === '') {
-      console.log(`🔍 No genre selected, using getAllMangaSorted with sort: ${sortBy}`);
-
-      // Usar getAllMangaSorted que NÃO envia parâmetro genres
       const response = await jikanClient.getAllMangaSorted(sortBy, page, limit);
 
       if (!response.data) {
         throw new Error('No data in Jikan getAllMangaSorted response');
       }
 
-      console.log(`🔍 getAllMangaSorted returned ${response.data.length} items`);
-
       return processMangaResults(response.data, response.pagination, page, limit);
     }
-
-    // COM GÊNERO ESPECÍFICO
-    console.log(`🔍 Searching manga by genre: ${genre} with sort: ${sortBy}`);
     const response = await jikanClient.getMangaByGenreSorted(genre, sortBy, page, limit);
 
     if (!response.data) {
       throw new Error('No data in Jikan manga genre response');
     }
-
-    console.log(`🔍 getMangaByGenreSorted returned ${response.data.length} items`);
 
     return processMangaResults(response.data, response.pagination, page, limit);
 
@@ -485,13 +460,13 @@ function processMangaResults(data, pagination, page, limit) {
       description: item.synopsis || 'Sem descrição disponível',
       imageUrl: jikanClient.getImageURL(item.images),
       releaseYear: item.published?.from ? new Date(item.published.from).getFullYear() : item.year,
-      releaseDate: item.published?.from,
       rating: item.score || 0,
       ratingsCount: item.scored_by || 0,
-      rank: item.rank || 0,
+      apiRating: item.score || 0,
+      apiVoteCount: item.scored_by || 0,
       popularity: item.popularity || 0,
-      volumes: item.volumes || 0, // 🔥 Mude aqui
-      chapters: item.chapters || 0, // 🔥 Mude aqui
+      volumes: item.volumes || 0,
+      chapters: item.chapters || 0,
       status: item.status || 'Unknown',
       mediaType: item.type || 'Manga',
       members: item.members || 0,
@@ -558,7 +533,6 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
       description: game.description_raw || game.description,
       imageUrl: rawgClient.getImageURL(game.background_image),
       releaseYear: game.released ? new Date(game.released).getFullYear() : undefined,
-      releaseDate: game.released,
       rating: game.rating,
       ratingsCount: game.ratings_count,
       metacritic: game.metacritic,
@@ -637,7 +611,6 @@ function formatBooksResponse(response, page, limit) {
       imageUrl: googleBooksClient.getImageURL(volumeInfo.imageLinks),
       releaseYear: volumeInfo.publishedDate ?
         new Date(volumeInfo.publishedDate).getFullYear() : undefined,
-      releaseDate: volumeInfo.publishedDate,
       rating: volumeInfo.averageRating || 0,
       ratingsCount: volumeInfo.ratingsCount || 0,
       authors: volumeInfo.authors || ['Autor desconhecido'],

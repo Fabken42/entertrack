@@ -1,12 +1,13 @@
-// /components/media/media-card/MediaCard.jsx
-import React from 'react';
+// /components/media/MediaCard.jsx
+
 import Card from '../ui/card/Card';
 import { CardContent } from '../ui/card/Card';
-import Button from '../ui/button/Button';
-import { Star, Users, TrendingUp, Edit, Calendar, Clock, BookOpen, Film, Tv, GamepadIcon, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Star, Users, TrendingUp, Calendar, Trash2, MessageSquare } from 'lucide-react';
+import { cn } from '@/lib/utils/general-utils';
+import { formatNumber, formatPopularity } from '@/lib/utils/general-utils';
+import { formatRating, getRatingColor, getProgressInfo, getMediaIcon, getMediaColor, getStatusBorderColor, getStatusColor, getStatusLabel, formatChaptersVolumes } from '@/lib/utils/media-utils';
 
-export default function MediaCard({
+export default function MediaCard({ 
   item,
   mediaType,
   viewMode,
@@ -15,151 +16,46 @@ export default function MediaCard({
   onEditClick,
   isLibrary = false
 }) {
-  const formatNumber = (num) => {
-    if (!num || num === 0) return '—';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
-  };
+  const progressInfo = getProgressInfo(item, mediaType, isLibrary);
 
-  const formatPopularity = (popularity) => {
-    if (!popularity || popularity === 0) return '—';
-    return `#${popularity.toLocaleString('pt-BR')}`;
-  };
-
-  const formatRating = (rating) => {
-    if (!rating || rating === 0) return null;
-
-    const numericRating = Number(rating);
-    if (isNaN(numericRating)) return null;
-
-    // Para animes e mangás, converte de base 10 para base 5
-    if (mediaType === 'animes' || mediaType === 'mangas' || mediaType === 'movies' || mediaType === 'series') {
-      return {
-        display: (numericRating / 2).toFixed(1),
-        max: 5,
-        original: numericRating.toFixed(1)
-      };
+  const handleCardClick = (e) => {
+    if (e.target.closest('button') || e.target.closest('[data-action-button]')) {
+      return;
     }
 
-    return {
-      display: numericRating.toFixed(1),
-      max: 5,
-      original: numericRating.toFixed(1)
-    };
-  };
-
-  const getRatingColor = (rating, maxRating = 10) => {
-    if (!rating || rating === 0) return 'text-white/40';
-
-    const adjustedRating = mediaType === 'animes' || mediaType === 'mangas'
-      ? (rating / 2)
-      : rating;
-
-    const percentage = (adjustedRating / maxRating) * 100;
-    if (percentage >= 80) return 'text-emerald-400';
-    if (percentage >= 60) return 'text-yellow-400';
-    if (percentage >= 40) return 'text-orange-400';
-    return 'text-red-400';
-  };
-
-  const getMediaIcon = () => {
-    switch (mediaType) {
-      case 'animes': return Tv;
-      case 'movies': return Film;
-      case 'series': return Tv;
-      case 'mangas': return BookOpen;
-      case 'books': return BookOpen;
-      case 'games': return GamepadIcon;
-      default: return Sparkles;
-    }
-  };
-
-  const getMediaColor = () => {
-    switch (mediaType) {
-      case 'animes': return 'bg-pink-500/20 text-pink-300 border-pink-500/30';
-      case 'movies': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'series': return 'bg-green-500/20 text-green-300 border-green-500/30';
-      case 'mangas': return 'bg-red-500/20 text-red-300 border-red-500/30';
-      case 'books': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'games': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-      default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-    }
-  };
-
-  // FUNÇÃO PRINCIPAL: CORES DE BORDA POR STATUS
-  const getStatusBorderColor = (status) => {
-    switch (status) {
-      case 'planned':
-        return 'border-yellow-500/50 hover:border-yellow-500';
-      case 'in_progress':
-        return 'border-blue-500/50 hover:border-blue-500';
-      case 'completed':
-        return 'border-emerald-500/50 hover:border-emerald-500';
-      case 'dropped':
-        return 'border-red-500/50 hover:border-red-500';
-      default:
-        return 'border-white/10 hover:border-white/30';
-    }
-  };
-
-  // Função para cores de fundo do badge de status
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'planned': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'in_progress': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'completed': return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
-      case 'dropped': return 'bg-red-500/20 text-red-300 border-red-500/30';
-      default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'planned': return 'Planejado';
-      case 'in_progress': return 'Em Progresso';
-      case 'completed': return 'Concluído';
-      case 'dropped': return 'Abandonado';
-      default: return status;
-    }
-  };
-
-  const formatChaptersVolumes = (value, status) => {
-    if (value === 0 && status !== 'finished') return '?';
-    return value;
-  };
-
-  const shouldShowCount = (count) => {
-    return count && count > 0;
-  };
-
-  const handleCardClick = () => {
-    if (!isLibrary && onAddToLibrary) {
+    if (isLibrary && onEditClick) {
+      onEditClick(item);
+    } else if (!isLibrary && onAddToLibrary) {
       onAddToLibrary(item);
     }
   };
 
   const MediaIcon = getMediaIcon();
   const mediaColor = getMediaColor();
-  const ratingInfo = formatRating(item.rating);
+  const ratingInfo = formatRating(item.rating, mediaType);
 
-  // NOVA VARIÁVEL: cor da borda baseada no status
-  const statusBorderColor = isLibrary && item.status
-    ? getStatusBorderColor(item.status)
-    : 'border-white/10 hover:border-white/30';
+  const statusBorderColor = getStatusBorderColor(item.status);
+  const shouldShowCount = (count) => !!count && count > 0;
+
+  const showPersonalNotes = isLibrary &&
+    (item.status === 'completed' || item.status === 'dropped') &&
+    item.personalNotes &&
+    item.personalNotes.trim() !== '';
+
+  const shouldShowUserRating = isLibrary &&
+    item.userRating &&
+    (item.status === 'completed' || item.status === 'dropped');
 
   if (viewMode === 'list') {
     return (
       <div
         className={cn(
-          "glass flex items-start gap-4 p-4 rounded-xl transition-all duration-300 cursor-pointer group hover-lift",
-          // APLICA A BORDA COLORIDA AQUI:
+          "glass flex items-start gap-4 p-4 rounded-xl transition-all duration-300 cursor-pointer group hover-lift relative",
           statusBorderColor,
-          "border" // Adiciona a classe border
+          "border border-2"
         )}
         onClick={handleCardClick}
       >
-        {/* Imagem */}
         <div className="relative flex-shrink-0">
           <img
             src={item.imageUrl || '/images/icons/placeholder-image.png'}
@@ -170,7 +66,7 @@ export default function MediaCard({
             }}
           />
 
-          {/* Badge de tipo */}
+          {/* Ícone do tipo de mídia */}
           <div className={cn(
             "absolute -top-2 -right-2 px-2 py-1 rounded-full text-xs font-semibold backdrop-blur-sm border",
             mediaColor
@@ -179,12 +75,27 @@ export default function MediaCard({
               <MediaIcon className="w-3 h-3" />
             </div>
           </div>
+
+          {/* Botão de deletar - posicionado na imagem */}
+          {isLibrary && onDeleteClick && (
+            <button
+              data-action-button="true"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteClick(item._id);
+              }}
+              className="absolute -bottom-2 -right-2 p-2 bg-gray-800/80 backdrop-blur-sm rounded-full shadow-lg hover:bg-red-500/30 border border-white/20 hover:scale-110 transition-all duration-300 z-10"
+              title="Remover da lista"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+            </button>
+          )}
         </div>
 
-        {/* Conteúdo */}
         <div className="flex-1 min-w-0 space-y-2">
+          {/* Cabeçalho com título e informações básicas */}
           <div className="flex items-start justify-between">
-            <div>
+            <div className="flex-1">
               <h3 className="font-semibold text-white text-lg group-hover:text-blue-400 transition-colors">
                 {item.title}
               </h3>
@@ -196,7 +107,7 @@ export default function MediaCard({
               )}
             </div>
 
-            {/* Rating */}
+            {/* Rating geral */}
             {ratingInfo && (
               <div className={cn(
                 "px-3 py-1 rounded-full text-sm font-semibold backdrop-blur-sm border border-white/10",
@@ -211,7 +122,7 @@ export default function MediaCard({
             )}
           </div>
 
-          {/* Informações específicas */}
+          {/* Badges de episódios/volumes */}
           <div className="flex flex-wrap gap-2">
             {mediaType === 'animes' && item.episodes && (
               <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 rounded-full text-xs text-white/80">
@@ -225,64 +136,124 @@ export default function MediaCard({
             )}
           </div>
 
-          {/* Status da biblioteca */}
-          {isLibrary && item.status && (
-            <div className={cn(
-              "inline-flex px-3 py-1 rounded-full text-xs font-medium border",
-              getStatusColor(item.status)
-            )}>
-              {getStatusLabel(item.status)}
+          {/* Status e progresso */}
+          <div className="flex items-center gap-3">
+            {isLibrary && item.status && (
+              <div className={cn(
+                "inline-flex px-3 py-1 rounded-full text-xs font-medium border ",
+                getStatusColor(item.status)
+              )}>
+                {getStatusLabel(item.status)}
+              </div>
+            )}
+
+            {isLibrary && progressInfo && (
+              <div className="flex-1 max-w-xs">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-white/60">Progresso</span>
+                  <span className="text-white font-medium">
+                    {progressInfo.current}/{progressInfo.total} {progressInfo.unit}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-pink-500 to-purple-500"
+                    style={{ width: `${progressInfo.percentage}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Avaliação do usuário */}
+          {shouldShowUserRating && (
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-white/60">Sua avaliação:</span>
+              <div className="flex items-center gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    className={cn(
+                      "w-3.5 h-3.5",
+                      i < item.userRating
+                        ? "text-yellow-400 fill-current"
+                        : "text-white/30"
+                    )}
+                  />
+                ))}
+              </div>
+              <span className="text-xs font-medium text-white">
+                ({item.userRating}/5)
+              </span>
             </div>
           )}
 
-          {/* Descrição */}
-          {item.description && (
-            <p className="text-sm text-white/60 line-clamp-2 group-hover:line-clamp-3 transition-all">
+          {/* Notas pessoais - AGORA logo após a avaliação do usuário */}
+          {showPersonalNotes && (
+            <div className="mb-3">
+              <div className="flex items-center gap-1 mb-1 text-xs text-white/60">
+                <MessageSquare className="w-3 h-3" />
+                <span className="font-medium">Seu comentário:</span>
+              </div>
+              <p className="text-sm text-white/70 line-clamp-2 group-hover:line-clamp-3 transition-all bg-white/5 p-2 rounded-lg whitespace-pre-line">
+                {item.personalNotes}
+              </p>
+            </div>
+          )}
+
+          {/* Estatísticas - AGORA após as notas pessoais */}
+          <div className="space-y-2 mt-3 pt-3 border-t border-white/10">
+            {shouldShowCount(item.members) && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-white/60 flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  Membros:
+                </span>
+                <span className="font-medium text-white">{formatNumber(item.members)}</span>
+              </div>
+            )}
+            {shouldShowCount(item.ratingsCount) && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-white/60 flex items-center gap-1">
+                  <Star className="w-3 h-3" />
+                  Avaliações:
+                </span>
+                <span className="font-medium text-white">{formatNumber(item.ratingsCount)}</span>
+              </div>
+            )}
+            {shouldShowCount(item.popularity) && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-white/60 flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3" />
+                  Ranking:
+                </span>
+                <span className="font-medium text-white">{formatPopularity(item.popularity)}</span>
+              </div>
+            )}
+            {item.metacritic && item.metacritic > 0 && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-white/60">Metacritic:</span>
+                <span className="font-medium text-emerald-400">{item.metacritic}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Descrição normal - APENAS para itens NÃO na biblioteca */}
+          {!isLibrary && item.description && (
+            <p className="text-sm text-white/60 line-clamp-2 group-hover:line-clamp-3 transition-all mt-3 pt-3 border-t border-white/10">
               {item.description}
             </p>
           )}
         </div>
-
-        {/* Botão Editar */}
-        {isLibrary && onEditClick && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditClick(item);
-            }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity !p-2 hover:bg-white/10"
-            icon={Edit}
-          />
-        )}
-
-        {/* Botão Deletar */}
-        {isLibrary && onDeleteClick && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (confirm('Tem certeza que deseja excluir?')) {
-                onDeleteClick(item._id || item.id);
-              }
-            }}
-            className="absolute bottom-2 left-2 p-2 bg-gray-800/60 backdrop-blur-sm rounded-full shadow-lg hover:bg-red-900 border border-white/20 hover:scale-110 transition-all duration-300 opacity-0 group-hover:opacity-100"
-            title="Excluir"
-          >
-            <Trash2 className="w-4 h-4 text-red-400" />
-          </button>
-        )}
       </div>
     );
   }
 
-  // View Mode Grid - ATUALIZADO COM BORDAS COLORIDAS
   return (
     <Card
       variant="glass"
       className={cn(
         "h-full flex flex-col group cursor-pointer hover-lift relative overflow-hidden",
-        // APLICA A BORDA COLORIDA AQUI:
         statusBorderColor
       )}
       onClick={handleCardClick}
@@ -331,26 +302,29 @@ export default function MediaCard({
               </div>
             )}
           </div>
-
-          {/* Botão Editar */}
-          {isLibrary && onEditClick && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditClick(item);
-              }}
-              className="absolute bottom-2 right-2 p-2 bg-gray-800/60 backdrop-blur-sm rounded-full shadow-lg hover:bg-gray-900 border border-white/20 hover:scale-110 transition-all duration-300 opacity-0 group-hover:opacity-100"
-              title="Editar"
-            >
-              <Edit className="w-4 h-4 text-white" />
-            </button>
-          )}
         </div>
 
         {/* Título */}
-        <h3 className="font-semibold text-white mb-2 line-clamp-2 group-hover:text-blue-400 transition-colors">
-          {item.title}
-        </h3>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="font-semibold text-white line-clamp-2 group-hover:text-blue-400 transition-colors flex-1">
+            {item.title}
+          </h3>
+
+          {/* Botão Deletar - SEMPRE VISÍVEL, posicionado ao lado do título */}
+          {isLibrary && onDeleteClick && (
+            <button
+              data-action-button="true"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteClick(item._id);
+              }}
+              className="p-2 bg-gray-800/60 backdrop-blur-sm rounded-full shadow-lg hover:bg-red-500/20 border border-white/20 hover:scale-110 transition-all duration-300 z-10 flex-shrink-0"
+              title="Remover da lista"
+            >
+              <Trash2 className="w-4 h-4 text-red-400" />
+            </button>
+          )}
+        </div>
 
         {/* Informações básicas */}
         <div className="flex items-center gap-2 mb-3 text-sm text-white/60">
@@ -381,6 +355,51 @@ export default function MediaCard({
           )}
         </div>
 
+        {isLibrary && progressInfo && (
+          <div className="mb-3">
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-white/60">Progresso</span>
+              <span className="text-white font-medium">
+                {progressInfo.current}/{progressInfo.total} {progressInfo.unit}
+              </span>
+            </div>
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-pink-500 to-purple-500"
+                style={{ width: `${progressInfo.percentage}%` }}
+              />
+            </div>
+            <div className="text-xs text-white/40 text-right mt-0.5">
+              {progressInfo.percentage}%
+            </div>
+          </div>
+        )}
+
+        {/* Avaliação do usuário (somente para status concluído/abandonado) */}
+        {shouldShowUserRating && (
+          <div className="mb-3">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-white/60">Sua avaliação:</span>
+              <div className="flex items-center gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    className={cn(
+                      "w-3 h-3",
+                      i < item.userRating
+                        ? "text-yellow-400 fill-current"
+                        : "text-white/30"
+                    )}
+                  />
+                ))}
+              </div>
+              <span className="text-xs font-medium text-white ml-1">
+                {item.userRating}/5
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Autores para mangás */}
         {mediaType === 'mangas' && item.authors && item.authors.length > 0 && (
           <div className="mb-3">
@@ -392,7 +411,21 @@ export default function MediaCard({
           </div>
         )}
 
-        {/* Estatísticas */}
+        {showPersonalNotes && (
+          <div className="mb-3">
+            <div className="flex items-center gap-1 mb-1 text-xs text-white/60">
+              <MessageSquare className="w-3 h-3" />
+              <span className="font-medium">Seu comentário:</span>
+            </div>
+            <div className="bg-white/4 p-2 rounded-lg">
+              <p className="text-xs text-white/70 line-clamp-3 group-hover:line-clamp-4 transition-all whitespace-pre-line">
+                {item.personalNotes}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Estatísticas normais - SEMPRE para todos os itens */}
         <div className="space-y-2 mb-4 flex-1">
           {shouldShowCount(item.members) && (
             <div className="flex items-center justify-between text-xs">
@@ -429,14 +462,14 @@ export default function MediaCard({
           )}
         </div>
 
-        {/* Descrição */}
-        {item.description && (
+        {/* Descrição normal - APENAS para itens NÃO na biblioteca */}
+        {!isLibrary && item.description && (
           <p className="text-sm text-white/60 line-clamp-3 mb-4 flex-1 group-hover:line-clamp-4 transition-all">
             {item.description}
           </p>
         )}
 
-        {/* Footer com estatísticas de rating */}
+        {/* Footer */}
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/10">
           {ratingInfo && shouldShowCount(item.ratingsCount) && (
             <div className="flex items-center gap-2 text-xs">

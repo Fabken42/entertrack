@@ -1,0 +1,212 @@
+// /app/api/user/media/[id]/route.js
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/authOptions';
+import { connectToDatabase } from '@/lib/database/connect';
+import UserMedia from '@/models/UserMedia';
+import MediaCache from '@/models/MediaCache';
+
+export async function DELETE(request, context) {
+  const { params } = context;
+  const { id } = await params;
+  
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json(
+        { error: 'Não autorizado!' },
+        { status: 401 }
+      );
+    }
+
+    await connectToDatabase();
+
+    const userMedia = await UserMedia.findOne({
+      _id: id,
+      userId: session.user.id
+    });
+
+    if (!userMedia) {
+      return NextResponse.json(
+        { error: 'Mídia não encontrada, ou você não tem permissão para excluí-la' },
+        { status: 404 }
+      );
+    }
+
+    // Decrementar contador de usuários no cache
+    if (userMedia.mediaCacheId) {
+      await MediaCache.findByIdAndUpdate(userMedia.mediaCacheId, {
+        $inc: { 'usageStats.userCount': -1 }
+      });
+    }
+
+    // Remover o UserMedia
+    await UserMedia.findByIdAndDelete(id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Media removed successfully',
+      deletedId: id
+    });
+
+  } catch (error) {
+    console.error('Error deleting user media:', error);
+    return NextResponse.json(
+      { error: 'Erro ao exclui mídia' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request, context) {
+  const { params } = context;
+  const { id } = await params;
+
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json(
+        { error: 'Não autorizado!' },
+        { status: 401 }
+      );
+    }
+    const body = await request.json();
+    const {
+      status,
+      userRating,
+      personalNotes,
+      progress,
+      startedAt,
+      completedAt,
+      droppedAt
+    } = body;
+
+    await connectToDatabase();
+
+    // Verificar se o UserMedia existe e pertence ao usuário
+    const existingMedia = await UserMedia.findOne({
+      _id: id,
+      userId: session.user.id
+    });
+
+    if (!existingMedia) {
+      return NextResponse.json(
+        { error: 'Mídia não encontrada, ou você não tem permissão para excluí-la' },
+        { status: 404 }
+      );
+    }
+
+    // Preparar dados para atualização
+    const updateData = {
+      updatedAt: new Date()
+    };
+
+    // Atualizar campos se fornecidos
+    if (status !== undefined) {
+      updateData.status = status;
+
+      // Atualizar datas baseadas no status
+      if (status === 'in_progress' && !existingMedia.startedAt) {
+        updateData.startedAt = new Date();
+        updateData.completedAt = null;
+        updateData.droppedAt = null;
+      } else if (status === 'completed') {
+        updateData.completedAt = new Date();
+        updateData.droppedAt = null;
+      } else if (status === 'dropped') {
+        updateData.droppedAt = new Date();
+        updateData.completedAt = null;
+      } else if (status === 'planned') {
+        updateData.startedAt = null;
+        updateData.completedAt = null;
+        updateData.droppedAt = null;
+      }
+    }
+
+    // Datas específicas (se fornecidas)
+    if (startedAt !== undefined) updateData.startedAt = startedAt;
+    if (completedAt !== undefined) updateData.completedAt = completedAt;
+    if (droppedAt !== undefined) updateData.droppedAt = droppedAt;
+
+    // Outros campos
+    if (userRating !== undefined) updateData.userRating = userRating;
+    if (personalNotes !== undefined) {
+      updateData.personalNotes = personalNotes;
+    }
+
+    // Progresso
+    if (progress !== undefined) {
+      updateData.progress = {
+        ...existingMedia.progress,
+        ...progress,
+        lastUpdated: new Date()
+      };
+    }
+
+    // Atualizar no banco
+    const updatedMedia = await UserMedia.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('mediaCacheId');
+
+    return NextResponse.json(updatedMedia);
+
+  } catch (error) {
+    console.error('Error updating user media:', error);
+
+    // Tratamento de erros de validação
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return NextResponse.json(
+        { error: 'Erro de validação', details: errors },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Erro ao atualizar mídia' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request, { params }) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json(
+        { error: 'Não autorizado!' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = params;
+
+    await connectToDatabase();
+
+    const userMedia = await UserMedia.findOne({
+      _id: id,
+      userId: session.user.id
+    }).populate('mediaCacheId');
+
+    if (!userMedia) {
+      return NextResponse.json(
+        { error: 'Mídia não encontrada!' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(userMedia);
+
+  } catch (error) {
+    console.error('Error fetching user media:', error);
+    return NextResponse.json(
+      { error: 'Erro ao consultar mídia' },
+      { status: 500 }
+    );
+  }
+}

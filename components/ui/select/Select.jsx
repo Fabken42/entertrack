@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 import { ChevronDown } from 'lucide-react';
 
 const Select = React.forwardRef(({ className, label, error, options, variant = 'glass', ...props }, ref) => {

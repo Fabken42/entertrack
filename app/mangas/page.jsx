@@ -12,7 +12,7 @@ import SearchResults from '@/components/search/SearchResults';
 import InlineSearch from '@/components/search/InlineSearch';
 import { useMyAnimeListSearch } from '../../lib/hooks/use-myanimelist';
 import { useSession } from 'next-auth/react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 export default function MangasPage() {
   const { data: session, status } = useSession();

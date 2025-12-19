@@ -1,7 +1,6 @@
 'use client';
 
-import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 import { Button, Select, Search } from '@/components/ui';
 import { Filter, Grid, List, SlidersHorizontal } from 'lucide-react';
 

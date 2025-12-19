@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { Modal } from '@/components/ui';
-import MovieForm from './MovieForm';
-import SeriesForm from './SeriesForm';
+import MovieForm from './MovieForm'; 
+import SeriesForm from './SeriesForm'; 
 import AnimeForm from './AnimeForm';
 import MangaForm from './MangaForm';
-import BookForm from './BookForm';
+import BookForm from './BookForm'; 
 import GameForm from './GameForm';
 import toast from 'react-hot-toast';
 
@@ -23,20 +23,19 @@ const MediaFormModal = ({
   const [loading, setLoading] = React.useState(false);
 
   const handleFormSubmit = async (data) => {
-
     if (onSubmit) {
       setLoading(true);
       try {
         await onSubmit(data);
         onClose();
       } catch (error) {
-        console.error('Error in MediaFormModal submit:', error);
-        toast.error('Erro ao salvar mídia');
+        console.error('❌ Error in MediaFormModal submit:', error);
+        toast.error('Erro ao salvar mídia: ' + error.message);
       } finally {
         setLoading(false);
       }
     } else {
-      console.error('No onSubmit function provided to MediaFormModal');
+      console.error('❌ No onSubmit function provided to MediaFormModal');
       toast.error('Erro: função de submit não encontrada');
     }
   };
@@ -89,7 +88,11 @@ const MediaFormModal = ({
       book: 'Livro',
       game: 'Jogo',
     };
-    return `${action} ${typeNames[mediaType] || mediaType}`;
+    
+    const title = initialData?.title || externalData?.title || manualCreateQuery;
+    const displayTitle = title ? `"${title.length > 20 ? title.substring(0, 20) + '...' : title}"` : '';
+    
+    return `${action} ${typeNames[mediaType] || mediaType} ${displayTitle}`;
   };
 
   const getModalSize = () => {
@@ -101,9 +104,12 @@ const MediaFormModal = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={() => {
+        onClose();
+      }}
       title={getTitle()}
       size={getModalSize()}
+      showCloseButton={!loading}
     >
       <div className="p-6 animate-fade-in">
         {getFormComponent()}

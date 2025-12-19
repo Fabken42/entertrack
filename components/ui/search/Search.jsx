@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 import { Search as SearchIcon, X } from 'lucide-react';
 
 const Search = ({

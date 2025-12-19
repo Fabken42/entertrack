@@ -1,3 +1,4 @@
+// /models/Session.js
 import mongoose from 'mongoose';
 
 const SessionSchema = new mongoose.Schema({
@@ -18,4 +19,7 @@ const SessionSchema = new mongoose.Schema({
   ipAddress: String,
 });
 
-export default mongoose.models.Session || mongoose.model('Session', SessionSchema);
+// 🔥 PADRÃO CORRETO: Verificar se o modelo já existe
+const Session = mongoose.models.Session || mongoose.model('Session', SessionSchema);
+
+export default Session;

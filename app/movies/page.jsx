@@ -12,7 +12,7 @@ import SearchResults from '@/components/search/SearchResults';
 import InlineSearch from '@/components/search/InlineSearch';
 import { useTMDBSearch } from '@/lib/hooks/use-tmdb';
 import { useSession } from 'next-auth/react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 export default function MoviesPage() {
   const { data: session, status } = useSession();

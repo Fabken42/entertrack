@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui';
 import { Search, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 const InlineSearch = ({
   placeholder = 'Buscar...',
@@ -77,11 +77,6 @@ const InlineSearch = ({
           {children}
         </div>
       )}
-      
-      {/* Dica de atalho */}
-      <div className="absolute right-3 -bottom-6 text-xs text-gray-500 opacity-0 group-focus-within:opacity-100 transition-opacity">
-        Pressione <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-xs">ESC</kbd> para limpar
-      </div>
     </div>
   );
 };

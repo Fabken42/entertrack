@@ -6,10 +6,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Input, Select, Rating as RatingComponent, TextArea } from '@/components/ui';
-import { BookOpen, Hash, Star, Calendar, Users, TrendingUp } from 'lucide-react';
-import { cn, formatApiRating, statusOptions } from '@/lib/utils';
+import { Book, Hash, Star, Calendar, Users, TrendingUp } from 'lucide-react';
+import { cn, formatApiRating } from '@/lib/utils/general-utils';
+import { statusColors } from '@/constants';
 
-// Schema específico para livros
+// Schema específico para livro
 const bookSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
@@ -22,11 +23,6 @@ const bookSchema = z.object({
   progress: z.object({
     currentPage: z.number().min(0).optional(),
   }).optional(),
-  // Campos específicos do Google Books
-  pageCount: z.number().optional(),
-  authors: z.array(z.string()).optional(),
-  publisher: z.string().optional(),
-  isbn: z.string().optional(),
 });
 
 const BookForm = (props) => {
@@ -39,11 +35,18 @@ const BookForm = (props) => {
     onSubmit,
   } = props;
 
-  console.log('BookForm props:', props);
+  // Converte genres de objetos {id, name} para array de strings
+  const getInitialGenres = () => {
+    if (initialData?.genres) {
+      return initialData.genres.map(g => typeof g === 'object' ? g.name : g);
+    }
+    if (externalData?.genres) {
+      return externalData.genres.map(g => typeof g === 'object' ? g.name : g);
+    }
+    return [];
+  };
 
-  const [selectedGenres, setSelectedGenres] = React.useState(
-    initialData?.genres || externalData?.genres || []
-  );
+  const [selectedGenres, setSelectedGenres] = React.useState(getInitialGenres);
   const [selectedRating, setSelectedRating] = React.useState(
     initialData?.rating
   );
@@ -51,6 +54,51 @@ const BookForm = (props) => {
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
+
+  // Prepara os valores padrão com genres convertidos para strings
+  const getDefaultValues = () => {
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        releaseYear: initialData.releaseYear,
+        genres: initialData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        rating: initialData.rating,
+        comment: initialData.comment,
+        imageUrl: initialData.imageUrl,
+        status: initialData.status,
+        progress: initialData.progress || {},
+      };
+    }
+    
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        releaseYear: externalData.releaseYear,
+        genres: externalData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        status: 'planned',
+        imageUrl: externalData.imageUrl,
+        progress: {},
+        rating: undefined,
+      };
+    }
+    
+    if (manualCreateQuery) {
+      return {
+        title: manualCreateQuery,
+        status: 'planned',
+        genres: [],
+        progress: {},
+      };
+    }
+    
+    return {
+      status: 'planned',
+      genres: [],
+      progress: {},
+    };
+  };
 
   const {
     register,
@@ -60,45 +108,7 @@ const BookForm = (props) => {
     watch,
   } = useForm({
     resolver: zodResolver(bookSchema),
-    defaultValues: initialData ? {
-      title: initialData.title,
-      description: initialData.description,
-      releaseYear: initialData.releaseYear,
-      genres: initialData.genres,
-      rating: initialData.rating,
-      comment: initialData.comment,
-      imageUrl: initialData.imageUrl,
-      status: initialData.status,
-      progress: initialData.progress || {},
-      pageCount: initialData.pageCount,
-      authors: initialData.authors,
-      publisher: initialData.publisher,
-      isbn: initialData.isbn,
-    } : externalData ? {
-      title: externalData.title,
-      description: externalData.description,
-      releaseYear: externalData.releaseYear,
-      genres: externalData.genres,
-      status: 'planned',
-      imageUrl: externalData.imageUrl,
-      progress: {},
-      rating: undefined,
-      pageCount: externalData.pageCount,
-      authors: externalData.authors,
-      publisher: externalData.publisher,
-      isbn: externalData.isbn,
-    } : manualCreateQuery ? {
-      title: manualCreateQuery,
-      status: 'planned',
-      genres: [],
-      progress: {},
-      authors: [],
-    } : {
-      status: 'planned',
-      genres: [],
-      progress: {},
-      authors: [],
-    },
+    defaultValues: getDefaultValues(),
   });
 
   const currentStatus = watch('status');
@@ -121,13 +131,12 @@ const BookForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  const onSubmitForm = (data) => {
-    console.log('BookForm: onSubmitForm chamado com:', data);
-    
+  const onSubmitForm = (data) => {    
     if (onSubmit) {
       const formData = {
         ...data,
         mediaType: 'book',
+        sourceApi: 'google_books', // Adicionar sourceApi
         rating: showRatingAndComment ? selectedRating : undefined,
         comment: showRatingAndComment ? data.comment : undefined,
         genres: selectedGenres,
@@ -136,6 +145,7 @@ const BookForm = (props) => {
         } : undefined,
         ...(externalData && {
           externalId: externalData.externalId,
+          sourceApi: externalData.sourceApi || 'google_books',
           apiRating: externalData.apiRating,
           apiVoteCount: externalData.apiVoteCount,
           pageCount: externalData.pageCount,
@@ -152,22 +162,17 @@ const BookForm = (props) => {
     }
   };
 
-  const availableGenres = [
-    'Ficção', 'Não-Ficção', 'Romance', 'Fantasia', 'Ficção Científica',
-    'Mistério', 'Terror', 'Biografia', 'História', 'Autoajuda',
-    'Poesia', 'Drama', 'Comédia', 'Aventura', 'Infantil',
-    'Young Adult', 'Distopia', 'Contos', 'Ensaios', 'Filosofia'
-  ];
+  const availableGenres = ['Ficção', 'Não-ficção', 'Romance', 'Fantasia', 'Ficção Científica', 'Terror', 'Mistério', 'Biografia', 'Autoajuda', 'História', 'Poesia', 'Drama'];
 
-  const mediaColor = 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+  const mediaColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
 
   return (
     <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
       {hasExternalData && (
-        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-yellow-500/30")}>
+        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-emerald-500/30")}>
           <div className="flex items-center gap-3">
             <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <BookOpen className="w-5 h-5" />
+              <Book className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-white">
@@ -184,7 +189,7 @@ const BookForm = (props) => {
                 <div>
                   <span className="text-white/80">Nota:</span>
                   <div className="font-medium text-white">
-                    {formatApiRating(externalData.apiRating, 1)?.display}/5
+                    {formatApiRating(externalData.apiRating)?.display}/5
                   </div>
                   {externalData.apiVoteCount && (
                     <div className="text-xs text-white/60">
@@ -197,10 +202,20 @@ const BookForm = (props) => {
 
             {externalData.pageCount && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <BookOpen className="w-4 h-4 text-blue-400" />
+                <Hash className="w-4 h-4 text-blue-400" />
                 <div>
                   <span className="text-white/80">Páginas:</span>
                   <div className="font-medium text-white">{externalData.pageCount}</div>
+                </div>
+              </div>
+            )}
+
+            {externalData.authors && (
+              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg md:col-span-2">
+                <Users className="w-4 h-4 text-green-400" />
+                <div>
+                  <span className="text-white/80">Autor(es):</span>
+                  <div className="font-medium text-white">{externalData.authors.join(', ')}</div>
                 </div>
               </div>
             )}
@@ -215,34 +230,12 @@ const BookForm = (props) => {
               </div>
             )}
 
-            {externalData.authors && externalData.authors.length > 0 && (
-              <div className="md:col-span-2 flex items-start gap-2 p-2 bg-white/5 rounded-lg">
-                <Users className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
-                <div>
-                  <span className="text-white/80">Autores:</span>
-                  <div className="font-medium text-white">
-                    {externalData.authors.join(', ')}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {externalData.publisher && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-purple-400" />
+                <Book className="w-4 h-4 text-emerald-400" />
                 <div>
                   <span className="text-white/80">Editora:</span>
                   <div className="font-medium text-white">{externalData.publisher}</div>
-                </div>
-              </div>
-            )}
-
-            {externalData.isbn && (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Hash className="w-4 h-4 text-orange-400" />
-                <div>
-                  <span className="text-white/80">ISBN:</span>
-                  <div className="font-medium text-white">{externalData.isbn}</div>
                 </div>
               </div>
             )}
@@ -252,7 +245,7 @@ const BookForm = (props) => {
 
       {hasExternalData && externalData.imageUrl && (
         <div className="flex justify-center">
-          <div className="rounded-xl overflow-hidden border glass w-32 h-48">
+          <div className="rounded-xl overflow-hidden border glass w-48 h-64">
             <img
               src={externalData.imageUrl}
               alt={externalData.title}
@@ -266,7 +259,7 @@ const BookForm = (props) => {
         <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
           <div className="flex items-center gap-3">
             <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <BookOpen className="w-5 h-5" />
+              <Book className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-white mb-3">
@@ -284,7 +277,7 @@ const BookForm = (props) => {
         <div className="glass border border-white/10 rounded-xl p-6 space-y-6">
           <div className="flex items-center gap-3">
             <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <BookOpen className="w-5 h-5" />
+              <Book className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-white">Informações Básicas</h3>
@@ -320,35 +313,6 @@ const BookForm = (props) => {
                 variant="glass"
               />
             </div>
-
-            <div className="md:col-span-2">
-              <Input
-                label="Autores"
-                {...register('authors')}
-                error={errors.authors?.message}
-                placeholder="Autor 1, Autor 2"
-                variant="glass"
-                helperText="Separe os autores com vírgula"
-              />
-            </div>
-
-            <Input
-              label="Número de Páginas"
-              type="number"
-              icon={BookOpen}
-              {...register('pageCount', { valueAsNumber: true })}
-              error={errors.pageCount?.message}
-              placeholder="300"
-              variant="glass"
-            />
-
-            <Input
-              label="Editora"
-              {...register('publisher')}
-              error={errors.publisher?.message}
-              placeholder="Editora"
-              variant="glass"
-            />
           </div>
 
           <div>
@@ -376,7 +340,7 @@ const BookForm = (props) => {
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
                     selectedGenres.includes(genre)
-                      ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg'
                       : 'bg-white/5 text-white/80 hover:bg-white/10'
                   )}
                 >
@@ -411,7 +375,7 @@ const BookForm = (props) => {
           label="Status *"
           {...register('status')}
           error={errors.status?.message}
-          options={statusOptions}
+          options={statusColors}
           variant="glass"
         />
 
@@ -448,15 +412,15 @@ const BookForm = (props) => {
       {showProgressFields && (
         <div className={cn(
           "glass border border-white/10 rounded-xl p-6 space-y-4",
-          "border-l-4 border-yellow-500/30"
+          "border-l-4 border-emerald-500/30"
         )}>
           <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-yellow-500/20 to-orange-500/20">
-              <BookOpen className="w-5 h-5 text-yellow-400" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20">
+              <Book className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
               <h3 className="font-semibold text-white">Progresso da Leitura</h3>
-              <p className="text-sm text-white/60">Em que página você está?</p>
+              <p className="text-sm text-white/60">Em qual página você está?</p>
             </div>
           </div>
 
@@ -467,16 +431,16 @@ const BookForm = (props) => {
               icon={Hash}
               {...register('progress.currentPage', { valueAsNumber: true })}
               error={errors.progress?.currentPage?.message}
-              placeholder="150"
+              placeholder="125"
               variant="glass"
               min={0}
-              helperText="Em que página você parou de ler?"
+              helperText="Em que página você parou?"
             />
           </div>
 
           <div className="flex items-center gap-2 text-xs text-white/50 mt-2">
-            <div className="w-1.5 h-1.5 bg-yellow-500/50 rounded-full"></div>
-            <span>Para livros com progresso em andamento</span>
+            <div className="w-1.5 h-1.5 bg-emerald-500/50 rounded-full"></div>
+            <span>Para livros com leitura em andamento</span>
           </div>
         </div>
       )}
@@ -495,7 +459,7 @@ const BookForm = (props) => {
           type="submit"
           variant="primary"
           loading={loading}
-          className="min-w-[100px] bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
+          className="min-w-[100px] bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
         >
           {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
         </Button>

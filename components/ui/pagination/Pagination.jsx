@@ -3,7 +3,7 @@
 import React from 'react';
 import Button from '../button/Button';
 import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 export default function Pagination({ 
   currentPage, 

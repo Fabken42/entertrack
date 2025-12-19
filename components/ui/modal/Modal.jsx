@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 import { X, ArrowLeft } from 'lucide-react';
 import Button from '../button/Button';
 

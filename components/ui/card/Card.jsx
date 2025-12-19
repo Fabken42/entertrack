@@ -2,7 +2,7 @@
 
 'use client';
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 const Card = React.forwardRef(
   ({ className, variant = 'glass', ...props }, ref) => {

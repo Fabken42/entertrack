@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/general-utils';
 
 const Textarea = React.forwardRef(({
   className,
-  label,
+  label, 
   error,
   helperText,
   required,
