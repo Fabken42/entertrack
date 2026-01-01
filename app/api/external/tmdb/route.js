@@ -43,7 +43,7 @@ export async function GET(request) {
         if (!id) {
           return NextResponse.json({ error: 'ID parameter is required' }, { status: 400 });
         }
-        const tvDetails = await tmdbClient.getTVShowDetails(parseInt(id));
+        const tvDetails = await tmdbClient.getTVShowSeasonsInfo(parseInt(id));
         return NextResponse.json(tvDetails);
 
       case 'movie-genres':

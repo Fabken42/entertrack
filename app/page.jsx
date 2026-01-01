@@ -3,16 +3,15 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Button } from '@/components/ui';
-import { 
-  Film, 
-  Tv, 
-  BookOpen, 
-  Gamepad2, 
-  Sparkles, 
-  CheckCircle, 
-  TrendingUp, 
+import {
+  Film,
+  Tv,
+  BookOpen,
+  Gamepad2,
+  Sparkles,
+  CheckCircle,
+  TrendingUp,
   Users,
   Star,
   BarChart3,
@@ -189,29 +188,29 @@ export default function HomePage() {
           <div className="absolute top-0 left-1/4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl" />
         </div>
-        
+
         <div className="relative max-w-7xl mx-auto px-6 pt-24 pb-32 sm:px-8 lg:pt-32 lg:pb-40">
           <div className="text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-sm rounded-full border border-white/10 mb-8">
               <Sparkles className="w-4 h-4 text-yellow-400" />
               <span className="text-sm font-medium text-white">Organize seu entretenimento em um só lugar</span>
             </div>
-            
+
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
                 EnterTrack
               </span>
             </h1>
-            
+
             <p className="text-2xl md:text-3xl text-gray-300 mb-8 max-w-3xl mx-auto">
               A plataforma definitiva para acompanhar filmes, séries, animes, livros e jogos
             </p>
-            
+
             <p className="text-lg text-gray-400 mb-12 max-w-2xl mx-auto">
-              Deixe de perder tempo lembrando onde parou. Centralize tudo, receba recomendações 
+              Deixe de perder tempo lembrando onde parou. Centralize tudo, receba recomendações
               inteligentes e transforme seu consumo de entretenimento em uma experiência organizada.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button
                 size="lg"
@@ -221,8 +220,8 @@ export default function HomePage() {
                 {session ? 'Acessar Dashboard' : 'Começar Grátis'}
                 <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Button>
-              
-              <Link href="/discover/movies">
+
+              <Link href="/discover/series">
                 <Button
                   variant="outline"
                   size="lg"
@@ -233,7 +232,7 @@ export default function HomePage() {
                 </Button>
               </Link>
             </div>
-            
+
             <div className="mt-16 flex justify-center">
               <div className="inline-flex items-center gap-6 px-6 py-3 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
                 <div className="flex items-center gap-2">
@@ -269,7 +268,7 @@ export default function HomePage() {
             Gerencie todos os tipos de entretenimento em uma plataforma unificada
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
           {mediaTypes.map((media) => {
             const Icon = media.icon;
@@ -305,10 +304,10 @@ export default function HomePage() {
             Simples, rápido e eficiente. Comece em 4 passos fáceis
           </p>
         </div>
-        
+
         <div className="relative">
           <div className="absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent hidden lg:block" />
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {steps.map((step, index) => {
               const Icon = step.icon;
@@ -318,7 +317,7 @@ export default function HomePage() {
                     <div className={`inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br ${step.color} mb-6`}>
                       <Icon className="w-6 h-6 text-white" />
                     </div>
-                    <div className="text-5xl font-bold text-white/10 mb-2">{step.number}</div>
+                    <div className="text-5xl font-bold text-white/30 mb-2">{step.number}</div>
                     <h3 className="text-xl font-semibold text-white mb-3">{step.title}</h3>
                     <p className="text-gray-400">{step.description}</p>
                   </div>
@@ -326,17 +325,6 @@ export default function HomePage() {
               );
             })}
           </div>
-        </div>
-        
-        <div className="text-center mt-16">
-          <Button
-            size="lg"
-            onClick={handleGetStarted}
-            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 px-8 py-4 text-lg rounded-xl"
-          >
-            Começar Agora
-            <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
         </div>
       </div>
 
@@ -350,7 +338,7 @@ export default function HomePage() {
             Tudo que você precisa para transformar seu consumo de entretenimento
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature) => {
             const Icon = feature.icon;
@@ -380,7 +368,7 @@ export default function HomePage() {
             Junte-se a milhares de pessoas que já transformaram seu entretenimento
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {testimonials.map((testimonial) => (
             <div
@@ -413,15 +401,15 @@ export default function HomePage() {
             <Zap className="w-4 h-4 text-yellow-400" />
             <span className="text-sm font-medium text-white">Sem custos, sem compromissos</span>
           </div>
-          
+
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
             Pronto para transformar seu entretenimento?
           </h2>
-          
+
           <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
             Junte-se a milhares de usuários que já descobriram a melhor forma de acompanhar tudo que consomem
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button
               size="lg"
@@ -431,8 +419,8 @@ export default function HomePage() {
               {session ? 'Ir para Dashboard' : 'Criar Minha Conta'}
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Button>
-            
-            <Link href="/discover">
+
+            <Link href="/discover/series">
               <Button
                 variant="outline"
                 size="lg"
@@ -443,7 +431,7 @@ export default function HomePage() {
               </Button>
             </Link>
           </div>
-          
+
           <div className="mt-12 flex flex-wrap justify-center items-center gap-8 text-gray-400">
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-green-400" />

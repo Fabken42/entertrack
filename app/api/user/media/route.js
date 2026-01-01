@@ -70,7 +70,7 @@ export async function POST(request) {
       );
     }
 
-    // Criar nova UserMedia
+    // Criar nova UserMedia com a nova estrutura de progresso
     const userMediaData = {
       userId: session.user.id,
       mediaCacheId,
@@ -78,9 +78,17 @@ export async function POST(request) {
       userRating: userRating || null,
       personalNotes: personalNotes || '',
       progress: progress || {
-        current: 0,
-        unit: mediaCache.mediaType === 'anime' ? 'episodes' :
-          mediaCache.mediaType === 'manga' ? 'chapters' : 'pages',
+        details: {
+          // Inicializar campos baseados no tipo de mídia
+          episodes: 0,
+          chapters: 0,
+          volumes: 0,
+          seasons: 0,
+          episodesInSeason: 0,
+          pages: 0,
+          minutes: 0,
+          percentage: 0
+        },
         lastUpdated: new Date()
       }
     };
@@ -124,4 +132,3 @@ export async function POST(request) {
     );
   }
 }
-

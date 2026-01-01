@@ -1,3 +1,4 @@
+// InlineSearch.js
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -6,16 +7,32 @@ import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils/general-utils';
 
 const InlineSearch = ({
-  placeholder = 'Buscar...',
+  placeholder = 'Buscar...', 
   onSearch,
   delay = 300,
   className = '',
-  mediaType,
-  children
+  children,
+  onFocus,
+  onBlur
 }) => {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const timeoutRef = useRef(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsFocused(false);
+        if (onBlur) onBlur();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [onBlur]);
 
   useEffect(() => {
     if (timeoutRef.current) {
@@ -40,10 +57,16 @@ const InlineSearch = ({
   const clearSearch = () => {
     setQuery('');
     onSearch('');
+    setIsFocused(false);
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    if (onFocus) onFocus();
   };
 
   return (
-    <div className={cn('relative group', className)}>
+    <div className={cn('relative group', className)} ref={containerRef}>
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
           <Search className="w-5 h-5 text-gray-400 group-focus-within:text-blue-400 transition-colors" />
@@ -54,8 +77,7 @@ const InlineSearch = ({
           placeholder={placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+          onFocus={handleFocus}
           className="pl-10 pr-10"
           variant="glass"
         />

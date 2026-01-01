@@ -4,6 +4,7 @@ import { tmdbClient } from '@/lib/api/tmdb';
 import { jikanClient } from '@/lib/api/jikan';
 import { rawgClient } from '@/lib/api/rawg';
 import { googleBooksClient } from '@/lib/api/google-books';
+import { FETCH_MEDIA_ITEMS_LIMIT } from '@/constants';
 
 export async function GET(request, { params }) {
   try {
@@ -13,28 +14,28 @@ export async function GET(request, { params }) {
     const genre = searchParams.get('genre');
     const sortBy = searchParams.get('sortBy') || 'popularity';
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = 20;
-    const query = searchParams.get('query') || ''; // 🔥 NOVO: parâmetro de busca
+    const limit = parseInt(FETCH_MEDIA_ITEMS_LIMIT);
+    const query = searchParams.get('query') || '';
 
     let results;
 
     switch (mediaType) {
-      case 'movies':
+      case 'movie':
         results = await discoverMovies(genre, sortBy, page, limit, query);
         break;
       case 'series':
         results = await discoverSeries(genre, sortBy, page, limit, query);
         break;
-      case 'animes':
+      case 'anime':
         results = await discoverAnimes(genre, sortBy, page, limit, query);
         break;
-      case 'games':
+      case 'game':
         results = await discoverGames(genre, sortBy, page, limit, query);
         break;
-      case 'books':
+      case 'book':
         results = await discoverBooks(genre, sortBy, page, limit, query);
         break;
-      case 'mangas':
+      case 'manga':
         results = await discoverMangas(genre, sortBy, page, limit, query);
         break;
       default:
@@ -75,13 +76,48 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
     most_rated: 'vote_count.desc'
   };
 
-  // 🔥 NOVO: Se houver query, usar search em vez de discover
+  // Função auxiliar para buscar detalhes completos do filme incluindo runtime
+  async function getMovieDetails(movie) {
+    try {
+      // Busca detalhes completos do filme
+      const movieDetails = await tmdbClient.fetch(`/movie/${movie.id}`, {
+        language: 'pt-BR'
+      });
+
+      return {
+        id: movie.id,
+        title: movie.title,
+        description: movie.overview,
+        imageUrl: tmdbClient.getImageURL(movie.poster_path),
+        releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
+        rating: movie.vote_average,
+        ratingsCount: movie.vote_count,
+        runtime: movieDetails.runtime || 0, // Adiciona o runtime aqui
+        genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
+      };
+    } catch (error) {
+      console.error(`Erro ao buscar detalhes do filme ${movie.id}:`, error);
+      // Retorna os dados básicos se falhar
+      return {
+        id: movie.id,
+        title: movie.title,
+        description: movie.overview,
+        imageUrl: tmdbClient.getImageURL(movie.poster_path),
+        releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
+        rating: movie.vote_average,
+        ratingsCount: movie.vote_count,
+        runtime: 0, // Runtime padrão em caso de erro
+        genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
+      };
+    }
+  }
+
   if (query && query.trim() !== '') {
     try {
       const response = await tmdbClient.searchMovies(query, page);
 
       const rawTotalResults = response.total_results || 0;
-      const totalResults = Math.min(rawTotalResults, 20);
+      const totalResults = Math.min(rawTotalResults, FETCH_MEDIA_ITEMS_LIMIT);
       const maxPages = Math.min(Math.ceil(totalResults / limit), 500);
       const safePage = Math.min(page, maxPages);
 
@@ -89,16 +125,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
       if (page > maxPages) {
         const correctedResponse = await tmdbClient.searchMovies(query, maxPages);
         return {
-          results: await Promise.all(correctedResponse.results.map(async (movie) => ({
-            id: movie.id,
-            title: movie.title,
-            description: movie.overview,
-            imageUrl: tmdbClient.getImageURL(movie.poster_path),
-            releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-            rating: movie.vote_average,
-            ratingsCount: movie.vote_count,
-            genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
-          }))),
+          results: await Promise.all(correctedResponse.results.map(getMovieDetails)),
           total: totalResults,
           totalPages: maxPages,
           currentPage: maxPages,
@@ -107,16 +134,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
       }
 
       return {
-        results: await Promise.all(response.results.map(async (movie) => ({
-          id: movie.id,
-          title: movie.title,
-          description: movie.overview,
-          imageUrl: tmdbClient.getImageURL(movie.poster_path),
-          releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-          rating: movie.vote_average,
-          ratingsCount: movie.vote_count,
-          genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
-        }))),
+        results: await Promise.all(response.results.map(getMovieDetails)),
         total: totalResults,
         totalPages: maxPages,
         currentPage: safePage,
@@ -124,7 +142,6 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
       };
     } catch (error) {
       console.error('TMDB search error:', error);
-      // Fallback para discover se a busca falhar
     }
   }
 
@@ -151,16 +168,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
     params.page = maxPages.toString();
     const correctedResponse = await tmdbClient.fetch('/discover/movie', params);
     return {
-      results: await Promise.all(correctedResponse.results.map(async (movie) => ({
-        id: movie.id,
-        title: movie.title,
-        description: movie.overview,
-        imageUrl: tmdbClient.getImageURL(movie.poster_path),
-        releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-        rating: movie.vote_average,
-        ratingsCount: movie.vote_count,
-        genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
-      }))),
+      results: await Promise.all(correctedResponse.results.map(getMovieDetails)),
       total: totalResults,
       totalPages: maxPages,
       currentPage: maxPages,
@@ -169,16 +177,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
   }
 
   return {
-    results: await Promise.all(response.results.map(async (movie) => ({
-      id: movie.id,
-      title: movie.title,
-      description: movie.overview,
-      imageUrl: tmdbClient.getImageURL(movie.poster_path),
-      releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
-      rating: movie.vote_average,
-      ratingsCount: movie.vote_count,
-      genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
-    }))),
+    results: await Promise.all(response.results.map(getMovieDetails)),
     total: totalResults,
     totalPages: maxPages,
     currentPage: safePage,
@@ -200,7 +199,7 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
       const response = await tmdbClient.searchTVShows(query, page);
 
       const rawTotalResults = response.total_results || 0;
-      const totalResults = Math.min(rawTotalResults, 20);
+      const totalResults = Math.min(rawTotalResults, FETCH_MEDIA_ITEMS_LIMIT);
       const maxPages = Math.min(Math.ceil(totalResults / limit), 500);
       const safePage = Math.min(page, maxPages);
 
@@ -306,8 +305,6 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
 }
 
 async function discoverAnimes(genre, sortBy, page, limit, query = '') {
-  console.log(`🔍 discoverAnimes called with:`, { genre, sortBy, page, limit, query });
-
   try {
     if (query && query.trim() !== '') {
       const response = await jikanClient.searchAnime(query, page, limit);
@@ -361,21 +358,21 @@ function processAnimeResults(data, pagination, page, limit) {
     .map(item => ({
       id: item.mal_id,
       title: item.title,
-      description: item.synopsis || 'Sem descrição disponível',
+      description: item.synopsis || '*Sem descrição disponível*',
       imageUrl: jikanClient.getImageURL(item.images),
       releaseYear: new Date(item.aired.from).getFullYear() || null,
-      rating: item.score || 0,
-      ratingsCount: item.scored_by || 0,
-      apiRating: item.score || 0,
-      apiVoteCount: item.scored_by || 0,
-      popularity: item.popularity || 0,
+      rating: item.score || null,
+      ratingsCount: item.scored_by || null,
+      apiRating: item.score || null,
+      apiVoteCount: item.scored_by || null,
+      popularity: item.popularity || null,
       studios: item.studios?.map(studio => studio.name) || [],
-      episodes: item.episodes || 0,
+      episodes: item.episodes || null,
       status: item.status || 'Unknown',
-      mediaType: item.type || 'TV',
-      members: item.members || 0,
+      category: item.type || 'TV',
+      members: item.members || null,
       genres: item.genres?.map(g => ({
-        id: g.mal_id?.toString() || '0',
+        id: g.mal_id?.toString(),
         name: g.name
       })) || []
     }))
@@ -407,7 +404,6 @@ async function discoverMangas(genre, sortBy, page, limit, query = '') {
   try {
     // Se houver query, usar search
     if (query && query.trim() !== '') {
-      console.log(`🔍 Searching manga with query: ${query}`);
       const response = await jikanClient.searchManga(query, page, limit);
 
       if (!response.data) {
@@ -457,21 +453,21 @@ function processMangaResults(data, pagination, page, limit) {
     .map(item => ({
       id: item.mal_id,
       title: item.title,
-      description: item.synopsis || 'Sem descrição disponível',
+      description: item.synopsis || '*Sem descrição disponível*',
       imageUrl: jikanClient.getImageURL(item.images),
       releaseYear: item.published?.from ? new Date(item.published.from).getFullYear() : item.year,
-      rating: item.score || 0,
-      ratingsCount: item.scored_by || 0,
-      apiRating: item.score || 0,
-      apiVoteCount: item.scored_by || 0,
-      popularity: item.popularity || 0,
-      volumes: item.volumes || 0,
-      chapters: item.chapters || 0,
+      rating: item.score || null,
+      ratingsCount: item.scored_by || null,
+      apiRating: item.score || null,
+      apiVoteCount: item.scored_by || null,
+      popularity: item.popularity || null,
+      volumes: item.volumes || null,
+      chapters: item.chapters || null,
       status: item.status || 'Unknown',
-      mediaType: item.type || 'Manga',
-      members: item.members || 0,
+      category: item.type || 'Manga',
+      members: item.members || null,
       genres: item.genres?.map(g => ({
-        id: g.mal_id?.toString() || '0',
+        id: g.mal_id?.toString(),
         name: g.name
       })) || [],
       authors: item.authors?.map(author => author.name) || []
@@ -530,13 +526,11 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
     results: response.results.map(game => ({
       id: game.id,
       title: game.name,
-      description: game.description_raw || game.description,
       imageUrl: rawgClient.getImageURL(game.background_image),
       releaseYear: game.released ? new Date(game.released).getFullYear() : undefined,
       rating: game.rating,
       ratingsCount: game.ratings_count,
       metacritic: game.metacritic,
-      playtime: game.playtime,
       platforms: game.platforms?.map(p => p.platform.name) || [],
       genres: game.genres?.map(g => g.name) || []
     })),
@@ -579,8 +573,8 @@ async function discoverBooks(genre, sortBy, page, limit, query = '') {
     if (query && query.trim() !== '') {
       return {
         ...formattedResponse,
-        total: Math.min(formattedResponse.total, 20),
-        totalPages: Math.ceil(Math.min(formattedResponse.total, 20) / limit)
+        total: Math.min(formattedResponse.total, FETCH_MEDIA_ITEMS_LIMIT),
+        totalPages: Math.ceil(Math.min(formattedResponse.total, FETCH_MEDIA_ITEMS_LIMIT) / limit)
       };
     }
 

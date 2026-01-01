@@ -6,10 +6,11 @@ import { connectToDatabase } from '@/lib/database/connect';
 import UserMedia from '@/models/UserMedia';
 import MediaCache from '@/models/MediaCache';
 
+// /app/api/user/media/[id]/route.js
 export async function DELETE(request, context) {
   const { params } = context;
   const { id } = await params;
-  
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -22,10 +23,11 @@ export async function DELETE(request, context) {
 
     await connectToDatabase();
 
+    // Buscar UserMedia com o MediaCache populado
     const userMedia = await UserMedia.findOne({
       _id: id,
       userId: session.user.id
-    });
+    }).populate('mediaCacheId');
 
     if (!userMedia) {
       return NextResponse.json(
@@ -34,26 +36,41 @@ export async function DELETE(request, context) {
       );
     }
 
-    // Decrementar contador de usuários no cache
-    if (userMedia.mediaCacheId) {
-      await MediaCache.findByIdAndUpdate(userMedia.mediaCacheId, {
-        $inc: { 'usageStats.userCount': -1 }
-      });
-    }
-
-    // Remover o UserMedia
+    const mediaCacheId = userMedia.mediaCacheId?._id;
     await UserMedia.findByIdAndDelete(id);
+
+    if (mediaCacheId) {
+      const updatedCache = await MediaCache.findByIdAndUpdate(
+        mediaCacheId,
+        {
+          $inc: { 'usageStats.userCount': -1 },
+          $set: { 'usageStats.lastAccessed': new Date() }
+        },
+        { new: true }
+      );
+
+      //Deletar APENAS se userCount = 0 E sourceApi = "manual"
+      if (
+        updatedCache &&
+        updatedCache.usageStats.userCount <= 0 &&
+        updatedCache.sourceApi === 'manual'
+      ) {
+        await MediaCache.findByIdAndDelete(mediaCacheId);
+        console.log(`✅ Cache manual deletado: ${mediaCacheId} (${updatedCache.essentialData?.title})`);
+      }
+    }
 
     return NextResponse.json({
       success: true,
       message: 'Media removed successfully',
-      deletedId: id
+      deletedId: id,
+      mediaCacheDeleted: mediaCacheId && userMedia.mediaCacheId?.sourceApi === 'manual'
     });
 
   } catch (error) {
     console.error('Error deleting user media:', error);
     return NextResponse.json(
-      { error: 'Erro ao exclui mídia' },
+      { error: 'Erro ao excluir mídia' },
       { status: 500 }
     );
   }
@@ -136,13 +153,27 @@ export async function PUT(request, context) {
       updateData.personalNotes = personalNotes;
     }
 
-    // Progresso
     if (progress !== undefined) {
-      updateData.progress = {
-        ...existingMedia.progress,
-        ...progress,
-        lastUpdated: new Date()
-      };
+      if (progress.details) {
+        updateData.progress = {
+          details: {
+            ...(existingMedia.progress?.details || {}),
+            ...progress.details
+          },
+          lastUpdated: new Date()
+        };
+      } else if (typeof progress === 'object' && Object.keys(progress).length > 0) {
+        updateData.progress = {
+          ...existingMedia.progress,
+          ...progress,
+          lastUpdated: new Date()
+        };
+      } else if (progress === null) {
+        updateData.progress = {
+          details: {},
+          lastUpdated: new Date()
+        };
+      }
     }
 
     // Atualizar no banco

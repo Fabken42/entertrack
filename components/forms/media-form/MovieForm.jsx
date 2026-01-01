@@ -1,38 +1,18 @@
-// /components/forms/media-form/MovieForm.jsx
+// components/media/forms/MovieForm.jsx
 'use client';
 
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Button, Input, Select, Rating as RatingComponent, TextArea } from '@/components/ui';
+import { Button, Input, Select, TextArea } from '@/components/ui';
 import { Film, Clock, Star, Calendar, Users, TrendingUp } from 'lucide-react';
-import { cn, formatApiRating } from '@/lib/utils/general-utils';
+import toast from 'react-hot-toast';
+import { cn, convertFromMinutes, convertToMinutes, formatApiRating, formatRuntime, validateProgress } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
-
-// Schema específico para filme
-const movieSchema = z.object({
-  title: z.string().min(1, 'Título é obrigatório'),
-  description: z.string().optional(),
-  releaseYear: z.number().min(1900).max(new Date().getFullYear() + 5).optional(),
-  genres: z.array(z.string()).min(1, 'Selecione pelo menos um gênero'),
-  status: z.enum(['planned', 'in_progress', 'completed', 'dropped']),
-  rating: z.enum(['terrible', 'bad', 'ok', 'good', 'perfect']).optional(),
-  comment: z.string().optional(),
-  imageUrl: z.string().url('URL inválida').optional().or(z.literal('')),
-  progress: z.object({
-    currentTimeHours: z.number().min(0).max(10).optional(),
-    currentTimeMinutes: z.number().min(0).max(59).optional(),
-    currentTimeSeconds: z.number().min(0).max(59).optional(),
-  }).optional(),
-});
-
-const formatRuntime = (minutes) => {
-  if (!minutes) return '—';
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
-};
+import { ratingLabels } from '@/constants';
+import { getMediaColor } from '@/lib/utils/media-utils';
+import { movieSchema } from '@/lib/schemas/movie-schema';
+import { TMDBClient } from '@/lib/api/tmdb';
 
 const MovieForm = (props) => {
   const {
@@ -44,85 +24,223 @@ const MovieForm = (props) => {
     onSubmit,
   } = props;
 
-  // Converte genres de objetos {id, name} para array de strings
+  console.log('props: ', props);
+
+  // Usando função utilitária para cores
+  const mediaColor = getMediaColor('movies');
+
+  // Obter runtime do filme
+  const runtime = React.useMemo(() => {
+    // Verifica múltiplas fontes possíveis
+    if (initialData?.runtime) {
+      return initialData.runtime;
+    }
+    if (initialData?.mediaCacheId?.essentialData?.runtime) {
+      return initialData.mediaCacheId.essentialData.runtime;
+    }
+    if (externalData?.runtime) {
+      return externalData.runtime;
+    }
+    return null;
+  }, [initialData, externalData]);
+
+  // Calcular tempo total em minutos
+  const totalMinutes = React.useMemo(() => {
+    if (runtime) {
+      return runtime;
+    }
+    return null;
+  }, [runtime]);
+
+  const availableGenres = React.useMemo(() => {
+    try {
+      const genres = TMDBClient.getAllGenres();
+      return genres || [];
+    } catch (error) {
+      console.error('Erro ao carregar gêneros:', error);
+      return [];
+    }
+  }, []);
+
   const getInitialGenres = () => {
     if (initialData?.genres) {
       return initialData.genres.map(g => typeof g === 'object' ? g.name : g);
     }
     if (externalData?.genres) {
-      return externalData.genres.map(g => typeof g === 'object' ? g.name : g);
+      if (externalData.genres && externalData.genres.length > 0) {
+        return externalData.genres.map(g => {
+          if (typeof g === 'object') {
+            return g.name;
+          }
+          return g;
+        });
+      }
     }
     return [];
   };
 
-  const [selectedGenres, setSelectedGenres] = React.useState(getInitialGenres);
-  const [selectedRating, setSelectedRating] = React.useState(
-    initialData?.rating
+  // Extrair progresso inicial de minutes para hours/minutes
+  const getInitialProgress = () => {
+    if (initialData?.progress?.details?.minutes || initialData?.progress?.details?.minutes === 0) {
+      return convertFromMinutes(initialData.progress.details.minutes);
+    }
+    return { hours: 0, minutes: 0 };
+  };
+
+  // Estado local
+  const [selectedGenres, setSelectedGenres] = React.useState(
+    getInitialGenres()
   );
+  const [selectedRating, setSelectedRating] = React.useState(
+    initialData?.userRating || null
+  );
+  const [charCount, setCharCount] = React.useState(
+    initialData?.personalNotes?.length || 0
+  );
+  const [canSubmit, setCanSubmit] = React.useState(true);
+  const [currentProgress, setCurrentProgress] = React.useState(getInitialProgress());
 
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
 
-  // Prepara os valores padrão com genres convertidos para strings
+  // Preparar dados de rating da API para exibição
+  const apiRatingData = React.useMemo(() => {
+    if (externalData) {
+      // Verifica múltiplas fontes possíveis para rating e votos
+      const rating = externalData.rating || externalData.apiRating || externalData.vote_average;
+      const voteCount = externalData.ratingsCount || externalData.apiVoteCount || externalData.vote_count;
+
+      // Garantir que temos números válidos
+      const validRating = rating != null && !isNaN(Number(rating)) && Number(rating) > 0;
+      const validVoteCount = voteCount != null && !isNaN(Number(voteCount)) && Number(voteCount) > 0;
+
+      if (validRating && validVoteCount) {
+        const formattedRating = formatApiRating(rating);
+        return {
+          rating: formattedRating?.display || Number(rating).toFixed(1),
+          voteCount: Number(voteCount),
+          rawRating: Number(rating)
+        };
+      }
+    }
+    return null;
+  }, [externalData]);
+
   const getDefaultValues = () => {
+    const defaultValues = {
+      status: 'planned',
+      genres: getInitialGenres(),
+      userRating: null,
+      personalNotes: '',
+      imageUrl: '',
+      description: '',
+      releaseYear: undefined,
+      runtime: '',
+    };
+
     if (initialData) {
+      let runtimeFromData = initialData.runtime || initialData.mediaCacheId?.essentialData?.runtime || '';
+
+      const progress = getInitialProgress();
+
       return {
-        title: initialData.title,
-        description: initialData.description,
-        releaseYear: initialData.releaseYear,
-        genres: initialData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
-        rating: initialData.rating,
-        comment: initialData.comment,
-        imageUrl: initialData.imageUrl,
-        status: initialData.status,
-        progress: initialData.progress || {},
+        ...defaultValues,
+        title: initialData.title || '',
+        description: initialData.description || '',
+        releaseYear: initialData.releaseYear || initialData.mediaCacheId?.essentialData?.releaseYear,
+        genres: getInitialGenres(),
+        userRating: initialData.userRating || null,
+        personalNotes: initialData.personalNotes || '',
+        imageUrl: initialData.imageUrl || '',
+        status: initialData.status || 'planned',
+        runtime: runtimeFromData,
+        progress: {
+          hours: progress.hours,
+          minutes: progress.minutes
+        },
       };
     }
-    
+
     if (externalData) {
       return {
-        title: externalData.title,
-        description: externalData.description,
-        releaseYear: externalData.releaseYear,
-        genres: externalData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
+        ...defaultValues,
+        title: externalData.title || '',
+        description: externalData.description || '',
+        releaseYear: externalData.releaseYear || undefined,
+        genres: getInitialGenres(),
         status: 'planned',
-        imageUrl: externalData.imageUrl,
-        progress: {},
-        rating: undefined,
+        imageUrl: externalData.imageUrl || '',
+        runtime: externalData.runtime || '',
+        progress: { hours: 0, minutes: 0 },
+        userRating: null,
       };
     }
-    
+
     if (manualCreateQuery) {
       return {
-        title: manualCreateQuery,
+        ...defaultValues,
+        title: manualCreateQuery || '',
         status: 'planned',
-        genres: [],
-        progress: {},
+        runtime: '',
+        progress: { hours: 0, minutes: 0 },
       };
     }
-    
-    return {
-      status: 'planned',
-      genres: [],
-      progress: {},
-    };
+
+    return defaultValues;
   };
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     setValue,
     watch,
+    trigger,
   } = useForm({
     resolver: zodResolver(movieSchema),
     defaultValues: getDefaultValues(),
+    mode: 'onChange',
   });
 
   const currentStatus = watch('status');
   const showRatingAndComment = currentStatus === 'completed' || currentStatus === 'dropped';
   const showProgressFields = currentStatus === 'in_progress' || currentStatus === 'dropped';
+
+  // Observar campos de progresso
+  const currentHours = watch('progress.hours') || 0;
+  const currentMinutes = watch('progress.minutes') || 0;
+
+  React.useEffect(() => {
+    setValue('genres', selectedGenres, { shouldValidate: true });
+  }, [selectedGenres, setValue]);
+
+  React.useEffect(() => {
+    if (initialData) {
+      const values = getDefaultValues();
+      Object.keys(values).forEach(key => {
+        if (key === 'progress') {
+          setValue('progress.hours', values.progress.hours);
+          setValue('progress.minutes', values.progress.minutes);
+        } else if (key === 'runtime') {
+          setValue('runtime', values.runtime);
+        } else {
+          setValue(key, values[key]);
+        }
+      });
+    }
+  }, [initialData, setValue]);
+
+  // Atualizar runtime quando mudar no formulário manual
+  const runtimeFromForm = watch('runtime');
+
+  // Atualizar progresso local quando os valores mudarem
+  React.useEffect(() => {
+    setCurrentProgress({
+      hours: currentHours,
+      minutes: currentMinutes
+    });
+  }, [currentHours, currentMinutes]);
 
   const handleGenreToggle = (genre) => {
     if (hasExternalData && !isEditMode) return;
@@ -132,56 +250,182 @@ const MovieForm = (props) => {
       : [...selectedGenres, genre];
 
     setSelectedGenres(newGenres);
-    setValue('genres', newGenres, { shouldValidate: true });
   };
 
   const handleRatingChangeInternal = (rating) => {
     setSelectedRating(rating);
-    setValue('rating', rating, { shouldValidate: true });
+    setValue('userRating', rating, { shouldValidate: true });
   };
 
-  const onSubmitForm = (data) => {    
-    if (onSubmit) {
-      const formData = {
-        ...data,
-        mediaType: 'movie',
-        sourceApi: 'tmdb', // Adicionar sourceApi
-        rating: showRatingAndComment ? selectedRating : undefined,
-        comment: showRatingAndComment ? data.comment : undefined,
-        genres: selectedGenres,
-        progress: (showProgressFields) ? {
-          currentTimeHours: data.progress?.currentTimeHours || 0,
-          currentTimeMinutes: data.progress?.currentTimeMinutes || 0,
-          currentTimeSeconds: data.progress?.currentTimeSeconds || 0,
-        } : undefined,
-        ...(externalData && {
-          externalId: externalData.externalId,
-          sourceApi: externalData.sourceApi || 'tmdb',
-          apiRating: externalData.apiRating,
-          apiVoteCount: externalData.apiVoteCount,
-          runtime: externalData.runtime,
-          director: externalData.director,
-          cast: externalData.cast,
-          popularity: externalData.popularity,
-          voteCount: externalData.voteCount,
-          budget: externalData.budget,
-          revenue: externalData.revenue,
-        }),
-      };
-      
-      console.log('MovieForm: Enviando dados para onSubmit:', formData);
-      onSubmit(formData);
+  // Função para lidar com a mudança nas notas pessoais
+  const handlePersonalNotesChange = (e) => {
+    const value = e.target.value;
+    const count = value.length;
+
+    setCharCount(count);
+
+    // Verificar se excede o limite
+    if (count > 3000) {
+      setCanSubmit(false);
+      toast.error('Notas pessoais não podem exceder 3000 caracteres');
     } else {
-      console.error('MovieForm: onSubmit não definido');
+      setCanSubmit(true);
+    }
+
+    // Atualizar o valor no formulário
+    setValue('personalNotes', value, { shouldValidate: true });
+  };
+
+  // Função para atualizar progresso com validação
+  const handleProgressChange = (field, value) => {
+    const numValue = value === '' ? 0 : parseInt(value, 10) || 0;
+
+    let newHours = currentProgress.hours;
+    let newMinutes = currentProgress.minutes;
+
+    if (field === 'hours') {
+      newHours = numValue;
+    } else if (field === 'minutes') {
+      newMinutes = numValue > 59 ? 59 : numValue;
+    }
+
+    // Se tiver duração total, validar
+    const maxMinutes = totalMinutes || runtimeFromForm;
+    if (maxMinutes) {
+      const newTotalMinutes = (newHours * 60) + newMinutes;
+
+      if (newTotalMinutes > maxMinutes) {
+        // Ajustar automaticamente para o máximo
+        const maxHours = Math.floor(maxMinutes / 60);
+        const maxMins = maxMinutes % 60;
+
+        if (field === 'hours') {
+          newHours = maxHours;
+          newMinutes = Math.min(newMinutes, maxMins);
+        } else if (field === 'minutes') {
+          // Se ajustando minutos, também verificar horas
+          const currentTotal = (newHours * 60) + newMinutes;
+          if (currentTotal > maxMinutes) {
+            newHours = Math.floor(maxMinutes / 60);
+            newMinutes = maxMinutes % 60;
+          }
+        }
+      }
+    }
+
+    // Atualizar os valores
+    setValue('progress.hours', newHours, { shouldValidate: true });
+    setValue('progress.minutes', newMinutes, { shouldValidate: true });
+    setCurrentProgress({ hours: newHours, minutes: newMinutes });
+  };
+
+  const onSubmitForm = async (e) => {
+    try {
+      if (e && e.preventDefault) {
+        e.preventDefault();
+      }
+
+      // Verifica se pode submeter (limite de caracteres)
+      if (!canSubmit) {
+        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+        return;
+      }
+
+      // Validação do progresso contra o runtime
+      const currentHoursVal = watch('progress.hours') || 0;
+      const currentMinutesVal = watch('progress.minutes') || 0;
+
+      // Valida o formulário
+      const isValid = await trigger();
+
+      if (!isValid) {
+        toast.error('Por favor, corrija os erros no formulário');
+        return;
+      }
+
+      // Obtém os valores do formulário
+      const formData = {
+        title: watch('title'),
+        description: watch('description'),
+        genres: watch('genres'),
+        status: watch('status'),
+        releaseYear: watch('releaseYear'),
+        runtime: watch('runtime'),
+        userRating: watch('userRating'),
+        personalNotes: watch('personalNotes'),
+      };
+
+      // Verifica novamente o limite de caracteres
+      if (formData.personalNotes && formData.personalNotes.length > 3000) {
+        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+        return;
+      }
+
+      if (onSubmit) {
+        // Converter horas/minutos para minutos totais
+        const totalMinutesWatched = convertToMinutes(currentHoursVal, currentMinutesVal);
+
+        const finalFormData = {
+          ...formData,
+          mediaType: 'movie',
+          releaseYear: formData.releaseYear || null,
+          userRating: formData.userRating || null,
+          personalNotes: formData.personalNotes || '',
+          genres: selectedGenres,
+          runtime: formData.runtime || null,
+          // Sempre enviar progresso em minutos
+          progress: {
+            details: {
+              minutes: totalMinutesWatched
+            },
+            lastUpdated: new Date()
+          }
+        };
+
+        // Se for completed e tem runtime definido, marcar como assistido completamente
+        if (formData.status === 'completed' && formData.runtime) {
+          finalFormData.progress.details.minutes = formData.runtime;
+        }
+
+        if (isEditMode && initialData && initialData._id) {
+          finalFormData.userMediaId = initialData._id;
+        }
+
+        if (externalData && !isEditMode) {
+          finalFormData.sourceId = externalData.id?.toString();
+          finalFormData.sourceApi = 'tmdb';
+          finalFormData.title = externalData.title || finalFormData.title;
+          finalFormData.description = externalData.description || finalFormData.description;
+          finalFormData.imageUrl = externalData.imageUrl || finalFormData.imageUrl;
+          finalFormData.apiRating = apiRatingData?.rawRating || externalData.apiRating;
+          finalFormData.apiVoteCount = apiRatingData?.voteCount || externalData.apiVoteCount;
+          finalFormData.runtime = externalData.runtime || formData.runtime;
+
+          if (!finalFormData.releaseYear && externalData.releaseYear) {
+            finalFormData.releaseYear = externalData.releaseYear;
+          }
+        }
+
+        if (isManualEntry) {
+          finalFormData.sourceId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          finalFormData.sourceApi = 'manual';
+          finalFormData.imageUrl = '';
+        }
+        await onSubmit(finalFormData);
+      }
+    } catch (error) {
+      console.error('❌ Erro no onSubmitForm:', error);
+      toast.error('Erro ao salvar filme');
     }
   };
 
-  const availableGenres = ['Ação', 'Aventura', 'Animação', 'Comédia', 'Crime', 'Documentário', 'Drama', 'Família', 'Fantasia', 'Ficção Científica', 'Terror', 'Mistério', 'Romance', 'Suspense', 'Guerra', 'Western'];
-
-  const mediaColor = 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+  // Calcular minutos totais assistidos
+  const totalMinutesWatched = React.useMemo(() => {
+    return convertToMinutes(currentProgress.hours, currentProgress.minutes);
+  }, [currentProgress]);
 
   return (
-    <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
+    <form onSubmit={(e) => onSubmitForm(e, handleSubmit(onSubmitForm))} className="space-y-8">
       {hasExternalData && (
         <div className={cn("glass border rounded-xl p-6 space-y-4", "border-blue-500/30")}>
           <div className="flex items-center gap-3">
@@ -190,31 +434,30 @@ const MovieForm = (props) => {
             </div>
             <div>
               <h3 className="font-semibold text-white">
-                Dados importados do TMDB
+                {externalData.title}
               </h3>
-              <p className="text-sm text-white/60">Estes dados foram obtidos automaticamente</p>
+              <p className="text-sm text-white/60">Dados importados do TMDB</p>
             </div>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {externalData.apiRating && (
+            {/* Nota - verifica se existe e é maior que 0 */}
+            {apiRatingData ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Star className="w-4 h-4 text-yellow-400 fill-current" />
                 <div>
                   <span className="text-white/80">Nota:</span>
                   <div className="font-medium text-white">
-                    {formatApiRating(externalData.apiRating)?.display}/5
+                    {apiRatingData.rating}/5
                   </div>
-                  {externalData.apiVoteCount && (
-                    <div className="text-xs text-white/60">
-                      ({externalData.apiVoteCount.toLocaleString()} votos)
-                    </div>
-                  )}
+                  <div className="text-xs text-white/60">
+                    ({apiRatingData.voteCount.toLocaleString()} votos)
+                  </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {externalData.runtime && (
+            {/* Duração - verifica se existe e é maior que 0 */}
+            {externalData.runtime != null && externalData.runtime > 0 ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Clock className="w-4 h-4 text-blue-400" />
                 <div>
@@ -222,9 +465,10 @@ const MovieForm = (props) => {
                   <div className="font-medium text-white">{formatRuntime(externalData.runtime)}</div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {externalData.popularity && (
+            {/* Popularidade - verifica se existe e é maior que 0 */}
+            {externalData.popularity != null && externalData.popularity > 0 ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <TrendingUp className="w-4 h-4 text-green-400" />
                 <div>
@@ -232,54 +476,57 @@ const MovieForm = (props) => {
                   <div className="font-medium text-white">{externalData.popularity.toFixed(1)}</div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {externalData.releaseYear && (
+            {/* Ano de lançamento - verifica se existe */}
+            {externalData.releaseYear != null ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Calendar className="w-4 h-4 text-white/60" />
                 <div>
                   <span className="text-white/80">Ano:</span>
-                  <div className="font-medium text-white">{externalData.releaseYear}</div>
-                </div>
-              </div>
-            )}
-
-            {externalData.budget && externalData.budget > 0 && (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-purple-400" />
-                <div>
-                  <span className="text-white/80">Orçamento:</span>
                   <div className="font-medium text-white">
-                    ${(externalData.budget / 1000000).toFixed(1)}M
+                    {externalData.releaseYear}
                   </div>
                 </div>
               </div>
-            )}
-
-            {externalData.revenue && externalData.revenue > 0 && (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Users className="w-4 h-4 text-emerald-400" />
-                <div>
-                  <span className="text-white/80">Bilheteria:</span>
-                  <div className="font-medium text-white">
-                    ${(externalData.revenue / 1000000).toFixed(1)}M
-                  </div>
-                </div>
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}
 
+      {/* Imagem com tags de gêneros */}
       {hasExternalData && externalData.imageUrl && (
-        <div className="flex justify-center">
-          <div className="rounded-xl overflow-hidden border glass w-48 h-64">
+        <div className="flex flex-col items-center">
+          <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
             <img
               src={externalData.imageUrl}
               alt={externalData.title}
               className="w-full h-full object-cover"
             />
           </div>
+
+          {externalData.genres && externalData.genres.length > 0 && (
+            <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
+              {/* Gêneros normais (cores azuis) */}
+              {externalData.genres.slice(0, 5).map((genre, index) => (
+                <span
+                  key={index}
+                  className="px-3 py-1.5 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 
+                     text-blue-300 text-sm font-medium rounded-lg border border-blue-500/30 
+                     hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300"
+                >
+                  {typeof genre === 'object' ? genre.name : genre}
+                </span>
+              ))}
+
+              {/* Mostra contador se houver mais gêneros */}
+              {externalData.genres.length > 5 && (
+                <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
+                  +{externalData.genres.length - 5}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -326,21 +573,42 @@ const MovieForm = (props) => {
               label="Ano de Lançamento"
               type="number"
               icon={Calendar}
-              {...register('releaseYear', { valueAsNumber: true })}
+              {...register('releaseYear', {
+                valueAsNumber: true,
+                setValueAs: (value) => value === '' ? undefined : Number(value)
+              })}
               error={errors.releaseYear?.message}
               placeholder="2024"
               variant="glass"
+              min={1800}
+              max={new Date().getFullYear() + 5}
             />
 
-            <div className="md:col-span-2">
-              <Input
-                label="URL da Imagem"
-                {...register('imageUrl')}
-                error={errors.imageUrl?.message}
-                placeholder="https://exemplo.com/imagem.jpg"
-                variant="glass"
-              />
-            </div>
+            <Input
+              label="Duração (minutos) *"
+              type="number"
+              icon={Clock}
+              {...register('runtime', {
+                valueAsNumber: true,
+                required: "Duração é obrigatória",
+                min: {
+                  value: 1,
+                  message: "Duração mínima de 1 minuto"
+                }
+              })}
+              error={errors.runtime?.message}
+              placeholder="120"
+              variant="glass"
+              min={1}
+            />
+
+            <Input
+              label="URL da Imagem"
+              {...register('imageUrl')}
+              error={errors.imageUrl?.message}
+              placeholder="https://exemplo.com/imagem.jpg"
+              variant="glass"
+            />
           </div>
 
           <div>
@@ -357,7 +625,7 @@ const MovieForm = (props) => {
 
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              Gêneros *
+              Gêneros {!isManualEntry && ' *'}
             </label>
             <div className="flex flex-wrap gap-2">
               {availableGenres.map((genre) => (
@@ -376,10 +644,28 @@ const MovieForm = (props) => {
                 </button>
               ))}
             </div>
+
+            {/* Mensagem de erro para validação do schema */}
             {errors.genres && (
               <p className="mt-2 text-sm text-red-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
                 {errors.genres.message}
+              </p>
+            )}
+
+            {/* Mensagem condicional apenas se não for criação manual */}
+            {selectedGenres.length === 0 && !isManualEntry && (
+              <p className="mt-2 text-sm text-amber-400 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
+                Selecione pelo menos um gênero
+              </p>
+            )}
+
+            {/* Mensagem para criação manual informando que é opcional */}
+            {selectedGenres.length === 0 && isManualEntry && (
+              <p className="mt-2 text-sm text-blue-400 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+                Gêneros são opcionais para criação manual
               </p>
             )}
           </div>
@@ -408,35 +694,74 @@ const MovieForm = (props) => {
         />
 
         {showRatingAndComment && (
-          <>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-white">
-                Sua avaliação
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Sua Avaliação
               </label>
-              <RatingComponent
-                value={selectedRating}
-                onChange={handleRatingChangeInternal}
-                showLabel
-                size="lg"
-              />
+              <div className="flex items-center gap-2">
+                {/* Sistema de 5 estrelas */}
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => handleRatingChangeInternal(star)}
+                    className="p-1 transition-transform hover:scale-110 focus:outline-none"
+                    aria-label={`Avaliar com ${star} ${star === 1 ? 'estrela' : 'estrelas'}`}
+                  >
+                    <Star
+                      className={`w-10 h-10 ${selectedRating && selectedRating >= star
+                        ? 'fill-yellow-400 text-yellow-400'
+                        : 'fill-gray-700 text-gray-700'
+                        } transition-colors duration-200`}
+                    />
+                  </button>
+                ))}
+                <span className="ml-3 text-white/80 font-medium">
+                  {selectedRating ? (
+                    <span className={ratingLabels[selectedRating]?.color}>
+                      {ratingLabels[selectedRating]?.label}
+                    </span>
+                  ) : (
+                    'Clique nas estrelas para avaliar'
+                  )}
+                </span>
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-white mb-2">
-                Seu comentário
-              </label>
-              <TextArea
-                {...register('comment')}
-                placeholder="Compartilhe suas impressões..."
-                variant="glass"
-                rows={3}
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-300">
+                  Notas Pessoais (opcional):
+                </label>
+                <span className={`text-sm ${charCount > 3000 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {charCount}/3000 caracteres
+                </span>
+              </div>
+              <textarea
+                {...register('personalNotes')}
+                onChange={handlePersonalNotesChange}
+                rows={4}
+                maxLength={3000}
+                placeholder="Anotações, pensamentos, avaliação detalhada..."
+                className={`w-full bg-gray-900 border ${charCount > 3000 ? 'border-red-500' : 'border-gray-700'
+                  } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none`}
               />
+              {errors.personalNotes && (
+                <p className="mt-1 text-sm text-red-400">
+                  {errors.personalNotes.message}
+                </p>
+              )}
+              {charCount > 3000 && (
+                <p className="mt-1 text-sm text-red-400">
+                  Limite de 3000 caracteres excedido. Reduza seu texto para continuar.
+                </p>
+              )}
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      {/* Campos específicos do filme */}
       {showProgressFields && (
         <div className={cn(
           "glass border border-white/10 rounded-xl p-6 space-y-4",
@@ -448,52 +773,139 @@ const MovieForm = (props) => {
             </div>
             <div>
               <h3 className="font-semibold text-white">Progresso do Filme</h3>
-              <p className="text-sm text-white/60">Até onde você assistiu?</p>
+              <p className="text-sm text-white/60">
+                Quanto tempo você já assistiu?
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Input
-              label="Horas"
-              type="number"
-              icon={Clock}
-              {...register('progress.currentTimeHours', { valueAsNumber: true })}
-              error={errors.progress?.currentTimeHours?.message}
-              placeholder="1"
-              variant="glass"
-              min={0}
-              max={10}
-            />
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">
+                Horas:
+              </label>
+              <input
+                type="number"
+                value={currentProgress.hours}
+                onChange={(e) => handleProgressChange('hours', e.target.value)}
+                onBlur={(e) => {
+                  const maxMinutes = totalMinutes || runtimeFromForm;
+                  if (maxMinutes) {
+                    const maxHours = Math.floor(maxMinutes / 60);
+                    if (currentProgress.hours > maxHours) {
+                      handleProgressChange('hours', maxHours);
+                      toast.error(`Horas máximas: ${maxHours} (baseado na duração total)`);
+                    }
+                  }
+                }}
+                min={0}
+                max={totalMinutes ? Math.floor(totalMinutes / 60) : 10}
+                step={1}
+                className={`w-full bg-gray-900 border ${errors.progress?.hours?.message ? 'border-red-500' : 'border-gray-700'
+                  } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500`}
+                placeholder={`0${totalMinutes ? ` (máx: ${Math.floor(totalMinutes / 60)})` : ''}`}
+              />
+              {errors.progress?.hours?.message && (
+                <p className="mt-1 text-sm text-red-400">{errors.progress.hours.message}</p>
+              )}
+            </div>
 
-            <Input
-              label="Minutos"
-              type="number"
-              icon={Clock}
-              {...register('progress.currentTimeMinutes', { valueAsNumber: true })}
-              error={errors.progress?.currentTimeMinutes?.message}
-              placeholder="30"
-              variant="glass"
-              min={0}
-              max={59}
-            />
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">
+                Minutos:
+              </label>
+              <input
+                type="number"
+                value={currentProgress.minutes}
+                onChange={(e) => handleProgressChange('minutes', e.target.value)}
+                onBlur={(e) => {
+                  const maxMinutes = totalMinutes || runtimeFromForm;
+                  if (maxMinutes) {
+                    const currentTotal = (currentProgress.hours * 60) + currentProgress.minutes;
+                    if (currentTotal > maxMinutes) {
+                      const maxHours = Math.floor(maxMinutes / 60);
+                      const maxMins = maxMinutes % 60;
+                      handleProgressChange('hours', maxHours);
+                      handleProgressChange('minutes', maxMins);
+                    }
+                  }
 
-            <Input
-              label="Segundos"
-              type="number"
-              icon={Clock}
-              {...register('progress.currentTimeSeconds', { valueAsNumber: true })}
-              error={errors.progress?.currentTimeSeconds?.message}
-              placeholder="45"
-              variant="glass"
-              min={0}
-              max={59}
-            />
+                  // Validar minutos individuais
+                  if (currentProgress.minutes > 59) {
+                    handleProgressChange('minutes', 59);
+                  }
+                }}
+                min={0}
+                max={59}
+                step={1}
+                className={`w-full bg-gray-900 border ${errors.progress?.minutes?.message ? 'border-red-500' : 'border-gray-700'
+                  } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500`}
+                placeholder="0 (máx: 59)"
+              />
+              {errors.progress?.minutes?.message && (
+                <p className="mt-1 text-sm text-red-400">{errors.progress.minutes.message}</p>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-white/50 mt-2">
-            <div className="w-1.5 h-1.5 bg-blue-500/50 rounded-full"></div>
-            <span>Para filmes assistidos parcialmente</span>
+          {/* Mensagens informativas */}
+          <div className="space-y-2 mt-4">
+            {(totalMinutes || runtimeFromForm) && (
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                <span className="text-white/60">
+                  Duração total: <span className="font-medium text-white">{formatRuntime(totalMinutes || runtimeFromForm)}</span>
+                  {' '}({totalMinutes || runtimeFromForm} minutos)
+                </span>
+              </div>
+            )}
+
+            {/* Mostrar tempo atual assistido */}
+            {(totalMinutesWatched > 0) && (
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                <span className="text-white/60">
+                  Tempo assistido: <span className="font-medium text-white">
+                    {totalMinutesWatched} minutos ({currentProgress.hours}h {currentProgress.minutes}m)
+                  </span>
+                </span>
+              </div>
+            )}
+
+            {/* Dica quando o usuário atingir o máximo */}
+            {(totalMinutes || runtimeFromForm) &&
+              totalMinutesWatched >= (totalMinutes || runtimeFromForm) && (
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-green-400">
+                    Você completou o filme! Mude o status para "Concluído"
+                  </span>
+                </div>
+              )}
           </div>
+
+          {/* Barra de progresso visual */}
+          {(totalMinutes || runtimeFromForm) && (
+            <div className="mt-4">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-white/60">Progresso:</span>
+                <span className="text-white font-medium">
+                  {totalMinutesWatched}/{totalMinutes || runtimeFromForm} minutos
+                  ({totalMinutes || runtimeFromForm ?
+                    Math.round((totalMinutesWatched / (totalMinutes || runtimeFromForm)) * 100) : 0}%)
+                </span>
+              </div>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-300"
+                  style={{
+                    width: `${(totalMinutes || runtimeFromForm) ?
+                      Math.min((totalMinutesWatched / (totalMinutes || runtimeFromForm)) * 100, 100) : 0}%`
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -511,7 +923,8 @@ const MovieForm = (props) => {
           type="submit"
           variant="primary"
           loading={loading}
-          className="min-w-[100px] bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+          disabled={loading || !canSubmit}
+          className="min-w-[100px] bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
         </Button>

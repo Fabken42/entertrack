@@ -12,7 +12,7 @@ export async function GET(request, { params }) {
     let genres;
 
     switch (mediaType) {
-      case 'movies':
+      case 'movie':
         const movieGenres = await tmdbClient.getGenres('movie');
         genres = movieGenres.genres;
         break;
@@ -20,22 +20,22 @@ export async function GET(request, { params }) {
         const tvGenres = await tmdbClient.getGenres('tv');
         genres = tvGenres.genres;
         break;
-      case 'games':
+      case 'game':
         const gameGenres = await rawgClient.getGenres();
         genres = gameGenres.results.map(genre => ({
           id: genre.id.toString(),
           name: genre.name
         }));
         break;
-      case 'animes':
+      case 'anime':
         const animeGenres = await jikanClient.getGenres('anime'); 
         genres = animeGenres;
         break;
-      case 'mangas':
+      case 'manga':
         const mangaGenres = await jikanClient.getGenres('manga'); 
         genres = mangaGenres;
         break;
-      case 'books':
+      case 'book':
         const bookGenres = await googleBooksClient.getGenres();
         genres = bookGenres;
         break;

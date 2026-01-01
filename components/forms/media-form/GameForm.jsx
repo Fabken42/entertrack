@@ -10,11 +10,8 @@ import { Gamepad, Clock, Star, Calendar, TrendingUp } from 'lucide-react';
 import { cn, formatApiRating } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
 
-
-// Schema específico para jogo
 const gameSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
-  description: z.string().optional(),
   releaseYear: z.number().min(1900).max(new Date().getFullYear() + 5).optional(),
   genres: z.array(z.string()).min(1, 'Selecione pelo menos um gênero'),
   status: z.enum(['planned', 'in_progress', 'completed', 'dropped']),
@@ -26,12 +23,6 @@ const gameSchema = z.object({
   }).optional(),
 });
 
-const formatPlaytime = (hours) => {
-  if (!hours) return '—';
-  if (hours < 1) return `${Math.round(hours * 60)}m`;
-  return `${hours.toFixed(1)}h`;
-};
-
 const GameForm = (props) => {
   const {
     initialData,
@@ -42,7 +33,6 @@ const GameForm = (props) => {
     onSubmit,
   } = props;
 
-  // Converte genres de objetos {id, name} para array de strings
   const getInitialGenres = () => {
     if (initialData?.genres) {
       return initialData.genres.map(g => typeof g === 'object' ? g.name : g);
@@ -67,7 +57,6 @@ const GameForm = (props) => {
     if (initialData) {
       return {
         title: initialData.title,
-        description: initialData.description,
         releaseYear: initialData.releaseYear,
         genres: initialData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
         rating: initialData.rating,
@@ -77,11 +66,10 @@ const GameForm = (props) => {
         progress: initialData.progress || {},
       };
     }
-    
+
     if (externalData) {
       return {
         title: externalData.title,
-        description: externalData.description,
         releaseYear: externalData.releaseYear,
         genres: externalData.genres?.map(g => typeof g === 'object' ? g.name : g) || [],
         status: 'planned',
@@ -90,7 +78,7 @@ const GameForm = (props) => {
         rating: undefined,
       };
     }
-    
+
     if (manualCreateQuery) {
       return {
         title: manualCreateQuery,
@@ -99,7 +87,7 @@ const GameForm = (props) => {
         progress: {},
       };
     }
-    
+
     return {
       status: 'planned',
       genres: [],
@@ -138,7 +126,7 @@ const GameForm = (props) => {
     setValue('rating', rating, { shouldValidate: true });
   };
 
-  const onSubmitForm = (data) => {    
+  const onSubmitForm = (data) => {
     if (onSubmit) {
       const formData = {
         ...data,
@@ -155,15 +143,13 @@ const GameForm = (props) => {
           sourceApi: externalData.sourceApi || 'rawg',
           apiRating: externalData.apiRating,
           apiVoteCount: externalData.apiVoteCount,
-          playtime: externalData.playtime,
           metacritic: externalData.metacritic,
           platforms: externalData.platforms,
           developers: externalData.developers,
           publishers: externalData.publishers,
         }),
       };
-      
-      console.log('GameForm: Enviando dados para onSubmit:', formData);
+
       onSubmit(formData);
     } else {
       console.error('GameForm: onSubmit não definido');
@@ -191,6 +177,15 @@ const GameForm = (props) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            {externalData.metacritic && (
+              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                <TrendingUp className="w-4 h-4 text-green-400" />
+                <div>
+                  <span className="text-white/80">Metacritic:</span>
+                  <div className="font-medium text-white">{externalData.metacritic}/100</div>
+                </div>
+              </div>
+            )}
             {externalData.apiRating && (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Star className="w-4 h-4 text-yellow-400 fill-current" />
@@ -204,26 +199,6 @@ const GameForm = (props) => {
                       ({externalData.apiVoteCount.toLocaleString()} avaliações)
                     </div>
                   )}
-                </div>
-              </div>
-            )}
-
-            {externalData.playtime && (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Clock className="w-4 h-4 text-blue-400" />
-                <div>
-                  <span className="text-white/80">Tempo médio:</span>
-                  <div className="font-medium text-white">{formatPlaytime(externalData.playtime)}</div>
-                </div>
-              </div>
-            )}
-
-            {externalData.metacritic && (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-green-400" />
-                <div>
-                  <span className="text-white/80">Metacritic:</span>
-                  <div className="font-medium text-white">{externalData.metacritic}/100</div>
                 </div>
               </div>
             )}
@@ -255,32 +230,37 @@ const GameForm = (props) => {
       )}
 
       {hasExternalData && externalData.imageUrl && (
-        <div className="flex justify-center">
-          <div className="rounded-xl overflow-hidden border glass w-48 h-64">
+        <div className="flex flex-col items-center">
+          <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
             <img
               src={externalData.imageUrl}
               alt={externalData.title}
               className="w-full h-full object-cover"
             />
           </div>
-        </div>
-      )}
 
-      {externalData?.description && (
-        <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <Gamepad className="w-5 h-5" />
+          {/* ✅ TAGS DE GÊNEROS PARA JOGOS (cor laranja) */}
+          {externalData.genres && externalData.genres.length > 0 && (
+            <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
+              {/* Gêneros do jogo (cores laranja/vermelho) */}
+              {externalData.genres.slice(0, 5).map((genre, index) => (
+                <span
+                  key={index}
+                  className="px-3 py-1.5 bg-gradient-to-r from-orange-500/20 to-red-500/20 
+                     text-orange-300 text-sm font-medium rounded-lg border border-orange-500/30 
+                     hover:from-orange-500/30 hover:to-red-500/30 transition-all duration-300"
+                >
+                  {genre}
+                </span>
+              ))}
+
+              {externalData.genres.length > 5 && (
+                <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
+                  +{externalData.genres.length - 5}
+                </span>
+              )}
             </div>
-            <div>
-              <h3 className="font-semibold text-white mb-3">
-                Descrição
-              </h3>
-              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
-                {externalData.description}
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -324,18 +304,6 @@ const GameForm = (props) => {
                 variant="glass"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Descrição
-            </label>
-            <TextArea
-              {...register('description')}
-              placeholder="Descreva o jogo..."
-              variant="glass"
-              rows={4}
-            />
           </div>
 
           <div>

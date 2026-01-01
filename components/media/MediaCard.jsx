@@ -1,19 +1,29 @@
-// /components/media/MediaCard.jsx
-
+// components/media/MediaCard.jsx
 import Card from '../ui/card/Card';
 import { CardContent } from '../ui/card/Card';
-import { Star, Users, TrendingUp, Calendar, Trash2, MessageSquare } from 'lucide-react';
+import { Star, Users, TrendingUp, Calendar, Trash2, MessageSquare, Plus, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils/general-utils';
-import { formatNumber, formatPopularity } from '@/lib/utils/general-utils';
-import { formatRating, getRatingColor, getProgressInfo, getMediaIcon, getMediaColor, getStatusBorderColor, getStatusColor, getStatusLabel, formatChaptersVolumes } from '@/lib/utils/media-utils';
+import { formatNumber, formatPopularity, shouldShowCount, formatRuntime } from '@/lib/utils/general-utils';
+import {
+  formatRating,
+  getRatingColor,
+  getMediaIcon,
+  getMediaColor,
+  getStatusBorderColor,
+  getProgressInfo,
+  getStatusColor,
+  getStatusLabel,
+  formatChaptersVolumes,
+} from '@/lib/utils/media-utils';
 
-export default function MediaCard({ 
+export default function MediaCard({
   item,
   mediaType,
   viewMode,
   onAddToLibrary,
   onDeleteClick,
   onEditClick,
+  onIncreaseProgress,
   isLibrary = false
 }) {
   const progressInfo = getProgressInfo(item, mediaType, isLibrary);
@@ -35,7 +45,27 @@ export default function MediaCard({
   const ratingInfo = formatRating(item.rating, mediaType);
 
   const statusBorderColor = getStatusBorderColor(item.status);
-  const shouldShowCount = (count) => !!count && count > 0;
+
+  const shouldShowIncreaseButton = isLibrary &&
+    (item.status === 'in_progress' || item.status === 'dropped') &&
+    onIncreaseProgress &&
+    (mediaType === 'anime' || mediaType === 'manga' || mediaType === 'series');
+
+  const getIncreaseButtonLabel = () => {
+    switch (mediaType) {
+      case 'anime':
+      case 'series':
+        return '+1 Episódio';
+      case 'manga':
+        return '+1 Capítulo';
+      default:
+        return '+1 Progresso';
+    }
+  };
+
+  const shouldShowNumber = (value) => {
+    return value != null && value > 0;
+  };
 
   const showPersonalNotes = isLibrary &&
     (item.status === 'completed' || item.status === 'dropped') &&
@@ -99,12 +129,25 @@ export default function MediaCard({
               <h3 className="font-semibold text-white text-lg group-hover:text-blue-400 transition-colors">
                 {item.title}
               </h3>
-              {item.releaseYear && (
-                <div className="flex items-center gap-2 mt-1 text-sm text-white/60">
-                  <Calendar className="w-3 h-3" />
-                  <span>{item.releaseYear}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2 mt-1 text-sm text-white/60">
+                {item.releaseYear && (
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    <span>{item.releaseYear}</span>
+                  </div>
+                )}
+                
+                {/* Runtime para filmes */}
+                {mediaType === 'movie' && item.runtime && item.runtime > 0 && (
+                  <>
+                    {item.releaseYear && <span>•</span>}
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatRuntime(item.runtime)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Rating geral */}
@@ -122,16 +165,27 @@ export default function MediaCard({
             )}
           </div>
 
-          {/* Badges de episódios/volumes */}
+          {/* Badges de episódios/volumes/capítulos/runtime */}
           <div className="flex flex-wrap gap-2">
-            {mediaType === 'animes' && item.episodes && (
+            {mediaType === 'movie' && item.runtime && item.runtime > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 rounded-full text-xs text-white/80">
+                <Clock className="w-3 h-3" />
+                {formatRuntime(item.runtime)}
+              </span>
+            )}
+            {mediaType === 'anime' && shouldShowNumber(item.episodes) && (
               <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 rounded-full text-xs text-white/80">
                 {item.episodes} episódios
               </span>
             )}
-            {mediaType === 'mangas' && item.volumes && (
+            {mediaType === 'manga' && shouldShowNumber(item.volumes) && (
               <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 rounded-full text-xs text-white/80">
                 {formatChaptersVolumes(item.volumes, item.status)} volumes
+              </span>
+            )}
+            {mediaType === 'manga' && shouldShowNumber(item.chapters) && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 rounded-full text-xs text-white/80">
+                {item.chapters} capítulos
               </span>
             )}
           </div>
@@ -152,7 +206,12 @@ export default function MediaCard({
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-white/60">Progresso</span>
                   <span className="text-white font-medium">
-                    {progressInfo.current}/{progressInfo.total} {progressInfo.unit}
+                    {progressInfo.current}/{progressInfo.total || '?'} {progressInfo.unit}
+                    {progressInfo.volumes !== undefined && progressInfo.totalVolumes !== undefined && (
+                      <span className="text-white/60 ml-2">
+                        ({progressInfo.volumes || '?'}/{progressInfo.totalVolumes || '?'} vols)
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -164,6 +223,35 @@ export default function MediaCard({
               </div>
             )}
           </div>
+
+          {/* Botão de aumentar progresso */}
+          {shouldShowIncreaseButton && (
+            <div className="flex gap-2 items-center">
+              <button
+                data-action-button="true"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onIncreaseProgress(item._id);
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5",
+                  "bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30",
+                  "text-pink-300 hover:text-pink-200 border border-pink-500/30 hover:border-pink-500/50",
+                  "hover:scale-105 active:scale-95"
+                )}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {getIncreaseButtonLabel()}
+              </button>
+
+              {/* Mostra o progresso atualizado após clicar */}
+              {progressInfo && (
+                <span className="text-xs text-white/60">
+                  {progressInfo.current}/{progressInfo.total || '?'}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Avaliação do usuário */}
           {shouldShowUserRating && (
@@ -188,7 +276,7 @@ export default function MediaCard({
             </div>
           )}
 
-          {/* Notas pessoais - AGORA logo após a avaliação do usuário */}
+          {/* Notas pessoais */}
           {showPersonalNotes && (
             <div className="mb-3">
               <div className="flex items-center gap-1 mb-1 text-xs text-white/60">
@@ -201,7 +289,7 @@ export default function MediaCard({
             </div>
           )}
 
-          {/* Estatísticas - AGORA após as notas pessoais */}
+          {/* Estatísticas */}
           <div className="space-y-2 mt-3 pt-3 border-t border-white/10">
             {shouldShowCount(item.members) && (
               <div className="flex items-center justify-between text-xs">
@@ -230,7 +318,7 @@ export default function MediaCard({
                 <span className="font-medium text-white">{formatPopularity(item.popularity)}</span>
               </div>
             )}
-            {item.metacritic && item.metacritic > 0 && (
+            {shouldShowCount(item.metacritic) && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/60">Metacritic:</span>
                 <span className="font-medium text-emerald-400">{item.metacritic}</span>
@@ -302,6 +390,28 @@ export default function MediaCard({
               </div>
             )}
           </div>
+
+          {/* Botão de aumentar progresso - posicionado na imagem */}
+          {shouldShowIncreaseButton && (
+            <div className="absolute bottom-2 right-2 z-20">
+              <button
+                data-action-button="true"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onIncreaseProgress(item._id);
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 shadow-lg",
+                  "bg-gradient-to-r from-pink-500/30 to-purple-500/30 hover:from-pink-500/40 hover:to-purple-500/40",
+                  "text-pink-200 hover:text-white border border-pink-500/40 hover:border-pink-500/60",
+                  "hover:scale-105 active:scale-95 backdrop-blur-sm"
+                )}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {getIncreaseButtonLabel()}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Título */}
@@ -335,32 +445,54 @@ export default function MediaCard({
             </div>
           )}
 
-          {mediaType === 'animes' && item.episodes && (
+          {/* Runtime para filmes */}
+          {mediaType === 'movie' && item.runtime && item.runtime > 0 && (
             <>
-              <span>•</span>
+              {item.releaseYear && <span>•</span>}
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                <span>{formatRuntime(item.runtime)}</span>
+              </div>
+            </>
+          )}
+
+          {mediaType === 'anime' && shouldShowNumber(item.episodes) && (
+            <>
+              {(item.releaseYear || (mediaType === 'movie' && item.runtime)) && <span>•</span>}
               <span>{item.episodes} eps</span>
             </>
           )}
-          {mediaType === 'mangas' && item.volumes && (
+          {mediaType === 'manga' && shouldShowNumber(item.volumes) && (
             <>
-              <span>•</span>
+              {(item.releaseYear || 
+                (mediaType === 'movie' && item.runtime) || 
+                (mediaType === 'anime' && shouldShowNumber(item.episodes))) && <span>•</span>}
               <span>{formatChaptersVolumes(item.volumes, item.status)} vol</span>
             </>
           )}
-          {mediaType === 'books' && item.pageCount && (
+          {mediaType === 'manga' && shouldShowNumber(item.chapters) && (
             <>
-              <span>•</span>
-              <span>{item.pageCount} pág</span>
+              {(item.releaseYear ||
+                (mediaType === 'movie' && item.runtime) ||
+                (mediaType === 'anime' && shouldShowNumber(item.episodes)) ||
+                (mediaType === 'manga' && shouldShowNumber(item.volumes))) && <span>•</span>}
+              <span>{item.chapters} cap</span>
             </>
           )}
         </div>
 
+        {/* Progresso */}
         {isLibrary && progressInfo && (
           <div className="mb-3">
             <div className="flex justify-between text-xs mb-1">
               <span className="text-white/60">Progresso</span>
               <span className="text-white font-medium">
-                {progressInfo.current}/{progressInfo.total} {progressInfo.unit}
+                {progressInfo.current}/{progressInfo.total || '?'} {progressInfo.unit}
+                {progressInfo.volumes !== undefined && progressInfo.totalVolumes !== undefined && (
+                  <span className="text-white/60 ml-1">
+                    ({progressInfo.volumes || '?'}/{progressInfo.totalVolumes || '?'} vols)
+                  </span>
+                )}
               </span>
             </div>
             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -401,7 +533,7 @@ export default function MediaCard({
         )}
 
         {/* Autores para mangás */}
-        {mediaType === 'mangas' && item.authors && item.authors.length > 0 && (
+        {mediaType === 'manga' && item.authors && item.authors.length > 0 && (
           <div className="mb-3">
             <p className="text-xs text-white/60 line-clamp-1">
               por <span className="font-medium text-white">
@@ -436,15 +568,37 @@ export default function MediaCard({
               <span className="font-medium text-white">{formatNumber(item.members)}</span>
             </div>
           )}
-          {shouldShowCount(item.ratingsCount) && (
+          {/* ✅ MOSTRAR METACRITIC PARA JOGOS */}
+          {mediaType === 'game' && shouldShowCount(item.metacritic) && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-white/60 flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                Metacritic:
+              </span>
+              <span className={cn(
+                "font-medium",
+                item.metacritic >= 90 ? "text-green-400" :
+                  item.metacritic >= 75 ? "text-yellow-400" :
+                    item.metacritic >= 60 ? "text-orange-400" :
+                      "text-red-400"
+              )}>
+                {item.metacritic}/100
+              </span>
+            </div>
+          )}
+          {/* ✅ MUDAR DE item.ratingsCount PARA item.apiVoteCount (para jogos) */}
+          {shouldShowCount(item.apiVoteCount || item.ratingsCount) && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-white/60 flex items-center gap-1">
                 <Star className="w-3 h-3" />
                 Avaliações:
               </span>
-              <span className="font-medium text-white">{formatNumber(item.ratingsCount)}</span>
+              <span className="font-medium text-white">
+                {formatNumber(item.apiVoteCount || item.ratingsCount)}
+              </span>
             </div>
           )}
+
           {shouldShowCount(item.popularity) && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-white/60 flex items-center gap-1">
@@ -454,10 +608,17 @@ export default function MediaCard({
               <span className="font-medium text-white">{formatPopularity(item.popularity)}</span>
             </div>
           )}
-          {item.metacritic && item.metacritic > 0 && (
+
+          {/* ✅ MOSTRAR RATING DO RAWG PARA JOGOS */}
+          {mediaType === 'game' && shouldShowCount(item.rating) && (
             <div className="flex items-center justify-between text-xs">
-              <span className="text-white/60">Metacritic:</span>
-              <span className="font-medium text-emerald-400">{item.metacritic}</span>
+              <span className="text-white/60 flex items-center gap-1">
+                <Star className="w-3 h-3" />
+                Nota RAWG:
+              </span>
+              <span className="font-medium text-white">
+                {item.rating?.toFixed(1)}/5
+              </span>
             </div>
           )}
         </div>

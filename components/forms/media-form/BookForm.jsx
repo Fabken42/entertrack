@@ -136,7 +136,7 @@ const BookForm = (props) => {
       const formData = {
         ...data,
         mediaType: 'book',
-        sourceApi: 'google_books', // Adicionar sourceApi
+        sourceApi: 'google_books',
         rating: showRatingAndComment ? selectedRating : undefined,
         comment: showRatingAndComment ? data.comment : undefined,
         genres: selectedGenres,

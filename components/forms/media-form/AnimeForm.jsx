@@ -4,7 +4,6 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button, Input, Select, TextArea } from '@/components/ui';
 import { Tv, Hash, Star, Calendar, Users, TrendingUp, Film } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -39,6 +38,22 @@ const AnimeForm = (props) => {
     }
   }, []);
 
+  // Calcular total de episódios disponíveis
+  const totalEpisodes = React.useMemo(() => {
+    // Verifica múltiplas fontes possíveis
+    if (initialData?.episodes) {
+      return initialData.episodes;
+    }
+    if (initialData?.mediaCacheId?.essentialData?.episodes) {
+      return initialData.mediaCacheId.essentialData.episodes;
+    }
+    if (externalData?.episodes) {
+      return externalData.episodes;
+    }
+    // Para watch, precisamos usar um hook separado
+    return null;
+  }, [initialData, externalData]);
+
   const getInitialGenres = () => {
     if (initialData?.genres) {
       return initialData.genres.map(g => typeof g === 'object' ? g.id || g.name : g);
@@ -52,9 +67,8 @@ const AnimeForm = (props) => {
           return g;
         });
       }
-      return ['1']; // ID padrão para Ação
     }
-    return ['1']; // ID padrão para Ação
+    return []; // Array vazio para criação manual
   };
 
   // Estado local
@@ -69,10 +83,30 @@ const AnimeForm = (props) => {
   );
   const [canSubmit, setCanSubmit] = React.useState(true);
 
-
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
+
+  // Função para validar episódio atual
+  const validateCurrentEpisode = (value) => {
+    if (value === '' || value === undefined || value === null) {
+      return true; // Permite campo vazio
+    }
+
+    const numValue = Number(value);
+
+    // Não pode ser negativo
+    if (numValue < 0) {
+      return 'Episódio atual não pode ser negativo';
+    }
+
+    // Se temos total de episódios, valida contra ele
+    if (totalEpisodes && numValue > totalEpisodes) {
+      return `Episódio atual não pode ser maior que ${totalEpisodes}`;
+    }
+
+    return true;
+  };
 
   const getDefaultValues = () => {
     const defaultValues = {
@@ -88,6 +122,15 @@ const AnimeForm = (props) => {
     };
 
     if (initialData) {
+      let episodesFromData = initialData.episodes || initialData.mediaCacheId?.essentialData?.episodes || '';
+      let currentEpisode = initialData.progress?.currentEpisode ||
+        initialData.progress?.details?.episodes || 0;
+
+      // Garante que currentEpisode não ultrapasse o total
+      if (episodesFromData && currentEpisode > episodesFromData) {
+        currentEpisode = episodesFromData;
+      }
+
       return {
         ...defaultValues,
         title: initialData.title || '',
@@ -98,10 +141,9 @@ const AnimeForm = (props) => {
         personalNotes: initialData.personalNotes || '',
         imageUrl: initialData.imageUrl || '',
         status: initialData.status || 'planned',
-        episodes: initialData.episodes || initialData.mediaCacheId?.essentialData?.episodes || '',
+        episodes: episodesFromData,
         progress: {
-          currentEpisode: initialData.progress?.currentEpisode ||
-            initialData.progress?.current || 0
+          currentEpisode: currentEpisode
         },
       };
     }
@@ -150,6 +192,9 @@ const AnimeForm = (props) => {
   const showRatingAndComment = currentStatus === 'completed' || currentStatus === 'dropped';
   const showProgressFields = currentStatus === 'in_progress' || currentStatus === 'dropped';
 
+  // Observar episódio atual para calcular progresso
+  const currentEpisode = watch('progress.currentEpisode') || 0;
+
   React.useEffect(() => {
     setValue('genres', selectedGenres, { shouldValidate: true });
   }, [selectedGenres, setValue]);
@@ -168,6 +213,9 @@ const AnimeForm = (props) => {
       });
     }
   }, [initialData, setValue]);
+
+  // Atualizar totalEpisodes quando episodes mudar no formulário manual
+  const episodesFromForm = watch('episodes');
 
   const handleGenreToggle = (genreId) => {
     if (hasExternalData && !isEditMode) return;
@@ -216,6 +264,16 @@ const AnimeForm = (props) => {
         return;
       }
 
+      // Validação do episódio atual contra o total
+      const currentEpisodeValue = watch('progress.currentEpisode') || 0;
+      const totalEpisodesValue = watch('episodes') || totalEpisodes;
+
+      if (totalEpisodesValue && currentEpisodeValue > totalEpisodesValue) {
+        toast.error(`Episódio atual (${currentEpisodeValue}) não pode ser maior que o total (${totalEpisodesValue})`);
+        setValue('progress.currentEpisode', totalEpisodesValue, { shouldValidate: true });
+        return;
+      }
+
       // Valida o formulário
       const isValid = await trigger();
 
@@ -229,6 +287,7 @@ const AnimeForm = (props) => {
       const formData = {
         title: watch('title'),
         description: watch('description'),
+        genres: watch('genres'),
         status: watch('status'),
         releaseYear: watch('releaseYear'),
         episodes: watch('episodes'),
@@ -246,6 +305,27 @@ const AnimeForm = (props) => {
       }
 
       if (onSubmit) {
+        const formData = {
+          title: watch('title'),
+          description: watch('description'),
+          genres: watch('genres'),
+          status: watch('status'),
+          releaseYear: watch('releaseYear'),
+          episodes: watch('episodes'),
+          userRating: watch('userRating'),
+          personalNotes: watch('personalNotes'),
+          progress: {
+            currentEpisode: watch('progress.currentEpisode')
+          }
+        };
+
+        // Verifica novamente o limite de caracteres
+        if (formData.personalNotes && formData.personalNotes.length > 3000) {
+          toast.error('Notas pessoais não podem exceder 3000 caracteres');
+          return;
+        }
+
+        // ✅ CORREÇÃO: SEMPRE enviar progresso, não apenas para showProgressFields
         const finalFormData = {
           ...formData,
           mediaType: 'anime',
@@ -254,17 +334,26 @@ const AnimeForm = (props) => {
           personalNotes: formData.personalNotes || '',
           genres: selectedGenres,
           episodes: formData.episodes || null,
-          progress: showProgressFields ? {
-            currentEpisode: formData.progress?.currentEpisode || 0,
-          } : undefined,
+          // ✅ REMOVER condicional - sempre enviar progresso
+          progress: {
+            details: {
+              episodes: formData.progress?.currentEpisode || 0,
+            },
+            lastUpdated: new Date()
+          }
         };
+
+        // Se for completed e não tem episódios definidos, usar o total
+        if (formData.status === 'completed' && formData.episodes) {
+          finalFormData.progress.details.episodes = formData.episodes;
+        }
 
         if (isEditMode && initialData && initialData._id) {
           finalFormData.userMediaId = initialData._id;
         }
 
         if (externalData && !isEditMode) {
-          finalFormData.externalId = externalData.externalId?.toString();
+          finalFormData.sourceId = externalData.id?.toString();
           finalFormData.sourceApi = 'jikan';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
@@ -282,7 +371,7 @@ const AnimeForm = (props) => {
         }
 
         if (isManualEntry) {
-          finalFormData.externalId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          finalFormData.sourceId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           finalFormData.sourceApi = 'manual';
           finalFormData.imageUrl = '';
         }
@@ -310,22 +399,25 @@ const AnimeForm = (props) => {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {externalData.apiRating && externalData.apiVoteCount && (
+            {/* Nota - verifica se existe e é maior que 0 */}
+            {(externalData.apiRating != null && externalData.apiRating > 0 &&
+              externalData.apiVoteCount != null && externalData.apiVoteCount > 0) ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Star className="w-4 h-4 text-yellow-400 fill-current" />
                 <div>
                   <span className="text-white/80">Nota:</span>
                   <div className="font-medium text-white">
-                    {formatApiRating(externalData.apiRating)?.display}/5
+                    {formatApiRating(externalData.apiRating)?.display || externalData.apiRating.toFixed(1)}/5
                   </div>
                   <div className="text-xs text-white/60">
                     ({externalData.apiVoteCount.toLocaleString()} votos)
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {externalData.popularity && (
+            {/* Popularidade - verifica se existe e é maior que 0 */}
+            {externalData.popularity != null && externalData.popularity > 0 ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <TrendingUp className="w-4 h-4 text-blue-400" />
                 <div>
@@ -333,9 +425,10 @@ const AnimeForm = (props) => {
                   <div className="font-medium text-white">{formatPopularity(externalData.popularity)}</div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {externalData.members && (
+            {/* Membros - verifica se existe e é maior que 0 */}
+            {externalData.members != null && externalData.members > 0 ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Users className="w-4 h-4 text-green-400" />
                 <div>
@@ -343,9 +436,10 @@ const AnimeForm = (props) => {
                   <div className="font-medium text-white">{formatMembers(externalData.members)}</div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {(externalData.releaseYear) && (
+            {/* Ano de lançamento - verifica se existe */}
+            {externalData.releaseYear != null ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Calendar className="w-4 h-4 text-white/60" />
                 <div>
@@ -355,9 +449,10 @@ const AnimeForm = (props) => {
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {externalData.episodes && (
+            {/* Episódios - verifica se existe e é maior que 0 */}
+            {externalData.episodes != null && externalData.episodes > 0 ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Tv className="w-4 h-4 text-pink-400" />
                 <div>
@@ -365,22 +460,34 @@ const AnimeForm = (props) => {
                   <div className="font-medium text-white">{externalData.episodes}</div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {externalData.studios && externalData.studios.length > 0 && (
+            {/* Estúdios - verifica se existe e tem pelo menos 1 */}
+            {externalData.studios && externalData.studios.length > 0 ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Film className="w-4 h-4 text-purple-400" />
                 <div>
-                  <span className="text-white/80">Estúdio:</span>
-                  <div className="font-medium text-white">{externalData.studios[0]}</div>
-                  {externalData.studios.length > 1 && (
+                  <span className="text-white/80">
+                    {externalData.studios.length === 1 ? 'Estúdio:' : 'Estúdios:'}
+                  </span>
+                  <div className="font-medium text-white">
+                    {/* Mostra os 3 primeiros estúdios */}
+                    {externalData.studios.slice(0, 3).map((studio, index, arr) => (
+                      <span key={index}>
+                        {studio}
+                        {index < arr.length - 1 && index < 2 && ', '}
+                      </span>
+                    ))}
+                  </div>
+                  {/* Mostra "+X outro(s)" somente a partir do 4º estúdio */}
+                  {externalData.studios.length > 3 && (
                     <div className="text-xs text-white/60">
-                      +{externalData.studios.length - 1} outro(s)
+                      +{externalData.studios.length - 3} outro(s)
                     </div>
                   )}
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}
@@ -398,19 +505,32 @@ const AnimeForm = (props) => {
 
           {externalData.genres && externalData.genres.length > 0 && (
             <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
-              {externalData.genres.slice(0, 5).map((genre, index) => (
+              {/* ✅ Tag de Category (primeira, com cor diferente) */}
+              {externalData.category && (
+                <span className="px-3 py-1.5 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 
+                       text-blue-300 text-sm font-bold rounded-lg border border-blue-500/30 
+                       hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300">
+                  {/* Converte para primeira letra maiúscula e resto minúscula */}
+                  {externalData.category}
+                </span>
+              )}
+
+              {/* Gêneros normais (cores rosa) */}
+              {externalData.genres.slice(0, externalData.category ? 4 : 5).map((genre, index) => (
                 <span
                   key={index}
                   className="px-3 py-1.5 bg-gradient-to-r from-pink-500/20 to-purple-500/20 
-                           text-pink-300 text-sm font-medium rounded-lg border border-pink-500/30 
-                           hover:from-pink-500/30 hover:to-purple-500/30 transition-all duration-300"
+                     text-pink-300 text-sm font-medium rounded-lg border border-pink-500/30 
+                     hover:from-pink-500/30 hover:to-purple-500/30 transition-all duration-300"
                 >
                   {typeof genre === 'object' ? genre.name : genre}
                 </span>
               ))}
-              {externalData.genres.length > 5 && (
+
+              {/* Mostra contador se houver mais gêneros */}
+              {externalData.genres.length > (externalData.category ? 4 : 5) && (
                 <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
-                  +{externalData.genres.length - 5}
+                  +{externalData.genres.length - (externalData.category ? 4 : 5)}
                 </span>
               )}
             </div>
@@ -468,7 +588,7 @@ const AnimeForm = (props) => {
               error={errors.releaseYear?.message}
               placeholder="2024"
               variant="glass"
-              min={1900}
+              min={1950}
               max={new Date().getFullYear() + 5}
             />
 
@@ -506,7 +626,7 @@ const AnimeForm = (props) => {
 
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              Gêneros *
+              Gêneros {!isManualEntry && ' *'}
             </label>
             <div className="flex flex-wrap gap-2">
               {availableGenres.map((genre) => (
@@ -525,16 +645,28 @@ const AnimeForm = (props) => {
                 </button>
               ))}
             </div>
+
+            {/* Mensagem de erro para validação do schema */}
             {errors.genres && (
               <p className="mt-2 text-sm text-red-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
                 {errors.genres.message}
               </p>
             )}
-            {selectedGenres.length === 0 && (
+
+            {/* Mensagem condicional apenas se não for criação manual */}
+            {selectedGenres.length === 0 && !isManualEntry && (
               <p className="mt-2 text-sm text-amber-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
                 Selecione pelo menos um gênero
+              </p>
+            )}
+
+            {/* Mensagem para criação manual informando que é opcional */}
+            {selectedGenres.length === 0 && isManualEntry && (
+              <p className="mt-2 text-sm text-blue-400 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+                Gêneros são opcionais para criação manual
               </p>
             )}
           </div>
@@ -642,24 +774,90 @@ const AnimeForm = (props) => {
             </div>
             <div>
               <h3 className="font-semibold text-white">Progresso do Anime</h3>
-              <p className="text-sm text-white/60">Em qual episódio você está?</p>
+              <p className="text-sm text-white/60">
+                Em qual episódio você está?
+              </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6">
-            <Input
-              label="Episódio Atual:"
-              type="number"
-              icon={Hash}
-              {...register('progress.currentEpisode', {
-                valueAsNumber: true,
-                setValueAs: (value) => value === '' ? undefined : Number(value)
-              })}
-              error={errors.progress?.currentEpisode?.message}
-              placeholder="12"
-              variant="glass"
-              min={0}
-            />
+            <div>
+              <Input
+                label="Episódio Atual:"
+                type="number"
+                icon={Hash}
+                {...register('progress.currentEpisode', {
+                  valueAsNumber: true,
+                  setValueAs: (value) => {
+                    if (value === '' || value === null || value === undefined) {
+                      return undefined;
+                    }
+                    const numValue = Number(value);
+
+                    // Limita automaticamente ao máximo
+                    const maxEpisodes = totalEpisodes || episodesFromForm;
+                    if (maxEpisodes && numValue > maxEpisodes) {
+                      return maxEpisodes;
+                    }
+
+                    // Não permite negativo
+                    if (numValue < 0) {
+                      return 0;
+                    }
+
+                    return numValue;
+                  },
+                  validate: validateCurrentEpisode
+                })}
+                error={errors.progress?.currentEpisode?.message}
+                placeholder={`0${(totalEpisodes || episodesFromForm) ? ` (máx: ${totalEpisodes || episodesFromForm})` : ''}`}
+                variant="glass"
+                min={0}
+                max={totalEpisodes || episodesFromForm || undefined}
+                step={1}
+              />
+
+              {/* Mensagem informativa */}
+              {(totalEpisodes || episodesFromForm) && (
+                <div className="mt-2 flex items-center gap-2 text-sm">
+                  <div className="w-1.5 h-1.5 bg-pink-400 rounded-full"></div>
+                  <span className="text-white/60">
+                    Total: <span className="font-medium text-white">{totalEpisodes || episodesFromForm}</span> episódios
+                  </span>
+                </div>
+              )}
+
+              {/* Dica quando o usuário atingir o máximo */}
+              {(totalEpisodes || episodesFromForm) && currentEpisode >= (totalEpisodes || episodesFromForm) && (
+                <div className="mt-2 flex items-center gap-2 text-sm">
+                  <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-green-400">
+                    Você completou todos os episódios! Mude o status para "Concluído"
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Barra de progresso visual */}
+            {(totalEpisodes || episodesFromForm) && (
+              <div className="mt-2">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-white/60">Progresso:</span>
+                  <span className="text-white font-medium">
+                    {currentEpisode}/{totalEpisodes || episodesFromForm} episódios
+                    ({totalEpisodes || episodesFromForm ? Math.round((currentEpisode / (totalEpisodes || episodesFromForm)) * 100) : 0}%)
+                  </span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-300"
+                    style={{
+                      width: `${(totalEpisodes || episodesFromForm) ? Math.min((currentEpisode / (totalEpisodes || episodesFromForm)) * 100, 100) : 0}%`
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

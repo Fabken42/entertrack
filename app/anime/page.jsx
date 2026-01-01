@@ -1,4 +1,4 @@
-// app/series/page.jsx
+// app/animes/page.jsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,11 +16,11 @@ import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { showConfirmDialog } from '@/lib/utils/swalConfig';
 import { sortOptions, FETCH_MEDIA_ITEMS_LIMIT } from '@/constants';
 import { calculateMediaStats, filterAndSortMedia, getStatItems } from '@/lib/utils/media-utils';
-import { useTMDBSearch } from '@/lib/hooks/use-tmdb';
+import { useMyAnimeListSearch } from '@/lib/hooks/use-myanimelist';
 import InlineSearch from '@/components/search/InlineSearch';
 import SearchResults from '@/components/search/SearchResults';
 
-export default function SeriesPage() {
+export default function AnimesPage() {
   const { userMedia, fetchUserMedia, isLoading, error, removeMedia, updateMedia, addMedia, increaseProgress } = useMediaStore();
 
   const [filteredMedia, setFilteredMedia] = useState([]);
@@ -32,13 +32,13 @@ export default function SeriesPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  // Estados para busca externa no TMDB
+  // Estados para busca externa no MyAnimeList
   const [inlineSearchQuery, setInlineSearchQuery] = useState('');
-  const { results: searchResults, loading: searchLoading, error: searchError } = useTMDBSearch(inlineSearchQuery, 'tv');
+  const { results: searchResults, loading: searchLoading, error: searchError } = useMyAnimeListSearch(inlineSearchQuery, 'anime');
 
   // Estados do formulário
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedSeriesData, setSelectedSeriesData] = useState(null);
+  const [selectedAnimeData, setSelectedAnimeData] = useState(null);
   const [manualCreateQuery, setManualCreateQuery] = useState(null);
 
   // Estados para paginação
@@ -51,116 +51,13 @@ export default function SeriesPage() {
   useEffect(() => {
     const result = filterAndSortMedia(
       userMedia,
-      'series',
+      'anime',
       selectedStatus,
       searchQuery,
       sortBy
     );
 
     setFilteredMedia(result);
-    /*
-    imprime por exemplo:
-    0: Object { _id: "695685f28bcbd9a8bbcd912b", title: "O Novato", description: "John Nolan, um homem de 40 anos, deixa para trás sua vida confortável em uma cidade pequena para viver seu sonho de ser um agente policial no Departamento de Polícia de Los Angeles. Como o novato mais velho, ele enfrenta a descrença de seus colegas.", … }
- ​
-_id: "695685f28bcbd9a8bbcd912b"
- ​
-authors: Array []
- ​
-averageRating: 8.512
- ​
-chapters: null
- ​
-completedAt: undefined
- ​
-createdAt: "2026-01-01T14:34:26.507Z"
- ​
-description: "John Nolan, um homem de 40 anos, deixa para trás sua vida confortável em uma cidade pequena para viver seu sonho de ser um agente policial no Departamento de Polícia de Los Angeles. Como o novato mais velho, ele enfrenta a descrença de seus colegas."
- ​
-droppedAt: undefined
- ​
-episodes: 144
- ​
-genres: Array(3) [ {…}, {…}, {…} ]
- ​
-imageUrl: "https://image.tmdb.org/t/p/w500/yCPGrd6fzbftuaH97OUS6tUdE4B.jpg"
- ​
-mediaCacheId: "695685f28bcbd9a8bbcd9121"
- ​
-members: null
- ​
-pageCount: null
- ​
-personalNotes: ""
- ​
-platforms: Array []
- ​
-popularity: null
- ​
-progress: Object { lastUpdated: "2026-01-01T14:38:34.908Z", current: 9, total: 144, … }
-  ​
-current: 9
-  ​
-details: Object { episodes: 9, volumes: 0, chapters: 0, … }
-   ​
-chapters: 0
-   ​
-episodes: 9
-   ​
-episodesInSeason: 0
-   ​
-minutes: 0
-   ​
-pages: 0
-   ​
-percentage: 0
-   ​
-seasons: 3
-   ​
-volumes: 0
-   ​
-<prototype>: Object { … }
-  ​
-lastUpdated: "2026-01-01T14:38:34.908Z"
-  ​
-total: 144
-  ​
-unit: "eps"
-  ​
-<prototype>: Object { … }
- ​
-rating: 8.512
- ​
-ratingCount: 2826
- ​
-ratingsCount: 2826
- ​
-releaseYear: 2018
- ​
-runtime: null
- ​
-seasons: 8
- ​
-sourceApi: "tmdb"
- ​
-sourceId: "79744"
- ​
-startedAt: "2026-01-01T14:34:26.504Z"
- ​
-status: "in_progress"
- ​
-studios: Array []
- ​
-title: "O Novato"
- ​
-updatedAt: "2026-01-01T14:38:34.908Z"
- ​
-userRating: null
- ​
-volumes: null
- ​
-<prototype>: Object { … }
-    */
-    console.log('Filtered media updated:', result);
   }, [userMedia, selectedStatus, searchQuery, sortBy]);
 
   // Resetar para a primeira página quando filtros mudarem
@@ -176,7 +73,7 @@ volumes: null
     currentPage * FETCH_MEDIA_ITEMS_LIMIT
   );
 
-  const stats = calculateMediaStats(userMedia, 'series');
+  const stats = calculateMediaStats(userMedia, 'anime');
   const statItems = getStatItems(stats);
 
   const handleEditClick = (item) => {
@@ -187,7 +84,7 @@ volumes: null
 
   const handleIncreaseProgress = async (userMediaId) => {
     try {
-      await increaseProgress(userMediaId, 'series');
+      await increaseProgress(userMediaId, 'anime');
     } catch (error) {
       console.error('Erro ao aumentar progresso:', error);
     }
@@ -196,7 +93,7 @@ volumes: null
   const handleDeleteClick = async (itemId) => {
     const result = await showConfirmDialog({
       title: 'Remover conteúdo?',
-      text: 'Tem certeza que deseja remover esta série da sua lista?',
+      text: 'Tem certeza que deseja remover este anime da sua lista?',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Sim, remover!',
@@ -216,7 +113,7 @@ volumes: null
       if (editingItem && data.userMediaId) {
         const updatePayload = {
           status: data.status,
-          mediaType: 'series',
+          mediaType: 'anime',
           userRating: data.userRating || null,
           personalNotes: data.personalNotes || '',
           progress: data.progress,
@@ -233,18 +130,18 @@ volumes: null
     }
   };
 
-  const handleAddSeries = async (data) => {
+  const handleAddAnime = async (data) => {
     try {
       await addMedia(data);
       await fetchUserMedia();
     } catch (error) {
-      console.error('Error adding series:', error);
+      console.error('Error adding anime:', error);
       throw error;
     }
   };
 
-  const handleSelectSeries = (seriesData) => {
-    setSelectedSeriesData(seriesData);
+  const handleSelectAnime = (animeData) => {
+    setSelectedAnimeData(animeData);
     setManualCreateQuery(null);
     setIsFormOpen(true);
     setInlineSearchQuery('');
@@ -254,7 +151,7 @@ volumes: null
   const handleManualCreate = () => {
     if (inlineSearchQuery.trim()) {
       setManualCreateQuery(inlineSearchQuery.trim());
-      setSelectedSeriesData(null);
+      setSelectedAnimeData(null);
       setIsFormOpen(true);
       setInlineSearchQuery('');
       setShowSearchResults(false);
@@ -263,7 +160,7 @@ volumes: null
 
   const handleFormClose = () => {
     setIsFormOpen(false);
-    setSelectedSeriesData(null);
+    setSelectedAnimeData(null);
     setManualCreateQuery(null);
   };
 
@@ -287,7 +184,7 @@ volumes: null
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center py-16 fade-in">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
-          <p className="text-white/60 text-lg">Carregando suas séries...</p>
+          <p className="text-white/60 text-lg">Carregando seus animes...</p>
         </div>
       </div>
     );
@@ -298,19 +195,19 @@ volumes: null
       <div className="min-h-screen">
         <div className="p-6 md:p-8 lg:p-12">
           <div className="max-w-7xl mx-auto">
-            {/* Cabeçalho com título e busca EXTERNA (TMDB) */}
+            {/* Cabeçalho com título e busca EXTERNA (MyAnimeList) */}
             <div className="mb-8 glass rounded-2xl p-6 border border-white/10">
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg w-12 h-12 flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20">
-                    <Tv className="w-6 h-6 text-purple-400" />
+                  <div className="p-3 rounded-lg w-12 h-12 flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20">
+                    <Tv className="w-6 h-6 text-pink-400" />
                   </div>
                   <div>
                     <h1 className="text-3xl font-bold text-white">
-                      Minhas <span className="text-gradient-primary">Séries</span>
+                      Meus <span className="text-gradient-primary">Animes</span>
                     </h1>
                     <p className="text-white/60 mt-2">
-                      Gerencie sua lista de séries, acompanhe temporadas e episódios
+                      Gerencie sua lista de animes, acompanhe progresso e avaliações
                     </p>
                   </div>
                 </div>
@@ -319,7 +216,7 @@ volumes: null
                   {/* Container de busca EXTERNA */}
                   <div className="relative w-full sm:w-96">
                     <InlineSearch
-                      placeholder="Buscar séries no TMDB..."
+                      placeholder="Buscar animes no MyAnimeList..."
                       onSearch={(query) => {
                         setInlineSearchQuery(query);
                         setShowSearchResults(!!query.trim());
@@ -333,7 +230,7 @@ volumes: null
                         // Pequeno delay para permitir clicar nos resultados
                         setTimeout(() => setShowSearchResults(false), 200);
                       }}
-                      mediaType="tv"
+                      mediaType="anime"
                       className="w-full"
                     >
                       {showSearchResults && (
@@ -343,9 +240,9 @@ volumes: null
                               results={searchResults}
                               loading={searchLoading}
                               error={searchError}
-                              mediaType="tv"
+                              mediaType="anime"
                               onSelect={(item) => {
-                                handleSelectSeries(item);
+                                handleSelectAnime(item);
                                 setShowSearchResults(false);
                               }}
                               query={inlineSearchQuery}
@@ -399,7 +296,7 @@ volumes: null
                     </span>
                     {' de '}
                     <span className="font-bold text-white">{filteredMedia.length}</span>
-                    {' séri'}{filteredMedia.length !== 1 ? 'es' : 'e'}
+                    {' anime'}{filteredMedia.length !== 1 ? 's' : ''}
                     <span className="ml-2 text-white/60">
                       (pág. {currentPage} de {totalPages})
                     </span>
@@ -441,14 +338,14 @@ volumes: null
                   <div className="text-center py-12">
                     <div className="text-red-400 text-6xl mb-4">⚠️</div>
                     <h3 className="text-lg font-medium text-white mb-2">
-                      Erro ao carregar séries
+                      Erro ao carregar animes
                     </h3>
                     <p className="text-white/60 mb-4">{error}</p>
                     <Button
                       variant="primary"
                       onClick={handleRefresh}
                       icon={RefreshCw}
-                      className="bg-gradient-to-r from-purple-500 to-pink-500"
+                      className="bg-gradient-to-r from-pink-500 to-purple-500"
                     >
                       Tentar novamente
                     </Button>
@@ -468,7 +365,7 @@ volumes: null
                             <div key={item._id} className="relative group">
                               <MediaCard
                                 item={item}
-                                mediaType="series"
+                                mediaType="anime"
                                 viewMode={viewMode}
                                 isLibrary={true}
                                 onEditClick={handleEditClick}
@@ -497,12 +394,12 @@ volumes: null
                         <div className="glass border border-white/10 rounded-2xl p-12 max-w-md mx-auto">
                           <div className="text-6xl mb-6 opacity-50">📺</div>
                           <h3 className="text-2xl font-bold text-white mb-3">
-                            Nenhuma série encontrada
+                            Nenhum anime encontrado
                           </h3>
                           <p className="text-white/60 mb-8">
                             {searchQuery
-                              ? `Não foi possível encontrar séries com o título "${searchQuery}"`
-                              : 'Não foi possível encontrar séries correspondentes aos filtros selecionados'
+                              ? `Não foi possível encontrar animes com o título "${searchQuery}"`
+                              : 'Não foi possível encontrar animes correspondentes aos filtros selecionados'
                             }
                           </p>
                           <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -519,7 +416,7 @@ volumes: null
                               variant="primary"
                               onClick={handleRefresh}
                               icon={RefreshCw}
-                              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 min-w-[180px]"
+                              className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 min-w-[180px]"
                             >
                               Recarregar Página
                             </Button>
@@ -543,10 +440,12 @@ volumes: null
             setIsEditModalOpen(false);
             setEditingItem(null);
           }}
-          mediaType="series"
+          mediaType="anime"
           initialData={{
             _id: editingItem._id,
             genres: editingItem.mediaCacheId?.essentialData?.genres,
+            episodes: editingItem.mediaCacheId?.essentialData?.episodes,
+            studios: editingItem.mediaCacheId?.essentialData?.studios,
             sourceId: editingItem.mediaCacheId?.sourceId,
             title: editingItem.mediaCacheId?.essentialData?.title,
             description: editingItem.mediaCacheId?.essentialData?.description,
@@ -557,23 +456,22 @@ volumes: null
             personalNotes: editingItem.personalNotes || '',
             status: editingItem.status,
             progress: {
-              seasons: editingItem.progress?.details?.seasons || 1,
-              episodes: editingItem.progress?.details?.episodes || 1,
+              currentEpisode: editingItem.progress?.details?.episodes || 0,
             }
           }}
           onSubmit={handleEditSubmit}
         />
       )}
 
-      {/* Modal para adicionar nova série */}
+      {/* Modal para adicionar novo anime */}
       <MediaFormModal
         isOpen={isFormOpen}
         onClose={handleFormClose}
-        mediaType="series"
+        mediaType="anime"
         initialData={undefined}
-        externalData={selectedSeriesData}
+        externalData={selectedAnimeData}
         manualCreateQuery={manualCreateQuery}
-        onSubmit={handleAddSeries}
+        onSubmit={handleAddAnime}
       />
     </>
   );

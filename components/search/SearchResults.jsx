@@ -1,6 +1,5 @@
 'use client';
 
-import React, { useEffect } from 'react';
 import { Loader2, Tv, Film, Book, GamepadIcon, Users, TrendingUp, Star, Calendar, Clock, BookOpen, Search, Target, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils/general-utils';
 import { normalizeSearchResults } from '@/lib/utils/media-utils';
@@ -13,7 +12,7 @@ const SearchResults = ({
   error,
   mediaType,
   onSelect,
-  query
+  query 
 }) => {
   const getMediaTypeConfig = () => {
     const configs = {
@@ -65,13 +64,7 @@ const SearchResults = ({
 
   const config = getMediaTypeConfig();
   const MediaIcon = config.icon;
-
-
   const normalizedResults = normalizeSearchResults(results, mediaType);
-
-  useEffect(() => {
-    console.log('results: ', results) //nunca mostra algum resultado
-  }, [results])
 
   if (loading) {
     return (

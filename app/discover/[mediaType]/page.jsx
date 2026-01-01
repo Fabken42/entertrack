@@ -1,7 +1,7 @@
 // /app/discover/[mediaType]/page.jsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Select, Input } from '@/components/ui';
 import { Grid, List, Star, TrendingUp, Calendar, Search, Users, Filter, ArrowUpDown, Layers, Tag, RefreshCw, X, AlertCircle } from 'lucide-react';
@@ -10,6 +10,7 @@ import MediaCard from '@/components/media/MediaCard';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
 import { cn } from '@/lib/utils/general-utils';
+import { FETCH_MEDIA_ITEMS_LIMIT } from '@/constants';
 
 export default function DiscoverPage() {
   const params = useParams();
@@ -17,7 +18,7 @@ export default function DiscoverPage() {
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState(mediaType === 'books' ? 'relevance' : 'popularity');
+  const [sortBy, setSortBy] = useState(mediaType === 'book' ? 'relevance' : 'popularity');
   const [selectedGenre, setSelectedGenre] = useState('');
   const [genres, setGenres] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
@@ -31,26 +32,66 @@ export default function DiscoverPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedMediaData, setSelectedMediaData] = useState(null);
 
+  const fetchTimeoutRef = useRef(null);
   const { addMedia } = useMediaStore();
+
+  const fetchDiscoveryItems = useCallback(async () => {
+    // Cancelar fetch anterior pendente
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+
+    // Adicionar um pequeno delay para agrupar chamadas rápidas
+    fetchTimeoutRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const queryParams = new URLSearchParams({
+          sortBy,
+          page: currentPage.toString(),
+          ...(selectedGenre && { genre: selectedGenre }),
+          ...(searchQuery && { query: searchQuery })
+        });
+
+        const response = await fetch(`/api/discover/${mediaType}?${queryParams}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch discovery items');
+        }
+        const data = await response.json();
+
+        setItems(data.results || []);
+        setTotalResults(data.total || 0);
+        setTotalPages(data.totalPages || 1);
+        setError(null);
+      } catch (error) {
+        console.error('Error fetching discovery items:', error);
+        setError('Erro ao carregar');
+        setItems([]);
+        setTotalResults(0);
+        setTotalPages(1);
+      } finally {
+        setLoading(false);
+      }
+    }, 100); // 100ms de debounce
+  }, [mediaType, sortBy, selectedGenre, searchQuery, currentPage]);
+
+  useEffect(() => {
+    if (mediaType) {
+      fetchDiscoveryItems();
+    }
+
+    // Cleanup
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
+  }, [mediaType, sortBy, selectedGenre, searchQuery, currentPage, fetchDiscoveryItems]);
 
   useEffect(() => {
     if (mediaType) {
       fetchGenres();
     }
   }, [mediaType]);
-
-  useEffect(() => {
-    if (mediaType) {
-      setCurrentPage(1);
-      fetchDiscoveryItems();
-    }
-  }, [mediaType, sortBy, selectedGenre, searchQuery]);
-
-  useEffect(() => {
-    if (mediaType) {
-      fetchDiscoveryItems();
-    }
-  }, [currentPage]);
 
   const fetchGenres = async () => {
     try {
@@ -68,86 +109,8 @@ export default function DiscoverPage() {
     }
   };
 
-  const fetchDiscoveryItems = async () => {
-    setLoading(true);
-    try {
-      const queryParams = new URLSearchParams({
-        sortBy,
-        page: currentPage.toString(),
-        limit: '20',
-        ...(selectedGenre && { genre: selectedGenre }),
-        ...(searchQuery && { query: searchQuery })
-      });
-
-      const response = await fetch(`/api/discover/${mediaType}?${queryParams}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch discovery items');
-      }
-      const data = await response.json();
-
-      setItems(data.results || []);
-      setTotalResults(data.total || 0);
-      setTotalPages(data.totalPages || 1);
-      setError(null);
-    } catch (error) {
-      console.error('Error fetching discovery items:', error);
-      setError('Erro ao carregar');
-      setItems([]);
-      setTotalResults(0);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleAddToLibrary = (item) => {
-    const sourceApiMap = {
-      'movies': 'tmdb',
-      'series': 'tmdb',
-      'animes': 'jikan',
-      'mangas': 'jikan',
-      'games': 'rawg',
-      'books': 'google_books'
-    };
-
-    const mediaData = {
-      sourceApi: sourceApiMap[mediaType],
-      externalId: item.id?.toString(),
-      title: item.title,
-      description: item.description,
-      imageUrl: item.imageUrl,
-      releaseYear: item.releaseYear, 
-      mediaType: getStoreMediaType(),
-
-      ...(mediaType === 'animes' && {
-        episodes: item.episodes,
-        popularity: item.popularity,       
-        members: item.members,             
-        studios: item.studios || [],       
-        apiRating: item.apiRating || item.rating,
-        apiVoteCount: item.apiVoteCount || item.ratingsCount,
-        genres: item.genres || [],
-      }),
-      ...(mediaType === 'mangas' && {
-        volumes: item.volumes,
-        chapters: item.chapters,
-        popularity: item.popularity,
-        members: item.members,
-        authors: item.authors || [],
-        apiRating: item.apiRating || item.rating,
-        apiVoteCount: item.apiVoteCount || item.ratingsCount,
-        genres: item.genres || [],
-      }),
-      ...(mediaType === 'movies' && {
-        runtime: item.runtime,
-      }),
-      ...(mediaType === 'series' && {
-        numberOfSeasons: item.numberOfSeasons,
-        numberOfEpisodes: item.numberOfEpisodes,
-      }),
-    };
-
-    setSelectedMediaData(mediaData);
+    setSelectedMediaData(item);
     setIsFormOpen(true);
   };
 
@@ -165,35 +128,23 @@ export default function DiscoverPage() {
     try {
       await addMedia({
         ...data,
-        mediaType: getStoreMediaType(),
+        mediaType,
       });
     } catch (error) {
       console.error('DiscoverPage: addMedia error:', error);
     }
   };
 
-  const getStoreMediaType = () => {
-    const mapping = {
-      'movies': 'movie',
-      'series': 'series',
-      'animes': 'anime',
-      'mangas': 'manga',
-      'books': 'book',
-      'games': 'game'
-    };
-    return mapping[mediaType] || mediaType;
-  };
-
   const getMediaTypeLabel = () => {
     const labels = {
-      movies: 'Filme',
+      movie: 'Filme',
       series: 'Série',
-      animes: 'Anime',
-      mangas: 'Mangá',
-      books: 'Livro',
-      games: 'Jogo'
+      anime: 'Anime',
+      manga: 'Mangá',
+      book: 'Livro',
+      game: 'Jogo'
     };
-    return labels[mediaType] || 'Conteúdo';
+    return labels[mediaType] || 'Mídia';
   };
 
   const getMediaTypeIcon = () => {
@@ -240,26 +191,26 @@ export default function DiscoverPage() {
 
   const getSortOptions = () => {
     switch (mediaType) {
-      case 'books':
+      case 'book':
         return [
           { value: 'relevance', label: 'Mais Relevantes', icon: TrendingUp },
           { value: 'newest', label: 'Mais Recentes', icon: Calendar },
         ];
 
-      case 'mangas':
-      case 'animes':
+      case 'manga':
+      case 'anime':
         return [
           { value: 'popularity', label: 'Mais Populares', icon: TrendingUp },
           { value: 'rating', label: 'Melhores Avaliados', icon: Star },
           { value: 'newest', label: 'Mais Recentes', icon: Calendar },
         ];
-      case 'games':
+      case 'game':
         return [
           { value: 'popularity', label: 'Mais Populares', icon: TrendingUp },
           { value: 'rating', label: 'Melhores Avaliados', icon: Star },
           { value: 'newest', label: 'Mais Recentes', icon: Calendar },
         ];
-      case 'movies':
+      case 'movie':
       case 'series':
       default:
         return [
@@ -391,24 +342,42 @@ export default function DiscoverPage() {
 
           </div>
 
-          {/* Informações de página */}
+          {/* Informações de página - NOVO FORMATO */}
           {!loading && items.length > 0 && (
             <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <p className="text-white/80 text-sm">
                   <span className="font-bold text-white">
-                    {((currentPage - 1) * 20) + 1}-{((currentPage - 1) * 20) + items.length}
-                  </span> de <span className="font-bold text-white">{totalResults.toLocaleString()}</span> {getMediaTypeLabel().toLowerCase()}{totalResults !== 1 ? 's' : ''}
+                    {(currentPage - 1) * FETCH_MEDIA_ITEMS_LIMIT + 1}-{Math.min(currentPage * FETCH_MEDIA_ITEMS_LIMIT, totalResults)}
+                  </span>
+                  {' de '}
+                  <span className="font-bold text-white">{totalResults.toLocaleString()}</span>
+                  {' '}{getMediaTypeLabel().toLowerCase()}{totalResults !== 1 ? 's' : ''}
+                  <span className="ml-2 text-white/60">
+                    (pág. {currentPage} de {totalPages})
+                  </span>
                   {searchQuery && (
-                    <span className="text-blue-300"> para "{searchQuery}"</span>
+                    <span className="ml-2">
+                      · Busca: <span className="font-bold text-white">"{searchQuery}"</span>
+                    </span>
+                  )}
+                  {selectedGenre && (
+                    <span className="ml-2">
+                      · Gênero: <span className="font-bold text-white">
+                        {genres.find(g => g.id === selectedGenre)?.name || selectedGenre}
+                      </span>
+                    </span>
                   )}
                 </p>
               </div>
 
-              <div>
-                <p className="text-sm text-white/80">
-                  Página <span className="font-bold text-white">{currentPage}</span> de <span className="font-bold text-white">{totalPages}</span>
-                </p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex items-center gap-2 text-sm text-white/60">
+                  <span>Ordenado por:</span>
+                  <span className="font-medium text-white">
+                    {getSortOptions().find(s => s.value === sortBy)?.label}
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -503,10 +472,10 @@ export default function DiscoverPage() {
       <MediaFormModal
         isOpen={isFormOpen}
         onClose={handleFormClose}
-        mediaType={getStoreMediaType()}
         externalData={selectedMediaData}
         onSubmit={handleAddMedia}
+        mediaType={mediaType}
       />
     </div>
   );
-}
+} 

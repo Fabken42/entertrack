@@ -20,6 +20,7 @@ const MediaFormModal = ({
   manualCreateQuery,
   onSubmit 
 }) => {
+
   const [loading, setLoading] = React.useState(false);
 
   const handleFormSubmit = async (data) => {
@@ -49,6 +50,7 @@ const MediaFormModal = ({
       onCancel: onClose,
       loading,
     };
+
 
     switch (mediaType) {
       case 'movie':

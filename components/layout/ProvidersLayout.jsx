@@ -28,12 +28,10 @@ const ProvidersLayout = ({ children }) => {
           "flex-1 transition-all duration-300",
           "xl:ml-16",
         )}>
-          <div className="px-4 md:px-6 lg:px-8 py-6 max-w-7xl mx-auto w-full">
-            {children}
-          </div>
+          {children}
+          <Footer />
         </main>
       </div>
-      <Footer />
     </div>
   );
 };

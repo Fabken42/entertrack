@@ -1,4 +1,3 @@
-// /store/media-store.js
 'use client';
 
 import { create } from 'zustand';
@@ -10,7 +9,6 @@ const useMediaStore = create((set, get) => ({
   isLoading: false,
   error: null,
 
-  // Buscar mídia do usuário
   fetchUserMedia: async () => {
     set({ isLoading: true });
     try {
@@ -24,162 +22,223 @@ const useMediaStore = create((set, get) => ({
     }
   },
 
+  createProgressPayload: (progressData, mediaType) => {
+    if (!progressData || Object.keys(progressData).length === 0) {
+      return undefined;
+    }
+
+    const details = {};
+
+    switch (mediaType) {
+      case 'anime':
+        if (progressData.episodes !== undefined) details.episodes = progressData.episodes;
+        break;
+      case 'series':
+        if (progressData.episodes !== undefined) details.episodes = progressData.episodes;
+        if (progressData.seasons !== undefined) details.seasons = progressData.seasons;
+        break;
+      case 'manga':
+        if (progressData.chapters !== undefined) details.chapters = progressData.chapters;
+        if (progressData.volumes !== undefined) details.volumes = progressData.volumes;
+        break;
+      case 'book':
+        if (progressData.pages !== undefined) details.pages = progressData.pages;
+        break;
+      case 'movie':
+        if (progressData.minutes !== undefined) details.minutes = progressData.minutes;
+        break;
+    }
+
+    if (!details.percentage) {
+      details.percentage = progressData.percentage || 0;
+    }
+
+    if (Object.keys(details).length === 0) {
+      return undefined;
+    }
+
+    return {
+      details: details,
+      lastUpdated: new Date()
+    };
+  },
+
   addMedia: async (mediaData) => {
-    // Para entradas manuais, gerar um externalId se não existir
-    if (!mediaData.externalId && mediaData.sourceApi === 'manual') {
-      mediaData.externalId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    if (!mediaData.sourceId) {
+      if (mediaData.sourceApi === 'manual') {
+        mediaData.sourceId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      } else {
+        toast.error('Erro interno: ID da mídia não encontrado');
+        throw new Error('sourceId é obrigatório para cache');
+      }
     }
 
-    if (!mediaData.externalId) {
-      toast.error('Erro interno: ID da mídia não encontrado');
-      throw new Error('externalId é obrigatório para cache');
-    }
+    const sourceId = mediaData.sourceId.toString();
+    const sourceApi = mediaData.sourceApi || 'jikan';
+    const mediaType = mediaData.mediaType;
 
-    try {
-      const sourceId = mediaData.externalId.toString();
-      const sourceApi = mediaData.sourceApi || 'jikan';
-      const mediaType = mediaData.mediaType;
+    // Para entradas manuais, usar imagem placeholder
+    const coverImage = sourceApi === 'manual'
+      ? '/images/icons/placeholder-image.png'
+      : mediaData.imageUrl || '';
 
-      // Para entradas manuais, usar imagem placeholder
-      const coverImage = sourceApi === 'manual'
-        ? '/images/icons/placeholder-image.png'
-        : mediaData.imageUrl || '';
-
-      const cachePayload = {
-        sourceApi: sourceApi,
-        sourceId: sourceId,
-        mediaType: mediaType,
-        essentialData: {
-          title: mediaData.title || 'Título não disponível',
-          description: mediaData.description || '',
-          coverImage: coverImage,
-          backdropImage: '',
-          releaseYear: mediaData.releaseYear || null,
-          status: 'finished',
-          episodes: mediaData.episodes || null,
-          genres: Array.isArray(mediaData.genres)
-            ? mediaData.genres.map(g => {
-              // Se for entrada manual, g é um ID de gênero (string)
-              if (typeof g === 'string') {
-                const genreObj = JikanClient.getAllGenres().find(genre => genre.id === g);
-                return {
-                  id: g,
-                  name: genreObj?.name || g
-                };
-              }
-              // Se for objeto (de dados externos)
-              if (typeof g === 'object') {
-                return {
-                  id: g.id?.toString() || g.name.toLowerCase().replace(/\s+/g, '-'),
-                  name: g.name
-                };
-              }
-              // Se for string simples
+    const cachePayload = {
+      sourceApi: sourceApi,
+      sourceId: sourceId,
+      mediaType: mediaType,
+      essentialData: {
+        title: mediaData.title || 'Título não disponível',
+        description: mediaData.description || '',
+        category: mediaData.category, //para anime/manga
+        coverImage: coverImage,
+        releaseYear: mediaData.releaseYear || null,
+        runtime: mediaData.runtime || null,
+        status: 'finished',
+        episodes: mediaData.episodes || null,
+        seasons: mediaData.seasons || null,
+        episodesPerSeason: mediaData.episodesPerSeason || null,
+        volumes: mediaData.volumes || null,
+        chapters: mediaData.chapters || null,
+        platforms: mediaData.platforms || [], // Para jogos
+        genres: Array.isArray(mediaData.genres)
+          ? mediaData.genres.map(g => {
+            // Se for entrada manual, g é um ID de gênero (string)
+            if (typeof g === 'string') {
+              const genreObj = JikanClient.getAllGenres().find(genre => genre.id === g);
               return {
-                id: g.toLowerCase().replace(/\s+/g, '-'),
-                name: g
+                id: g,
+                name: genreObj?.name || g
               };
-            })
-            : [],
-          averageRating: mediaData.apiRating || null,
-          ratingCount: mediaData.apiVoteCount || null,
-          popularity: mediaData.popularity || null,
-          members: mediaData.members || null,
-          studios: mediaData.studios || [],
-          authors: mediaData.authors || [],
-          source: sourceApi,
-          externalId: sourceId
-        }
-      };
-
-      // Primeiro, verificar/criar cache da mídia
-      const cacheResponse = await fetch('/api/media/cache', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cachePayload)
-      });
-
-      if (!cacheResponse.ok) {
-        const errorText = await cacheResponse.text();
-        console.error('❌ Erro detalhado do cache:', errorText);
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new Error(`Failed to cache media data: ${errorJson.error || errorJson.details || 'Unknown error'}`);
-        } catch (e) {
-          throw new Error(`Failed to cache media data: ${cacheResponse.status} ${cacheResponse.statusText}`);
-        }
+            }
+            // Se for objeto (de dados externos)
+            if (typeof g === 'object') {
+              return {
+                id: g.id?.toString() || g.name.toLowerCase().replace(/\s+/g, '-'),
+                name: g.name
+              };
+            }
+            // Se for string simples
+            return {
+              id: g.toLowerCase().replace(/\s+/g, '-'),
+              name: g
+            };
+          })
+          : [],
+        averageRating: mediaData.apiRating || null,
+        ratingCount: mediaData.apiVoteCount || null,
+        popularity: mediaData.popularity || null,
+        members: mediaData.members || null,
+        studios: mediaData.studios || [],
+        authors: mediaData.authors || [],
       }
+    };
 
-      const cacheResult = await cacheResponse.json();
-      // Agora criar a UserMedia
-      const userMediaPayload = {
-        mediaCacheId: cacheResult.cacheId,
-        status: mediaData.status || 'planned',
-        userRating: mediaData.userRating || null,
-        personalNotes: mediaData.personalNotes || '',
-        progress: mediaData.progress ? {
-          current: mediaData.progress.currentEpisode || mediaData.progress.current || 0,
-          unit: 'episodes',
-          lastUpdated: new Date()
-        } : undefined,
-        ...(mediaData.status === 'in_progress' && { startedAt: new Date() }),
-        ...(mediaData.status === 'completed' && { completedAt: new Date() }),
-        ...(mediaData.status === 'dropped' && { droppedAt: new Date() })
-      };
+    // Primeiro, verificar/criar cache da mídia
+    const cacheResponse = await fetch('/api/media/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cachePayload)
+    });
 
-      const userMediaResponse = await fetch('/api/user/media', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userMediaPayload)
-      });
-
-      if (!userMediaResponse.ok) {
-        const errorText = await userMediaResponse.text();
-        console.error('❌ Erro na resposta da UserMedia:', errorText);
-
-        try {
-          const errorJson = JSON.parse(errorText);
-          toast.error(errorJson.error || 'Erro ao adicionar mídia');
-        } catch {
-          toast.error('Erro ao adicionar mídia');
-        }
-        throw new Error('Failed to add media to your list');
+    if (!cacheResponse.ok) {
+      const errorText = await cacheResponse.text();
+      console.error('❌ Erro detalhado do cache:', errorText);
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(`Failed to cache media data: ${errorJson.error || errorJson.details || 'Unknown error'}`);
+      } catch (e) {
+        throw new Error(`Failed to cache media data: ${cacheResponse.status} ${cacheResponse.statusText}`);
       }
-
-      const newMedia = await userMediaResponse.json();
-
-      // Atualizar store local
-      set(state => ({
-        userMedia: [...state.userMedia, newMedia]
-      }));
-
-      toast.success('Mídia adicionada com sucesso!');
-      return newMedia;
-
-    } catch (error) {
-      console.error('Error adding media:', error);
-      throw error;
     }
+
+    const cacheResult = await cacheResponse.json();
+
+    // Preparar progresso com a nova estrutura usando o helper
+    const progressPayload = get().createProgressPayload(mediaData.progress, mediaType);
+
+    const userMediaPayload = {
+      mediaCacheId: cacheResult.cacheId,
+      status: mediaData.status || 'planned',
+      userRating: mediaData.userRating || null,
+      personalNotes: mediaData.personalNotes || '',
+      // ✅ SEMPRE usar o progresso que veio dos dados (se existir)
+      progress: mediaData.progress || {
+        details: {
+          episodes: 0,
+          chapters: 0,
+          volumes: 0,
+          percentage: 0
+        },
+        lastUpdated: new Date()
+      },
+      ...(mediaData.status === 'in_progress' && { startedAt: new Date() }),
+      ...(mediaData.status === 'completed' && { completedAt: new Date() }),
+      ...(mediaData.status === 'dropped' && { droppedAt: new Date() })
+    };
+
+    // Se for completed, calcular progresso para 100%
+    if (mediaData.status === 'completed' && !progressPayload) {
+      userMediaPayload.progress = get().createProgressPayload({
+        episodes: mediaData.episodes || 0,
+        chapters: mediaData.chapters || 0,
+        volumes: mediaData.volumes || 0,
+        percentage: 100
+      }, mediaType);
+    }
+
+    const userMediaResponse = await fetch('/api/user/media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userMediaPayload)
+    });
+
+    if (!userMediaResponse.ok) {
+      const errorText = await userMediaResponse.text();
+      console.error('❌ Erro na resposta da UserMedia:', errorText);
+
+      try {
+        const errorJson = JSON.parse(errorText);
+        toast.error(errorJson.error || 'Erro ao adicionar mídia');
+      } catch {
+        toast.error('Erro ao adicionar mídia');
+      }
+      throw new Error('Failed to add media to your list');
+    }
+
+    const newMedia = await userMediaResponse.json();
+
+    // Atualizar store local
+    set(state => ({
+      userMedia: [...state.userMedia, newMedia]
+    }));
+
+    toast.success('Mídia adicionada com sucesso!');
+    return newMedia;
   },
 
   updateMedia: async (userMediaId, updateData) => {
     try {
+      const progressPayload = get().createProgressPayload(updateData?.progress?.details, updateData.mediaType);
+
       // Preparar o payload para atualização
       const updatePayload = {
         status: updateData.status,
         userRating: updateData.userRating || null,
         personalNotes: updateData.personalNotes || '',
-        progress: updateData.progress ? {
-          current: updateData.progress.currentEpisode || updateData.progress.current || 0,
-          unit: updateData.mediaType === 'anime' ? 'episodes' :
-            updateData.mediaType === 'manga' ? 'chapters' : 'pages',
-          lastUpdated: new Date()
-        } : undefined,
+        progress: progressPayload,
         // Datas específicas se fornecidas
         ...(updateData.startedAt && { startedAt: updateData.startedAt }),
         ...(updateData.completedAt && { completedAt: updateData.completedAt }),
-        ...(updateData.droppedAt && { droppedAt: updateData.droppedAt })
+        ...(updateData.droppedAt && { droppedAt: updateData.droppedAt }),
+        ...(updateData.category && { category: updateData.category })
       };
+
+      // Remover campos undefined
+      Object.keys(updatePayload).forEach(key => {
+        if (updatePayload[key] === undefined) {
+          delete updatePayload[key];
+        }
+      });
 
       const response = await fetch(`/api/user/media/${userMediaId}`, {
         method: 'PUT',
@@ -309,45 +368,220 @@ const useMediaStore = create((set, get) => ({
     }
   },
 
-  // Método para atualizar rating diretamente
-  updateRating: async (userMediaId, rating) => {
-    try {
-      // Garantir que o rating seja um número válido
-      const normalizedRating = typeof rating === 'number'
-        ? Math.max(1, Math.min(5, rating))
-        : null;
 
+  // Novo método helper para formatar progresso para exibição
+  formatProgressForDisplay: (userMedia) => {
+    if (!userMedia || !userMedia.progress || !userMedia.progress.details) {
+      return { display: 'Não iniciado', value: 0, unit: 'percentage' };
+    }
+
+    const details = userMedia.progress.details;
+    const mediaType = userMedia.mediaCacheId?.mediaType;
+    const totalInfo = userMedia.mediaCacheId?.totalInfo || {};
+
+    switch (mediaType) {
+      case 'anime':
+        return {
+          display: details.episodes
+            ? `Episódio ${details.episodes}${totalInfo.episodes ? `/${totalInfo.episodes}` : ''}`
+            : 'Não assistido',
+          value: details.episodes || 0,
+          unit: 'episodes',
+          total: totalInfo.episodes,
+          percentage: details.percentage
+        };
+      case 'manga':
+        const parts = [];
+        if (details.chapters) parts.push(`Cap. ${details.chapters}${totalInfo.chapters ? `/${totalInfo.chapters}` : ''}`);
+        if (details.volumes) parts.push(`Vol. ${details.volumes}${totalInfo.volumes ? `/${totalInfo.volumes}` : ''}`);
+        return {
+          display: parts.length > 0 ? parts.join(' • ') : 'Não lido',
+          value: details.chapters || details.volumes || 0,
+          unit: details.chapters ? 'chapters' : 'volumes',
+          total: totalInfo.chapters || totalInfo.volumes,
+          percentage: details.percentage
+        };
+      // Adicione outros tipos conforme necessário
+      default:
+        return {
+          display: details.percentage ? `${details.percentage}%` : '0%',
+          value: details.percentage || 0,
+          unit: 'percentage'
+        };
+    }
+  },
+
+  increaseProgress: async (userMediaId, mediaType) => {
+    try {
+      // Busca o item atual
+      const { userMedia } = get();
+      const currentItem = userMedia.find(item => item._id === userMediaId);
+
+      if (!currentItem) {
+        throw new Error('Item não encontrado');
+      }
+
+      // Verifica se o status permite aumento
+      if (!['in_progress', 'dropped'].includes(currentItem.status)) {
+        throw new Error('Apenas itens em progresso ou abandonados podem ter progresso aumentado');
+      }
+
+      const progressDetails = currentItem.progress?.details || {};
+      const mediaCache = currentItem.mediaCacheId;
+      const essentialData = mediaCache?.essentialData || {};
+
+      let updatedDetails = {};
+      let totalAvailable;
+      let shouldMarkAsCompleted = false;
+
+      // Calcula o novo progresso localmente primeiro
+      switch (mediaType) {
+        case 'anime':
+        case 'series':
+          const currentEpisodes = progressDetails.episodes || 0;
+          const totalEpisodes = essentialData.episodes || 0;
+
+          if (totalEpisodes > 0 && currentEpisodes >= totalEpisodes) {
+            toast.success('Você já completou todos os episódios!');
+            return currentItem;
+          }
+
+          updatedDetails = {
+            episodes: currentEpisodes + 1
+          };
+          totalAvailable = totalEpisodes;
+
+          if (totalEpisodes > 0 && (currentEpisodes + 1) >= totalEpisodes) {
+            shouldMarkAsCompleted = true;
+          }
+          break;
+
+        case 'manga':
+          const currentChapters = progressDetails.chapters || 0;
+          const currentVolumes = progressDetails.volumes || 0;
+          const totalChapters = essentialData.chapters || 0;
+          const totalVolumes = essentialData.volumes || 0;
+
+          if (totalChapters > 0 && currentChapters >= totalChapters) {
+            toast.success('Você já leu todos os capítulos!');
+            return currentItem;
+          }
+
+          updatedDetails = {
+            chapters: currentChapters + 1
+          };
+          totalAvailable = totalChapters;
+
+          // Calcula volume
+          if (totalVolumes > 0 && totalChapters > 0) {
+            const chaptersPerVolume = Math.ceil(totalChapters / totalVolumes) || 10;
+            const shouldIncreaseVolume = ((currentChapters + 1) % chaptersPerVolume === 1) &&
+              currentVolumes < totalVolumes;
+
+            if (shouldIncreaseVolume) {
+              updatedDetails.volumes = (currentVolumes || 0) + 1;
+            } else if (currentVolumes > 0) {
+              updatedDetails.volumes = currentVolumes;
+            }
+          }
+
+          if (totalChapters > 0 && (currentChapters + 1) >= totalChapters) {
+            shouldMarkAsCompleted = true;
+          }
+          break;
+
+        default:
+          throw new Error(`Tipo de mídia não suportado para aumento de progresso: ${mediaType}`);
+      }
+
+      // Atualização otimista: atualiza o estado local ANTES da requisição
+      const optimisticUpdate = {
+        ...currentItem,
+        progress: {
+          details: {
+            ...progressDetails,
+            ...updatedDetails
+          },
+          lastUpdated: new Date()
+        },
+        ...(shouldMarkAsCompleted && { status: 'completed' })
+      };
+
+      // Atualiza localmente imediatamente
+      set(state => ({
+        userMedia: state.userMedia.map(item =>
+          item._id === userMediaId ? optimisticUpdate : item
+        )
+      }));
+
+      // Cria payload para o backend
+      const progressPayload = get().createProgressPayload({
+        ...progressDetails,
+        ...updatedDetails
+      }, mediaType);
+
+      const updatePayload = {
+        progress: progressPayload,
+        mediaType: mediaType
+      };
+
+      if (shouldMarkAsCompleted) {
+        updatePayload.status = 'completed';
+      }
+
+      // Faz a requisição ao backend em segundo plano
       const response = await fetch(`/api/user/media/${userMediaId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userRating: normalizedRating
-        })
+        body: JSON.stringify(updatePayload)
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update rating');
+        console.error('❌ Erro na resposta:', errorData);
+
+        // Reverte a atualização otimista em caso de erro
+        set(state => ({
+          userMedia: state.userMedia.map(item =>
+            item._id === userMediaId ? currentItem : item // Restaura o item original
+          )
+        }));
+
+        throw new Error(errorData.error || 'Failed to update progress');
       }
 
       const updatedMedia = await response.json();
 
-      // Atualizar store local
+      // Atualiza com os dados reais do servidor
       set(state => ({
-        userMedia: state.userMedia.map(media =>
-          media._id === userMediaId ? updatedMedia : media
+        userMedia: state.userMedia.map(item =>
+          item._id === userMediaId ? updatedMedia : item
         )
       }));
 
-      toast.success('Avaliação atualizada com sucesso!');
+      // Mensagem de sucesso
+      let successMessage = 'Progresso atualizado!';
+      if (mediaType === 'anime' || mediaType === 'series') {
+        successMessage = `Episódio ${updatedDetails.episodes} marcado como assistido!`;
+        if (shouldMarkAsCompleted) {
+          successMessage = 'Parabéns! Você completou este anime!';
+        }
+      } else if (mediaType === 'manga') {
+        successMessage = `Capítulo ${updatedDetails.chapters} marcado como lido!`;
+        if (shouldMarkAsCompleted) {
+          successMessage = 'Parabéns! Você completou este mangá!';
+        }
+      }
+
+      toast.success(successMessage);
       return updatedMedia;
 
     } catch (error) {
-      console.error('Error updating rating:', error);
-      toast.error('Erro ao atualizar avaliação: ' + error.message);
+      console.error('Erro ao aumentar progresso:', error);
+      toast.error('Erro ao atualizar progresso: ' + error.message);
       throw error;
     }
-  }
+  },
 }));
 
 export { useMediaStore };

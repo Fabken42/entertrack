@@ -20,21 +20,21 @@ const Header = ({ showFullHeader = true }) => {
   // Navegação para mobile menu - REORDENADO: Biblioteca vem primeiro
   const libraryNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
-    { name: 'Filmes', href: '/movies', icon: Film },
+    { name: 'Filmes', href: '/movie', icon: Film },
     { name: 'Séries', href: '/series', icon: Tv },
-    { name: 'Games', href: '/games', icon: GamepadIcon },
-    { name: 'Animes', href: '/animes', icon: '🇯🇵' },
-    { name: 'Mangás', href: '/mangas', icon: BookOpen },
-    { name: 'Livros', href: '/books', icon: '📖' },
+    { name: 'Games', href: '/game', icon: GamepadIcon },
+    { name: 'Animes', href: '/anime', icon: '🇯🇵' },
+    { name: 'Mangás', href: '/manga', icon: BookOpen },
+    { name: 'Livros', href: '/book', icon: '📖' },
   ];
 
   const discoverNavigation = [
-    { name: 'Filmes', href: '/discover/movies', icon: Film },
+    { name: 'Filmes', href: '/discover/movie', icon: Film },
     { name: 'Séries', href: '/discover/series', icon: Tv },
-    { name: 'Games', href: '/discover/games', icon: GamepadIcon },
-    { name: 'Animes', href: '/discover/animes', icon: '🇯🇵' },
-    { name: 'Mangás', href: '/discover/mangas', icon: BookOpen },
-    { name: 'Livros', href: '/discover/books', icon: '📖' },
+    { name: 'Games', href: '/discover/game', icon: GamepadIcon },
+    { name: 'Animes', href: '/discover/anime', icon: '🇯🇵' },
+    { name: 'Mangás', href: '/discover/manga', icon: BookOpen },
+    { name: 'Livros', href: '/discover/book', icon: '📖' },
   ];
 
   const secondaryNavigation = [

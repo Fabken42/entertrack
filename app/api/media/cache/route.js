@@ -8,8 +8,6 @@ export async function POST(request) {
     await connectToDatabase();
 
     const body = await request.json();
-    console.log('📨 Dados recebidos no endpoint de cache:', body);
-
     const { sourceApi, sourceId, mediaType, essentialData } = body;
 
     // VALIDAÇÃO E TRATAMENTO DE VALORES UNDEFINED
@@ -38,48 +36,31 @@ export async function POST(request) {
       );
     }
 
-    // Na função POST, atualize validatedEssentialData:
     const validatedEssentialData = {
       title: essentialData.title,
       description: essentialData.description || '',
       coverImage: essentialData.imageUrl || essentialData.coverImage || '',
-      backdropImage: essentialData.backdropImage || '',
       releaseYear: essentialData.releaseYear || null,
+      runtime: essentialData.runtime || null,
 
       status: essentialData.status || 'finished',
       episodes: essentialData.episodes || null,
       seasons: essentialData.seasons || null,
+      episodesPerSeason: essentialData.episodesPerSeason || null,
       chapters: essentialData.chapters || null,
       volumes: essentialData.volumes || null,
       pageCount: essentialData.pageCount || null,
-      runtime: essentialData.runtime || null,
-      playtime: essentialData.playtime || null,
 
       genres: Array.isArray(essentialData.genres) ? essentialData.genres : [],
       averageRating: essentialData.apiRating || essentialData.averageRating || null,
       ratingCount: essentialData.apiVoteCount || essentialData.ratingCount || null,
 
-      // 🔥 CAMPOS JIKAN
+      // CAMPOS JIKAN
       popularity: essentialData.popularity || null,
       members: essentialData.members || null,
       studios: essentialData.studios || [],
       authors: essentialData.authors || [],
-
-      // Metadados da fonte
-      source: essentialData.sourceApi || sourceApi,
-      externalId: essentialData.externalId || sourceId
     };
-
-    // Log para debug
-    console.log('✅ Dados validados para cache:', {
-      sourceApi,
-      sourceId,
-      mediaType,
-      title: validatedEssentialData.title,
-      genresCount: validatedEssentialData.genres.length,
-      averageRating: validatedEssentialData.averageRating,
-      ratingCount: validatedEssentialData.ratingCount
-    });
 
     // Verificar se já existe cache para esta mídia
     const existingCache = await MediaCache.findOne({
@@ -89,8 +70,6 @@ export async function POST(request) {
     });
 
     if (existingCache) {
-      console.log('Cache existente encontrado:', existingCache._id);
-
       // Atualizar dados e estatísticas de uso
       existingCache.essentialData = {
         ...existingCache.essentialData,
@@ -110,8 +89,6 @@ export async function POST(request) {
       });
     }
 
-    // Criar novo cache
-    console.log('Criando novo cache...');
     const mediaCache = new MediaCache({
       sourceApi,
       sourceId,
@@ -131,7 +108,6 @@ export async function POST(request) {
     });
 
     await mediaCache.save();
-    console.log('Novo cache criado:', mediaCache._id);
 
     return NextResponse.json({
       cacheId: mediaCache._id,

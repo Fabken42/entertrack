@@ -27,14 +27,13 @@ const Sidebar = () => {
   const pathname = usePathname();
   const { isAuthenticated, isLoading, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(() => {
-    // Tentar recuperar do localStorage - ALTERADO: Inicia ABERTA (false)
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sidebar-collapsed');
-      return saved ? JSON.parse(saved) : false; // Inicia ABERTA
+      return saved ? JSON.parse(saved) : false; 
     }
     return false;
   });
-  const [isManuallyExpanded, setIsManuallyExpanded] = useState(true); // Inicia como expandida manualmente
+  const [isManuallyExpanded, setIsManuallyExpanded] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
   // Salvar estado no localStorage
@@ -72,7 +71,7 @@ const Sidebar = () => {
 
       items.push({
         name: 'Filmes',
-        href: '/movies',
+        href: '/movie',
         icon: Film,
         color: 'text-cyan-400'
       });
@@ -86,28 +85,28 @@ const Sidebar = () => {
 
       items.push({
         name: 'Games',
-        href: '/games',
+        href: '/game',
         icon: GamepadIcon,
         color: 'text-purple-400'
       });
 
       items.push({
         name: 'Animes',
-        href: '/animes',
+        href: '/anime',
         icon: Tv2,
         color: 'text-pink-400'
       });
 
       items.push({
         name: 'Mangás',
-        href: '/mangas',
+        href: '/manga',
         icon: BookOpen,
         color: 'text-red-400'
       });
 
       items.push({
         name: 'Livros',
-        href: '/books',
+        href: '/book',
         icon: BookText,
         color: 'text-yellow-400'
       });
@@ -124,7 +123,7 @@ const Sidebar = () => {
 
     items.push({
       name: 'Filmes',
-      href: '/discover/movies',
+      href: '/discover/movie',
       icon: Film,
       color: 'text-cyan-400'
     });
@@ -138,28 +137,28 @@ const Sidebar = () => {
 
     items.push({
       name: 'Games',
-      href: '/discover/games',
+      href: '/discover/game',
       icon: GamepadIcon,
       color: 'text-purple-400'
     });
 
     items.push({
       name: 'Animes',
-      href: '/discover/animes',
+      href: '/discover/anime',
       icon: Tv2,
       color: 'text-pink-400'
     });
 
     items.push({
       name: 'Mangás',
-      href: '/discover/mangas',
+      href: '/discover/manga',
       icon: BookOpen,
       color: 'text-red-400'
     });
 
     items.push({
       name: 'Livros',
-      href: '/discover/books',
+      href: '/discover/book',
       icon: BookText,
       color: 'text-yellow-400'
     });

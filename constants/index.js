@@ -3,11 +3,13 @@ import {
   Star, TrendingUp
 } from 'lucide-react';
 
+export const FETCH_MEDIA_ITEMS_LIMIT = '20';
+
 export const statusColors = [
   { value: 'planned', label: '🟡 Planejado' },
   { value: 'in_progress', label: '🔵 Em Progresso' },
   { value: 'completed', label: '🟢 Concluído' },
-  { value: 'dropped', label: '🔴 Abandonado' },
+  { value: 'dropped', label: '🔴 Abandonado' }, 
 ];
 
 export const statusOptions = [
