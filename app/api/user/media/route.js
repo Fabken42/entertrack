@@ -1,4 +1,3 @@
-// /app/api/user/media/route.js
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/authOptions';
@@ -18,7 +17,6 @@ export async function GET() {
 
     await connectToDatabase();
 
-    // Buscar UserMedia do usuário com populate dos dados do cache
     const userMedia = await UserMedia.find({ userId: session.user.id })
       .populate('mediaCacheId')
       .sort({ createdAt: -1 });
@@ -48,7 +46,6 @@ export async function POST(request) {
     const body = await request.json();
     const { mediaCacheId, status, userRating, personalNotes, progress } = body;
 
-    // Verificar se o usuário já tem esta mídia
     const existingUserMedia = await UserMedia.findOne({
       userId: session.user.id,
       mediaCacheId
@@ -61,7 +58,6 @@ export async function POST(request) {
       );
     }
 
-    // Validar mediaCacheId
     const mediaCache = await MediaCache.findById(mediaCacheId);
     if (!mediaCache) {
       return NextResponse.json(
@@ -70,27 +66,44 @@ export async function POST(request) {
       );
     }
 
-    // Criar nova UserMedia com a nova estrutura de progresso
+    const progressData = {
+      details: {
+        episodes: 0,
+        chapters: 0,
+        volumes: 0,
+        seasons: 0,
+        episodesInSeason: 0,
+        minutes: 0,
+        hours: 0,
+        percentage: 0,
+      },
+      tasks: [], 
+      lastUpdated: new Date()
+    };
+
+    if (progress) {
+      if (progress.details) {
+        progressData.details = {
+          ...progressData.details,
+          ...progress.details
+        };
+      }
+
+      if (progress.tasks !== undefined) {
+        progressData.tasks = Array.isArray(progress.tasks)
+          ? progress.tasks
+          : [];
+      }
+    }
+
+    // Criar nova UserMedia
     const userMediaData = {
       userId: session.user.id,
       mediaCacheId,
       status: status || 'planned',
       userRating: userRating || null,
       personalNotes: personalNotes || '',
-      progress: progress || {
-        details: {
-          // Inicializar campos baseados no tipo de mídia
-          episodes: 0,
-          chapters: 0,
-          volumes: 0,
-          seasons: 0,
-          episodesInSeason: 0,
-          pages: 0,
-          minutes: 0,
-          percentage: 0
-        },
-        lastUpdated: new Date()
-      }
+      progress: progressData
     };
 
     // Adicionar datas conforme status

@@ -58,109 +58,6 @@ export default function SeriesPage() {
     );
 
     setFilteredMedia(result);
-    /*
-    imprime por exemplo:
-    0: Object { _id: "695685f28bcbd9a8bbcd912b", title: "O Novato", description: "John Nolan, um homem de 40 anos, deixa para trás sua vida confortável em uma cidade pequena para viver seu sonho de ser um agente policial no Departamento de Polícia de Los Angeles. Como o novato mais velho, ele enfrenta a descrença de seus colegas.", … }
- ​
-_id: "695685f28bcbd9a8bbcd912b"
- ​
-authors: Array []
- ​
-averageRating: 8.512
- ​
-chapters: null
- ​
-completedAt: undefined
- ​
-createdAt: "2026-01-01T14:34:26.507Z"
- ​
-description: "John Nolan, um homem de 40 anos, deixa para trás sua vida confortável em uma cidade pequena para viver seu sonho de ser um agente policial no Departamento de Polícia de Los Angeles. Como o novato mais velho, ele enfrenta a descrença de seus colegas."
- ​
-droppedAt: undefined
- ​
-episodes: 144
- ​
-genres: Array(3) [ {…}, {…}, {…} ]
- ​
-imageUrl: "https://image.tmdb.org/t/p/w500/yCPGrd6fzbftuaH97OUS6tUdE4B.jpg"
- ​
-mediaCacheId: "695685f28bcbd9a8bbcd9121"
- ​
-members: null
- ​
-pageCount: null
- ​
-personalNotes: ""
- ​
-platforms: Array []
- ​
-popularity: null
- ​
-progress: Object { lastUpdated: "2026-01-01T14:38:34.908Z", current: 9, total: 144, … }
-  ​
-current: 9
-  ​
-details: Object { episodes: 9, volumes: 0, chapters: 0, … }
-   ​
-chapters: 0
-   ​
-episodes: 9
-   ​
-episodesInSeason: 0
-   ​
-minutes: 0
-   ​
-pages: 0
-   ​
-percentage: 0
-   ​
-seasons: 3
-   ​
-volumes: 0
-   ​
-<prototype>: Object { … }
-  ​
-lastUpdated: "2026-01-01T14:38:34.908Z"
-  ​
-total: 144
-  ​
-unit: "eps"
-  ​
-<prototype>: Object { … }
- ​
-rating: 8.512
- ​
-ratingCount: 2826
- ​
-ratingsCount: 2826
- ​
-releaseYear: 2018
- ​
-runtime: null
- ​
-seasons: 8
- ​
-sourceApi: "tmdb"
- ​
-sourceId: "79744"
- ​
-startedAt: "2026-01-01T14:34:26.504Z"
- ​
-status: "in_progress"
- ​
-studios: Array []
- ​
-title: "O Novato"
- ​
-updatedAt: "2026-01-01T14:38:34.908Z"
- ​
-userRating: null
- ​
-volumes: null
- ​
-<prototype>: Object { … }
-    */
-    console.log('Filtered media updated:', result);
   }, [userMedia, selectedStatus, searchQuery, sortBy]);
 
   // Resetar para a primeira página quando filtros mudarem
@@ -550,6 +447,9 @@ volumes: null
             sourceId: editingItem.mediaCacheId?.sourceId,
             title: editingItem.mediaCacheId?.essentialData?.title,
             description: editingItem.mediaCacheId?.essentialData?.description,
+            seasons: editingItem.mediaCacheId?.essentialData?.seasons,
+            episodes: editingItem.mediaCacheId?.essentialData?.episodes,
+            episodesPerSeason: editingItem.mediaCacheId?.essentialData?.episodesPerSeason,
             category: editingItem.mediaCacheId?.essentialData?.category,
             imageUrl: editingItem.mediaCacheId?.essentialData?.coverImage,
             releaseYear: editingItem.mediaCacheId?.essentialData?.releaseYear,

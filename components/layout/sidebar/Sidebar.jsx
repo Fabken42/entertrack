@@ -19,7 +19,6 @@ import {
   Users,
   Sparkles,
   Tv2,
-  BookText
 } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/use-auth';
 
@@ -36,23 +35,19 @@ const Sidebar = () => {
   const [isManuallyExpanded, setIsManuallyExpanded] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Salvar estado no localStorage
   useEffect(() => {
     if (isMounted) {
       localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
     }
   }, [isCollapsed, isMounted]);
 
-  // Prevenir renderização no servidor
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Navigation items usando useMemo - ORDEM CORRIGIDA: Biblioteca > Descobrir > Geral
   const navigationItems = useMemo(() => {
     const items = [];
 
-    // Library section (apenas para autenticados) - PRIMEIRA SEÇÃO
     if (isAuthenticated) {
       items.push({
         name: 'Minha Biblioteca',
@@ -103,16 +98,8 @@ const Sidebar = () => {
         icon: BookOpen,
         color: 'text-red-400'
       });
-
-      items.push({
-        name: 'Livros',
-        href: '/book',
-        icon: BookText,
-        color: 'text-yellow-400'
-      });
     }
 
-    // Discover section (sempre visível para todos) - SEGUNDA SEÇÃO
     items.push({
       name: 'Descobrir',
       href: '#',
@@ -156,14 +143,6 @@ const Sidebar = () => {
       color: 'text-red-400'
     });
 
-    items.push({
-      name: 'Livros',
-      href: '/discover/book',
-      icon: BookText,
-      color: 'text-yellow-400'
-    });
-
-    // General section (apenas para autenticados) - TERCEIRA SEÇÃO
     if (isAuthenticated) {
       items.push({
         name: 'Geral',
@@ -191,21 +170,17 @@ const Sidebar = () => {
     return items;
   }, [isAuthenticated]);
 
-  // Não renderizar no servidor ou durante loading
   if (!isMounted || isLoading) {
     return null;
   }
 
-  // Controlar expansão: apenas quando manualmente expandida
   const shouldShowExpanded = isManuallyExpanded && !isCollapsed;
 
   const toggleSidebar = () => {
     if (isCollapsed) {
-      // Se está recolhida, expande
       setIsCollapsed(false);
       setIsManuallyExpanded(true);
     } else {
-      // Se está expandida, recolhe
       setIsCollapsed(true);
       setIsManuallyExpanded(false);
     }
@@ -221,7 +196,6 @@ const Sidebar = () => {
 
   return (
     <>
-      {/* Sidebar */}
       <aside
         className={cn(
           'hidden lg:flex flex-col h-[calc(100vh-4rem)] backdrop-blur-xl border-r border-gray-800 fixed left-0 top-16 z-40 overflow-hidden transition-all duration-300 ease-in-out',
@@ -232,7 +206,6 @@ const Sidebar = () => {
           background: 'rgba(30, 41, 59, 0.5)'
         }}
       >
-        {/* Botão para recolher/expandir - SEMPRE VISÍVEL */}
         <button
           onClick={toggleSidebar}
           className="absolute -right-3 top-6 bg-gray-800 border border-gray-700 rounded-full p-1.5 hover:bg-gray-700 hover:scale-110 transition-all duration-200 z-50 shadow-lg group"
@@ -245,7 +218,6 @@ const Sidebar = () => {
           )}
         </button>
 
-        {/* Header da sidebar - APENAS QUANDO EXPANDIDA */}
         {shouldShowExpanded && (
           <div className="px-4 py-3 border-b border-gray-800/50">
             <div className="flex items-center gap-3">

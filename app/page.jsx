@@ -65,13 +65,6 @@ export default function HomePage() {
       description: 'Colecione suas leituras'
     },
     {
-      icon: BookOpen,
-      label: 'Livros',
-      color: 'from-emerald-500 to-teal-500',
-      count: '1.000.000+',
-      description: 'Organize sua biblioteca'
-    },
-    {
       icon: Gamepad2,
       label: 'Jogos',
       color: 'from-amber-500 to-yellow-500',

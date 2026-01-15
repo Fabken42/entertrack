@@ -41,8 +41,8 @@ const useMediaStore = create((set, get) => ({
         if (progressData.chapters !== undefined) details.chapters = progressData.chapters;
         if (progressData.volumes !== undefined) details.volumes = progressData.volumes;
         break;
-      case 'book':
-        if (progressData.pages !== undefined) details.pages = progressData.pages;
+      case 'game':
+        if (progressData.hours !== undefined) details.hours = progressData.hours;
         break;
       case 'movie':
         if (progressData.minutes !== undefined) details.minutes = progressData.minutes;
@@ -53,14 +53,15 @@ const useMediaStore = create((set, get) => ({
       details.percentage = progressData.percentage || 0;
     }
 
-    if (Object.keys(details).length === 0) {
-      return undefined;
-    }
-
-    return {
+    const progressPayload = {
       details: details,
       lastUpdated: new Date()
     };
+    if (progressData.tasks !== undefined) {
+      progressPayload.tasks = progressData.tasks;
+    }
+
+    return progressPayload;
   },
 
   addMedia: async (mediaData) => {
@@ -74,7 +75,7 @@ const useMediaStore = create((set, get) => ({
     }
 
     const sourceId = mediaData.sourceId.toString();
-    const sourceApi = mediaData.sourceApi || 'jikan';
+    const sourceApi = mediaData.sourceApi || 'manual';
     const mediaType = mediaData.mediaType;
 
     // Para entradas manuais, usar imagem placeholder
@@ -93,16 +94,16 @@ const useMediaStore = create((set, get) => ({
         coverImage: coverImage,
         releaseYear: mediaData.releaseYear || null,
         runtime: mediaData.runtime || null,
-        status: 'finished',
         episodes: mediaData.episodes || null,
         seasons: mediaData.seasons || null,
         episodesPerSeason: mediaData.episodesPerSeason || null,
         volumes: mediaData.volumes || null,
         chapters: mediaData.chapters || null,
-        platforms: mediaData.platforms || [], // Para jogos
+        platforms: mediaData.platforms || [],
+        hours: mediaData.hours || null,
+        metacritic: mediaData.metacritic || null,
         genres: Array.isArray(mediaData.genres)
           ? mediaData.genres.map(g => {
-            // Se for entrada manual, g é um ID de gênero (string)
             if (typeof g === 'string') {
               const genreObj = JikanClient.getAllGenres().find(genre => genre.id === g);
               return {
@@ -133,7 +134,6 @@ const useMediaStore = create((set, get) => ({
       }
     };
 
-    // Primeiro, verificar/criar cache da mídia
     const cacheResponse = await fetch('/api/media/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -153,22 +153,32 @@ const useMediaStore = create((set, get) => ({
 
     const cacheResult = await cacheResponse.json();
 
-    // Preparar progresso com a nova estrutura usando o helper
-    const progressPayload = get().createProgressPayload(mediaData.progress, mediaType);
+    const progressPayload = {
+      details: {
+        hours: mediaData.progress?.details?.hours || 0,
+        episodes: mediaData.progress?.details?.episodes || 0,
+        seasons: mediaData.progress?.details?.seasons || 0,
+        chapters: mediaData.progress?.details?.chapters || 0,
+        volumes: mediaData.progress?.details?.volumes || 0,
+        pages: mediaData.progress?.details?.pages || 0,
+        minutes: mediaData.progress?.details?.minutes || 0,
+        percentage: mediaData.progress?.details?.percentage || 0
+      },
+      tasks: mediaData.progress?.tasks || [],
+      lastUpdated: new Date()
+    };
+
+    if (mediaData.status === 'completed') {
+      progressPayload.details.hours = mediaData.hours || mediaData.progress?.details?.hours || 0;
+    }
 
     const userMediaPayload = {
       mediaCacheId: cacheResult.cacheId,
       status: mediaData.status || 'planned',
       userRating: mediaData.userRating || null,
       personalNotes: mediaData.personalNotes || '',
-      // ✅ SEMPRE usar o progresso que veio dos dados (se existir)
-      progress: mediaData.progress || {
-        details: {
-          episodes: 0,
-          chapters: 0,
-          volumes: 0,
-          percentage: 0
-        },
+      progress: progressPayload || {
+        details: {},
         lastUpdated: new Date()
       },
       ...(mediaData.status === 'in_progress' && { startedAt: new Date() }),
@@ -176,14 +186,38 @@ const useMediaStore = create((set, get) => ({
       ...(mediaData.status === 'dropped' && { droppedAt: new Date() })
     };
 
-    // Se for completed, calcular progresso para 100%
     if (mediaData.status === 'completed' && !progressPayload) {
-      userMediaPayload.progress = get().createProgressPayload({
-        episodes: mediaData.episodes || 0,
-        chapters: mediaData.chapters || 0,
-        volumes: mediaData.volumes || 0,
-        percentage: 100
-      }, mediaType);
+      const completedProgressData = {};
+
+      switch (mediaType) {
+        case 'anime':
+          completedProgressData.episodes = mediaData.episodes || 0;
+          completedProgressData.percentage = 100;
+          break;
+        case 'series':
+          completedProgressData.episodes = mediaData.episodes || 0;
+          completedProgressData.seasons = mediaData.seasons || 1;
+          completedProgressData.percentage = 100;
+          break;
+        case 'manga':
+          completedProgressData.chapters = mediaData.chapters || 0;
+          completedProgressData.volumes = mediaData.volumes || 0;
+          completedProgressData.percentage = 100;
+          break;
+        case 'game':
+          completedProgressData.hours = mediaData.hours || 0;
+          if (mediaData.progress?.tasks) {
+            completedProgressData.tasks = mediaData.progress.tasks;
+          }
+          completedProgressData.percentage = 100;
+          break;
+        case 'movie':
+          completedProgressData.minutes = mediaData.minutes || 0;
+          completedProgressData.percentage = 100;
+          break;
+      }
+
+      userMediaPayload.progress = get().createProgressPayload(completedProgressData, mediaType);
     }
 
     const userMediaResponse = await fetch('/api/user/media', {
@@ -218,22 +252,32 @@ const useMediaStore = create((set, get) => ({
 
   updateMedia: async (userMediaId, updateData) => {
     try {
-      const progressPayload = get().createProgressPayload(updateData?.progress?.details, updateData.mediaType);
+      // Busca a mídia atual para pegar as tasks existentes
+      const currentMedia = get().userMedia.find(media => media._id === userMediaId);
+      const existingTasks = currentMedia?.progress?.tasks || [];
 
-      // Preparar o payload para atualização
+      const progressPayload = get().createProgressPayload(
+        {
+          ...updateData?.progress?.details,
+          hours: updateData?.progress?.details?.hours,
+          // Passa as tasks do updateData ou mantém as existentes
+          tasks: updateData?.progress?.tasks || existingTasks
+        },
+        updateData.mediaType
+      );
+
       const updatePayload = {
         status: updateData.status,
         userRating: updateData.userRating || null,
         personalNotes: updateData.personalNotes || '',
         progress: progressPayload,
-        // Datas específicas se fornecidas
         ...(updateData.startedAt && { startedAt: updateData.startedAt }),
         ...(updateData.completedAt && { completedAt: updateData.completedAt }),
         ...(updateData.droppedAt && { droppedAt: updateData.droppedAt }),
         ...(updateData.category && { category: updateData.category })
       };
 
-      // Remover campos undefined
+      // Remove campos undefined
       Object.keys(updatePayload).forEach(key => {
         if (updatePayload[key] === undefined) {
           delete updatePayload[key];
@@ -333,43 +377,6 @@ const useMediaStore = create((set, get) => ({
     return userMedia.find(media => media._id === id);
   },
 
-  // Método para atualizar notas pessoais diretamente
-  updatePersonalNotes: async (userMediaId, personalNotes) => {
-    try {
-      const response = await fetch(`/api/user/media/${userMediaId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          personalNotes: personalNotes || ''
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update notes');
-      }
-
-      const updatedMedia = await response.json();
-
-      // Atualizar store local
-      set(state => ({
-        userMedia: state.userMedia.map(media =>
-          media._id === userMediaId ? updatedMedia : media
-        )
-      }));
-
-      toast.success('Notas atualizadas com sucesso!');
-      return updatedMedia;
-
-    } catch (error) {
-      console.error('Error updating notes:', error);
-      toast.error('Erro ao atualizar notas: ' + error.message);
-      throw error;
-    }
-  },
-
-
-  // Novo método helper para formatar progresso para exibição
   formatProgressForDisplay: (userMedia) => {
     if (!userMedia || !userMedia.progress || !userMedia.progress.details) {
       return { display: 'Não iniciado', value: 0, unit: 'percentage' };
@@ -401,7 +408,21 @@ const useMediaStore = create((set, get) => ({
           total: totalInfo.chapters || totalInfo.volumes,
           percentage: details.percentage
         };
-      // Adicione outros tipos conforme necessário
+      case 'game':
+        const taskCount = userMedia.progress?.tasks?.length || 0;
+        const completedTasks = userMedia.progress?.tasks?.filter(t => t.completed).length || 0;
+        return {
+          display: details.hours
+            ? `${details.hours}h${taskCount > 0 ? ` • ${completedTasks}/${taskCount} tarefas` : ''}`
+            : 'Não iniciado',
+          value: details.hours || 0,
+          unit: 'hours',
+          total: null,
+          tasks: userMedia.progress?.tasks || [],
+          completedTasks: completedTasks,
+          totalTasks: taskCount,
+          percentage: details.percentage
+        };
       default:
         return {
           display: details.percentage ? `${details.percentage}%` : '0%',
@@ -426,36 +447,142 @@ const useMediaStore = create((set, get) => ({
         throw new Error('Apenas itens em progresso ou abandonados podem ter progresso aumentado');
       }
 
+
       const progressDetails = currentItem.progress?.details || {};
       const mediaCache = currentItem.mediaCacheId;
       const essentialData = mediaCache?.essentialData || {};
 
       let updatedDetails = {};
-      let totalAvailable;
       let shouldMarkAsCompleted = false;
 
       // Calcula o novo progresso localmente primeiro
       switch (mediaType) {
         case 'anime':
-        case 'series':
-          const currentEpisodes = progressDetails.episodes || 0;
-          const totalEpisodes = essentialData.episodes || 0;
+          const currentAnimeEpisodes = progressDetails.episodes || 0;
+          const totalAnimeEpisodes = essentialData.episodes || 0;
 
-          if (totalEpisodes > 0 && currentEpisodes >= totalEpisodes) {
+          if (totalAnimeEpisodes > 0 && currentAnimeEpisodes >= totalAnimeEpisodes) {
             toast.success('Você já completou todos os episódios!');
             return currentItem;
           }
 
           updatedDetails = {
-            episodes: currentEpisodes + 1
+            episodes: currentAnimeEpisodes + 1
           };
-          totalAvailable = totalEpisodes;
 
-          if (totalEpisodes > 0 && (currentEpisodes + 1) >= totalEpisodes) {
+          if (totalAnimeEpisodes > 0 && (currentAnimeEpisodes + 1) >= totalAnimeEpisodes) {
             shouldMarkAsCompleted = true;
           }
           break;
 
+        case 'series':
+          const currentEpisodes = progressDetails.episodes || 0;
+          const currentSeasons = progressDetails.seasons || 1;
+          const totalSeasons = essentialData.seasons || 0;
+          const episodesPerSeason = essentialData.episodesPerSeason || [];
+          const totalSeriesEpisodes = essentialData.episodes || 0;
+
+          // Se não temos dados de temporadas, usar lógica simples
+          if (episodesPerSeason.length === 0) {
+            if (totalSeriesEpisodes > 0 && currentEpisodes >= totalSeriesEpisodes) {
+              toast.success('Você já completou todos os episódios!');
+              return currentItem;
+            }
+
+            updatedDetails = {
+              episodes: currentEpisodes + 1,
+              seasons: currentSeasons
+            };
+
+            if (totalSeriesEpisodes > 0 && (currentEpisodes + 1) >= totalSeriesEpisodes) {
+              shouldMarkAsCompleted = true;
+            }
+          } else {
+            // Lógica COM temporadas - NOVA VERSÃO
+            const seasonIndex = currentSeasons - 1;
+
+            // Verificar se temos dados para esta temporada
+            if (seasonIndex >= episodesPerSeason.length) {
+              // Já está na última temporada disponível
+              const lastSeasonIndex = episodesPerSeason.length - 1;
+              const episodesInLastSeason = episodesPerSeason[lastSeasonIndex] || 0;
+
+              if (currentEpisodes >= episodesInLastSeason) {
+                toast.success('Você já completou todos os episódios disponíveis!');
+                return currentItem;
+              }
+
+              updatedDetails = {
+                episodes: currentEpisodes + 1,
+                seasons: episodesPerSeason.length
+              };
+            } else {
+              const episodesInCurrentSeason = episodesPerSeason[seasonIndex] || 0;
+
+              let totalWatchedEpisodes = 0;
+              for (let i = 0; i < seasonIndex; i++) {
+                totalWatchedEpisodes += episodesPerSeason[i] || 0;
+              }
+              totalWatchedEpisodes += currentEpisodes;
+
+              if (totalSeriesEpisodes > 0 && totalWatchedEpisodes >= totalSeriesEpisodes) {
+                toast.success('Você já completou toda a série!');
+                return currentItem;
+              }
+
+              if (currentEpisodes >= episodesInCurrentSeason - 1) {
+
+                if (currentSeasons < totalSeasons || (totalSeasons === 0 && seasonIndex < episodesPerSeason.length - 1)) {
+                  updatedDetails = {
+                    episodes: 0, // Começa no episódio 0 da nova temporada
+                    seasons: currentSeasons + 1
+                  };
+
+                } else {
+                  if (currentEpisodes === episodesInCurrentSeason - 1) {
+                    updatedDetails = {
+                      episodes: episodesInCurrentSeason, // Vai para o último episódio
+                      seasons: currentSeasons
+                    };
+                  } else {
+                    // Já está no último episódio da última temporada
+                    shouldMarkAsCompleted = true;
+                  }
+                }
+              } else {
+                // Apenas incrementar episódio na mesma temporada
+                updatedDetails = {
+                  episodes: currentEpisodes + 1,
+                  seasons: currentSeasons
+                };
+
+              }
+
+              // Verificar se completou a série após a atualização
+              if (!shouldMarkAsCompleted && totalSeriesEpisodes > 0) {
+                let newTotalWatched = 0;
+                const newSeasonIndex = (updatedDetails.seasons || currentSeasons) - 1;
+
+                // Calcular novos episódios assistidos totais
+                for (let i = 0; i < newSeasonIndex; i++) {
+                  newTotalWatched += episodesPerSeason[i] || 0;
+                }
+                newTotalWatched += updatedDetails.episodes || 0;
+
+                if (newTotalWatched >= totalSeriesEpisodes) {
+                  shouldMarkAsCompleted = true;
+                }
+              }
+            }
+          }
+          break;
+        case 'game':
+          const currentHours = progressDetails.hours || 0;
+          updatedDetails = {
+            hours: currentHours + 1
+          };
+          shouldMarkAsCompleted = false;
+          break;
         case 'manga':
           const currentChapters = progressDetails.chapters || 0;
           const currentVolumes = progressDetails.volumes || 0;
@@ -470,7 +597,6 @@ const useMediaStore = create((set, get) => ({
           updatedDetails = {
             chapters: currentChapters + 1
           };
-          totalAvailable = totalChapters;
 
           // Calcula volume
           if (totalVolumes > 0 && totalChapters > 0) {
@@ -494,14 +620,68 @@ const useMediaStore = create((set, get) => ({
           throw new Error(`Tipo de mídia não suportado para aumento de progresso: ${mediaType}`);
       }
 
+      // Função para calcular o progresso total
+      const calculateTotalProgress = (details) => {
+        let totalWatched = 0;
+        let totalAvailable = 0;
+
+        switch (mediaType) {
+          case 'anime':
+            totalWatched = details.episodes || 0;
+            totalAvailable = essentialData.episodes || 0;
+            break;
+
+          case 'series':
+            if (essentialData.episodesPerSeason?.length > 0) {
+              const seasons = details.seasons || 1;
+              const episodes = details.episodes || 0;
+
+              // Calcular episódios assistidos
+              for (let i = 0; i < seasons - 1; i++) {
+                totalWatched += essentialData.episodesPerSeason[i] || 0;
+              }
+              totalWatched += episodes;
+
+              // Calcular total de episódios disponíveis
+              for (let i = 0; i < essentialData.episodesPerSeason.length; i++) {
+                totalAvailable += essentialData.episodesPerSeason[i] || 0;
+              }
+            } else {
+              totalWatched = details.episodes || 0;
+              totalAvailable = essentialData.episodes || 0;
+            }
+            break;
+          case 'game':
+            totalWatched = details.hours || 0;
+            totalAvailable = 0;
+            break;
+
+          case 'manga':
+            totalWatched = details.chapters || 0;
+            totalAvailable = essentialData.chapters || 0;
+            break;
+        }
+
+        return { totalWatched, totalAvailable };
+      };
+
       // Atualização otimista: atualiza o estado local ANTES da requisição
+      const { totalWatched, totalAvailable } = calculateTotalProgress({
+        ...progressDetails,
+        ...updatedDetails
+      });
+
       const optimisticUpdate = {
         ...currentItem,
         progress: {
+          ...currentItem.progress,
           details: {
             ...progressDetails,
             ...updatedDetails
           },
+          current: totalWatched,
+          total: totalAvailable,
+          unit: mediaType === 'manga' ? 'chapters' : 'eps',
           lastUpdated: new Date()
         },
         ...(shouldMarkAsCompleted && { status: 'completed' })
@@ -515,10 +695,16 @@ const useMediaStore = create((set, get) => ({
       }));
 
       // Cria payload para o backend
-      const progressPayload = get().createProgressPayload({
-        ...progressDetails,
-        ...updatedDetails
-      }, mediaType);
+      const progressPayload = {
+        lastUpdated: new Date(),
+        current: totalWatched,
+        total: totalAvailable,
+        unit: mediaType === 'manga' ? 'chapters' : 'eps',
+        details: {
+          ...progressDetails,
+          ...updatedDetails
+        }
+      };
 
       const updatePayload = {
         progress: progressPayload,
@@ -559,21 +745,33 @@ const useMediaStore = create((set, get) => ({
         )
       }));
 
-      // Mensagem de sucesso
-      let successMessage = 'Progresso atualizado!';
-      if (mediaType === 'anime' || mediaType === 'series') {
-        successMessage = `Episódio ${updatedDetails.episodes} marcado como assistido!`;
-        if (shouldMarkAsCompleted) {
-          successMessage = 'Parabéns! Você completou este anime!';
-        }
-      } else if (mediaType === 'manga') {
-        successMessage = `Capítulo ${updatedDetails.chapters} marcado como lido!`;
-        if (shouldMarkAsCompleted) {
-          successMessage = 'Parabéns! Você completou este mangá!';
-        }
-      }
+      // // Mensagem de sucesso
+      // let successMessage = 'Progresso atualizado!';
 
-      toast.success(successMessage);
+      // if (mediaType === 'anime') {
+      //   successMessage = `Episódio ${updatedDetails.episodes} marcado como assistido!`;
+      //   if (shouldMarkAsCompleted) {
+      //     successMessage = 'Parabéns! Você completou este anime!';
+      //   }
+      // } else if (mediaType === 'series') {
+      //   const newSeason = updatedDetails.seasons || currentSeasons;
+      //   const newEpisode = updatedDetails.episodes || 0;
+
+      //   if (shouldMarkAsCompleted) {
+      //     successMessage = 'Parabéns! Você completou esta série!';
+      //   } else if (updatedDetails.seasons > (progressDetails.seasons || 1)) {
+      //     successMessage = `Avançou para a Temporada ${newSeason}, Episódio 1!`;
+      //   } else {
+      //     successMessage = `Temporada ${newSeason}, Episódio ${newEpisode} marcado como assistido!`;
+      //   }
+      // } else if (mediaType === 'manga') {
+      //   successMessage = `Capítulo ${updatedDetails.chapters} marcado como lido!`;
+      //   if (shouldMarkAsCompleted) {
+      //     successMessage = 'Parabéns! Você completou este mangá!';
+      //   }
+      // }
+
+      // toast.success(successMessage);
       return updatedMedia;
 
     } catch (error) {

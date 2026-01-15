@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { tmdbClient } from '@/lib/api/tmdb';
 import { jikanClient } from '@/lib/api/jikan';
 import { rawgClient } from '@/lib/api/rawg';
-import { googleBooksClient } from '@/lib/api/google-books';
 import { FETCH_MEDIA_ITEMS_LIMIT } from '@/constants';
 
 export async function GET(request, { params }) {
@@ -31,9 +30,6 @@ export async function GET(request, { params }) {
         break;
       case 'game':
         results = await discoverGames(genre, sortBy, page, limit, query);
-        break;
-      case 'book':
-        results = await discoverBooks(genre, sortBy, page, limit, query);
         break;
       case 'manga':
         results = await discoverMangas(genre, sortBy, page, limit, query);
@@ -91,7 +87,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
         imageUrl: tmdbClient.getImageURL(movie.poster_path),
         releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
         rating: movie.vote_average,
-        ratingsCount: movie.vote_count,
+        ratingCount: movie.vote_count,
         runtime: movieDetails.runtime || 0, // Adiciona o runtime aqui
         genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
       };
@@ -105,7 +101,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
         imageUrl: tmdbClient.getImageURL(movie.poster_path),
         releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
         rating: movie.vote_average,
-        ratingsCount: movie.vote_count,
+        ratingCount: movie.vote_count,
         runtime: 0, // Runtime padrão em caso de erro
         genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
       };
@@ -214,7 +210,7 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
             imageUrl: tmdbClient.getImageURL(series.poster_path),
             releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
             rating: series.vote_average,
-            ratingsCount: series.vote_count,
+            ratingCount: series.vote_count,
             genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
           }))),
           total: totalResults,
@@ -232,7 +228,7 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
           imageUrl: tmdbClient.getImageURL(series.poster_path),
           releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
           rating: series.vote_average,
-          ratingsCount: series.vote_count,
+          ratingCount: series.vote_count,
           genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
         }))),
         total: totalResults,
@@ -276,7 +272,7 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
         imageUrl: tmdbClient.getImageURL(series.poster_path),
         releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
         rating: series.vote_average,
-        ratingsCount: series.vote_count,
+        ratingCount: series.vote_count,
         genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
       }))),
       total: totalResults,
@@ -294,7 +290,7 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
       imageUrl: tmdbClient.getImageURL(series.poster_path),
       releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
       rating: series.vote_average,
-      ratingsCount: series.vote_count,
+      ratingCount: series.vote_count,
       genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
     }))),
     total: totalResults,
@@ -362,7 +358,7 @@ function processAnimeResults(data, pagination, page, limit) {
       imageUrl: jikanClient.getImageURL(item.images),
       releaseYear: new Date(item.aired.from).getFullYear() || null,
       rating: item.score || null,
-      ratingsCount: item.scored_by || null,
+      ratingCount: item.scored_by || null,
       apiRating: item.score || null,
       apiVoteCount: item.scored_by || null,
       popularity: item.popularity || null,
@@ -457,7 +453,7 @@ function processMangaResults(data, pagination, page, limit) {
       imageUrl: jikanClient.getImageURL(item.images),
       releaseYear: item.published?.from ? new Date(item.published.from).getFullYear() : item.year,
       rating: item.score || null,
-      ratingsCount: item.scored_by || null,
+      ratingCount: item.scored_by || null,
       apiRating: item.score || null,
       apiVoteCount: item.scored_by || null,
       popularity: item.popularity || null,
@@ -506,7 +502,7 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
   const params = {
     ordering: sortMapping[sortBy] || '-added',
     page: page.toString(),
-    page_size: limit.toString()
+    page_size: limit.toString(),
   };
 
   if (genre && genre !== '') {
@@ -529,97 +525,13 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
       imageUrl: rawgClient.getImageURL(game.background_image),
       releaseYear: game.released ? new Date(game.released).getFullYear() : undefined,
       rating: game.rating,
-      ratingsCount: game.ratings_count,
+      ratingCount: game.ratings_count,
       metacritic: game.metacritic,
       platforms: game.platforms?.map(p => p.platform.name) || [],
       genres: game.genres?.map(g => g.name) || []
     })),
     total: response.count,
     totalPages: totalPages,
-    currentPage: page,
-    itemsPerPage: limit
-  };
-}
-
-async function discoverBooks(genre, sortBy, page, limit, query = '') {
-  try {
-    const orderBy = sortBy === 'newest' ? 'newest' : 'relevance';
-
-    // 🔥 NOVO: Se houver query, usar query de busca
-    let searchQuery = '';
-    if (query && query.trim() !== '') {
-      searchQuery = query;
-    } else if (genre && genre !== '') {
-      const cleanGenre = genre.replace(/[^\w\s]/gi, '').trim();
-      searchQuery = `subject:"${cleanGenre}"`;
-    } else {
-      searchQuery = 'subject:fiction';
-    }
-
-    const safeLimit = Math.min(limit, 40);
-    const startIndex = (page - 1) * safeLimit;
-
-    const response = await googleBooksClient.fetch('/volumes', {
-      q: searchQuery,
-      orderBy: orderBy,
-      maxResults: safeLimit.toString(),
-      startIndex: startIndex.toString(),
-      langRestrict: 'pt',
-      printType: 'books'
-    });
-
-    const formattedResponse = formatBooksResponse(response, page, safeLimit);
-
-    if (query && query.trim() !== '') {
-      return {
-        ...formattedResponse,
-        total: Math.min(formattedResponse.total, FETCH_MEDIA_ITEMS_LIMIT),
-        totalPages: Math.ceil(Math.min(formattedResponse.total, FETCH_MEDIA_ITEMS_LIMIT) / limit)
-      };
-    }
-
-    return formattedResponse;
-
-  } catch (error) {
-    console.error('Google Books discovery error:', error);
-
-    return {
-      results: [],
-      total: 0,
-      totalPages: 0,
-      currentPage: page,
-      itemsPerPage: limit,
-      error: error.message
-    };
-  }
-}
-
-function formatBooksResponse(response, page, limit) {
-  const results = response.items?.map(item => {
-    const volumeInfo = item.volumeInfo || {};
-
-    return {
-      id: item.id,
-      title: volumeInfo.title || 'Título não disponível',
-      description: volumeInfo.description || 'Descrição não disponível',
-      imageUrl: googleBooksClient.getImageURL(volumeInfo.imageLinks),
-      releaseYear: volumeInfo.publishedDate ?
-        new Date(volumeInfo.publishedDate).getFullYear() : undefined,
-      rating: volumeInfo.averageRating || 0,
-      ratingsCount: volumeInfo.ratingsCount || 0,
-      authors: volumeInfo.authors || ['Autor desconhecido'],
-      pageCount: volumeInfo.pageCount,
-      publisher: volumeInfo.publisher || 'Editora não informada',
-      categories: volumeInfo.categories || []
-    };
-  }) || [];
-
-  const totalItems = response.totalItems || 0;
-
-  return {
-    results: results,
-    total: totalItems,
-    totalPages: Math.ceil(totalItems / limit),
     currentPage: page,
     itemsPerPage: limit
   };

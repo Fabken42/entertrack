@@ -5,7 +5,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Select, TextArea, Modal } from '@/components/ui';
-import { Tv, Calendar, Star, Users, TrendingUp, Film, Layers, PlayCircle, Info, ChevronRight } from 'lucide-react';
+import { Tv, Calendar, Star, Layers, PlayCircle, Info, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, formatApiRating } from '@/lib/utils/general-utils';
 import { getMediaColor } from '@/lib/utils/media-utils';
@@ -30,8 +30,22 @@ const SeriesForm = (props) => {
   const [showSeasonsModal, setShowSeasonsModal] = React.useState(false);
 
   React.useEffect(() => {
+    // Se estiver em modo de edição e tiver initialData, usar os dados de initialData
+    if (initialData && !seasonInfo) {
+      setSeasonInfo({
+        seasons: initialData.seasons || null,
+        episodes: initialData.episodes || null,
+        episodesPerSeason: initialData.episodesPerSeason || []
+      });
+    }
+  }, [initialData]);
+
+  React.useEffect(() => {
     const fetchSeasonData = async () => {
-      if (externalData?.id && !initialData && !seasonInfo) {
+      // Não buscar se já tiver initialData (modo edição)
+      if (initialData) return;
+
+      if (externalData?.id && !seasonInfo) {
         setLoadingSeasons(true);
         try {
           const response = await fetch(
@@ -103,7 +117,7 @@ const SeriesForm = (props) => {
     if (externalData) {
       // Verifica múltiplas fontes possíveis para rating e votos
       const rating = externalData.rating || externalData.apiRating || externalData.vote_average;
-      const voteCount = externalData.ratingsCount || externalData.apiVoteCount || externalData.vote_count;
+      const voteCount = externalData.ratingCount || externalData.apiVoteCount || externalData.vote_count;
 
       // Garantir que temos números válidos
       const validRating = rating != null && !isNaN(Number(rating)) && Number(rating) > 0;
@@ -130,7 +144,7 @@ const SeriesForm = (props) => {
       imageUrl: '',
       description: '',
       releaseYear: undefined,
-      progress: { seasons: 1, episodes: 1 }
+      progress: { seasons: 1, episodes: 0 }
     };
 
     if (initialData) {
@@ -146,7 +160,7 @@ const SeriesForm = (props) => {
         status: initialData.status || 'planned',
         progress: {
           seasons: initialData.progress?.seasons || 1,
-          episodes: initialData.progress?.episodes || 1,
+          episodes: initialData.progress?.episodes || 0,
         },
       };
     }
@@ -161,7 +175,7 @@ const SeriesForm = (props) => {
         status: 'planned',
         imageUrl: externalData.imageUrl || '',
         userRating: null,
-        progress: { seasons: 1, episodes: 1 },
+        progress: { seasons: 1, episodes: 0 },
       };
     }
 
@@ -170,7 +184,7 @@ const SeriesForm = (props) => {
         ...defaultValues,
         title: manualCreateQuery || '',
         status: 'planned',
-        progress: { seasons: 1, episodes: 1 },
+        progress: { seasons: 1, episodes: 0 },
       };
     }
 
@@ -247,7 +261,6 @@ const SeriesForm = (props) => {
     setValue('userRating', rating, { shouldValidate: true });
   };
 
-  // Funções para validar progresso
   const validateCurrentSeason = (value) => {
     if (value === '' || value === undefined || value === null) {
       return true;
@@ -259,8 +272,10 @@ const SeriesForm = (props) => {
       return 'Temporada não pode ser menor que 1';
     }
 
-    if (seasonInfo?.seasons && numValue > seasonInfo.seasons) {
-      return `Temporada não pode ser maior que ${seasonInfo.seasons}`;
+    // Usar initialData.seasons se disponível (modo edição), senão usar seasonInfo
+    const maxSeasons = initialData?.seasons || seasonInfo?.seasons;
+    if (maxSeasons && numValue > maxSeasons) {
+      return `Temporada não pode ser maior que ${maxSeasons}`;
     }
 
     return true;
@@ -274,21 +289,29 @@ const SeriesForm = (props) => {
     const numValue = Number(value);
     const seasonNum = Number(seasonValue) || 1;
 
-    if (numValue < 1) {
-      return 'Episódio não pode ser menor que 1';
+    if (numValue < 0) {
+      return 'Episódio não pode ser negativo';
     }
 
-    // Verifica se temos informações específicas por temporada
-    if (seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length >= seasonNum) {
+    // Usar initialData quando disponível (modo edição)
+    if (initialData?.episodesPerSeason && initialData.episodesPerSeason.length >= seasonNum) {
+      const maxEpisodes = initialData.episodesPerSeason[seasonNum - 1];
+      if (numValue > maxEpisodes) {
+        return `Temporada ${seasonNum} tem apenas ${maxEpisodes} episódios`;
+      }
+    }
+    // Fallback para seasonInfo (modo criação)
+    else if (seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length >= seasonNum) {
       const maxEpisodes = seasonInfo.episodesPerSeason[seasonNum - 1];
       if (numValue > maxEpisodes) {
         return `Temporada ${seasonNum} tem apenas ${maxEpisodes} episódios`;
       }
     }
-    // Fallback: verifica total geral de episódios
-    else if (seasonInfo?.episodes) {
-      if (numValue > seasonInfo.episodes) {
-        return `Total de episódios é ${seasonInfo.episodes}`;
+    // Verificação pelo total geral
+    else {
+      const totalEpisodes = initialData?.episodes || seasonInfo?.episodes;
+      if (totalEpisodes && numValue > totalEpisodes) {
+        return `Total de episódios é ${totalEpisodes}`;
       }
     }
 
@@ -327,11 +350,18 @@ const SeriesForm = (props) => {
       // Validação dos valores atuais contra os totais
       if (showProgressFields) {
         const currentSeasonValue = watch('progress.seasons') || 1;
-        const currentEpisodeValue = watch('progress.episodes') || 1;
+        const currentEpisodeValue = watch('progress.episodes') || 0;
 
-        if (seasonInfo?.seasons && currentSeasonValue > seasonInfo.seasons) {
-          toast.error(`Temporada atual (${currentSeasonValue}) não pode ser maior que o total (${seasonInfo.seasons})`);
-          setValue('progress.seasons', seasonInfo.seasons, { shouldValidate: true });
+        if (currentSeasonValue < 1) {
+          toast.error('Temporada atual não pode ser menor que 1');
+          setValue('progress.seasons', 1, { shouldValidate: true });
+          return;
+        }
+
+        // Validação para episódio (permite 0)
+        if (currentEpisodeValue < 0) {
+          toast.error('Episódio atual não pode ser negativo');
+          setValue('progress.episodes', 0, { shouldValidate: true });
           return;
         }
 
@@ -476,7 +506,7 @@ const SeriesForm = (props) => {
                     <div className="flex items-center gap-2">
                       <Layers className="w-4 h-4 text-purple-400" />
                       <div>
-                        <span className="text-white/80">Temporada:</span>
+                        <span className="text-white/80">Temporadas:</span>
                         <div className="font-medium text-white flex items-center gap-1">
                           {seasonInfo.seasons}
                           <Info className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -798,9 +828,10 @@ const SeriesForm = (props) => {
                       }
                       const numValue = Number(value);
 
-                      // Limita automaticamente ao máximo
-                      if (seasonInfo?.seasons && numValue > seasonInfo.seasons) {
-                        return seasonInfo.seasons;
+                      // Usar initialData primeiro (modo edição)
+                      const maxSeasons = initialData?.seasons || seasonInfo?.seasons;
+                      if (maxSeasons && numValue > maxSeasons) {
+                        return maxSeasons;
                       }
 
                       // Não permite menor que 1
@@ -813,10 +844,10 @@ const SeriesForm = (props) => {
                     validate: validateCurrentSeason
                   })}
                   error={errors.progress?.seasons?.message}
-                  placeholder={`1${seasonInfo?.seasons ? ` (máx: ${seasonInfo.seasons})` : ''}`}
+                  placeholder={`1${(initialData?.seasons || seasonInfo?.seasons) ? ` (máx: ${initialData?.seasons || seasonInfo?.seasons})` : ''}`}
                   variant="glass"
                   min={1}
-                  max={seasonInfo?.seasons || undefined}
+                  max={initialData?.seasons || seasonInfo?.seasons || undefined}
                   step={1}
                 />
 
@@ -831,77 +862,116 @@ const SeriesForm = (props) => {
               </div>
 
               <div>
-                <Input
-                  label="Episódio Atual:"
-                  type="number"
-                  icon={PlayCircle}
-                  {...register('progress.episodes', {
-                    valueAsNumber: true,
-                    setValueAs: (value) => {
-                      if (value === '' || value === null || value === undefined) {
-                        return 1;
-                      }
-                      const numValue = Number(value);
-                      const currentSeasonValue = watch('progress.seasons') || 1;
-
-                      // Limita baseado em episodesPerSeason se disponível
-                      if (seasonInfo?.episodesPerSeason &&
-                        seasonInfo.episodesPerSeason.length >= currentSeasonValue) {
-                        const maxEpisodes = seasonInfo.episodesPerSeason[currentSeasonValue - 1];
-                        if (numValue > maxEpisodes) {
-                          return maxEpisodes;
-                        }
-                      }
-                      // Fallback: limita pelo total geral
-                      else if (seasonInfo?.episodes && numValue > seasonInfo.episodes) {
-                        return seasonInfo.episodes;
-                      }
-
-                      // Não permite menor que 1
-                      if (numValue < 1) {
-                        return 1;
-                      }
-
-                      return numValue;
-                    },
-                    validate: (value) => validateCurrentEpisode(value, watch('progress.seasons'))
-                  })}
-                  error={errors.progress?.episodes?.message}
-                  placeholder={`1${seasonInfo?.episodes ? ` (máx: ${seasonInfo.episodes})` : ''}`}
-                  variant="glass"
-                  min={1}
-                  max={(() => {
-                    const seasons = watch('progress.seasons') || 1;
-                    if (seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length >= seasons) {
-                      return seasonInfo.episodesPerSeason[seasons - 1];
-                    }
-                    return seasonInfo?.episodes || undefined;
-                  })()}
-                  step={1}
-                />
-
                 {(() => {
                   const currentSeasonValue = watch('progress.seasons') || 1;
-                  const episodesInSeason = seasonInfo?.episodesPerSeason &&
+
+                  // Tentar usar initialData primeiro (modo edição)
+                  const episodesInSeason = initialData?.episodesPerSeason &&
+                    initialData.episodesPerSeason.length >= currentSeasonValue
+                    ? initialData.episodesPerSeason[currentSeasonValue - 1]
+                    : null;
+
+                  // Fallback para seasonInfo (modo criação)
+                  const episodesInSeasonFromInfo = seasonInfo?.episodesPerSeason &&
                     seasonInfo.episodesPerSeason.length >= currentSeasonValue
                     ? seasonInfo.episodesPerSeason[currentSeasonValue - 1]
                     : null;
 
-                  if (episodesInSeason) {
+                  const finalEpisodesInSeason = episodesInSeason || episodesInSeasonFromInfo;
+                  const totalEpisodes = initialData?.episodes || seasonInfo?.episodes;
+
+                  return (
+                    <Input
+                      label="Episódio Atual:"
+                      type="number"
+                      icon={PlayCircle}
+                      {...register('progress.episodes', {
+                        valueAsNumber: true,
+                        setValueAs: (value) => {
+                          if (value === '' || value === null || value === undefined) {
+                            return 0; // Retorna 0 em vez de 1
+                          }
+                          const numValue = Number(value);
+                          const currentSeasonValue = watch('progress.seasons') || 1;
+
+                          // Permite valores de 0 até o máximo
+                          const minValue = 0; // Permite 0
+
+                          // Usar initialData primeiro
+                          if (initialData?.episodesPerSeason &&
+                            initialData.episodesPerSeason.length >= currentSeasonValue) {
+                            const maxEpisodes = initialData.episodesPerSeason[currentSeasonValue - 1];
+                            if (numValue > maxEpisodes) {
+                              return maxEpisodes;
+                            }
+                          }
+                          // Fallback para seasonInfo
+                          else if (seasonInfo?.episodesPerSeason &&
+                            seasonInfo.episodesPerSeason.length >= currentSeasonValue) {
+                            const maxEpisodes = seasonInfo.episodesPerSeason[currentSeasonValue - 1];
+                            if (numValue > maxEpisodes) {
+                              return maxEpisodes;
+                            }
+                          }
+                          // Fallback: limita pelo total geral
+                          else {
+                            const totalEpisodes = initialData?.episodes || seasonInfo?.episodes;
+                            if (totalEpisodes && numValue > totalEpisodes) {
+                              return totalEpisodes;
+                            }
+                          }
+
+                          // Não permite menor que 0 (permite 0!)
+                          if (numValue < 0) {
+                            return 0;
+                          }
+
+                          return numValue;
+                        },
+                        validate: (value) => validateCurrentEpisode(value, watch('progress.seasons'))
+                      })}
+                      error={errors.progress?.episodes?.message}
+                      placeholder={`0${finalEpisodesInSeason ? ` (máx: ${finalEpisodesInSeason})` : totalEpisodes ? ` (máx: ${totalEpisodes})` : ''}`}
+                      variant="glass"
+                      min={0} 
+                      max={finalEpisodesInSeason || totalEpisodes || undefined}
+                      step={1}
+                    />
+                  );
+                })()}
+
+                {(() => {
+                  const currentSeasonValue = watch('progress.seasons') || 1;
+
+                  // Priorizar dados de initialData (modo edição)
+                  const episodesInSeason = initialData?.episodesPerSeason &&
+                    initialData.episodesPerSeason.length >= currentSeasonValue
+                    ? initialData.episodesPerSeason[currentSeasonValue - 1]
+                    : null;
+
+                  const episodesInSeasonFromInfo = seasonInfo?.episodesPerSeason &&
+                    seasonInfo.episodesPerSeason.length >= currentSeasonValue
+                    ? seasonInfo.episodesPerSeason[currentSeasonValue - 1]
+                    : null;
+
+                  const finalEpisodesInSeason = episodesInSeason || episodesInSeasonFromInfo;
+                  const totalEpisodes = initialData?.episodes || seasonInfo?.episodes;
+
+                  if (finalEpisodesInSeason) {
                     return (
                       <div className="mt-2 flex items-center gap-2 text-sm">
                         <div className="w-1.5 h-1.5 bg-pink-400 rounded-full"></div>
                         <span className="text-white/60">
-                          {currentSeasonValue}ª temporada: <span className="font-medium text-white">{episodesInSeason}</span> episódios
+                          {currentSeasonValue}ª temporada: <span className="font-medium text-white">{finalEpisodesInSeason}</span> episódios
                         </span>
                       </div>
                     );
-                  } else if (seasonInfo?.episodes) {
+                  } else if (totalEpisodes) {
                     return (
                       <div className="mt-2 flex items-center gap-2 text-sm">
                         <div className="w-1.5 h-1.5 bg-pink-400 rounded-full"></div>
                         <span className="text-white/60">
-                          Total: <span className="font-medium text-white">{seasonInfo.episodes}</span> episódios
+                          Total: <span className="font-medium text-white">{totalEpisodes}</span> episódios
                         </span>
                       </div>
                     );

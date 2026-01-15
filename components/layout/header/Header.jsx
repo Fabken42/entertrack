@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils/general-utils';
 import { Button } from '@/components/ui';
-import { User, LogOut, Menu, X, LogIn, UserPlus, Bell, Home, BarChart3, Settings, Film, Tv, BookOpen, GamepadIcon, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { User, LogOut, Menu, X, LogIn, UserPlus, Home, BarChart3, Settings, Film, Tv, BookOpen, GamepadIcon, ChevronDown, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/use-auth';
 import { signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
@@ -17,7 +17,6 @@ const Header = ({ showFullHeader = true }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Navegação para mobile menu - REORDENADO: Biblioteca vem primeiro
   const libraryNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Filmes', href: '/movie', icon: Film },
@@ -25,7 +24,6 @@ const Header = ({ showFullHeader = true }) => {
     { name: 'Games', href: '/game', icon: GamepadIcon },
     { name: 'Animes', href: '/anime', icon: '🇯🇵' },
     { name: 'Mangás', href: '/manga', icon: BookOpen },
-    { name: 'Livros', href: '/book', icon: '📖' },
   ];
 
   const discoverNavigation = [
@@ -34,7 +32,6 @@ const Header = ({ showFullHeader = true }) => {
     { name: 'Games', href: '/discover/game', icon: GamepadIcon },
     { name: 'Animes', href: '/discover/anime', icon: '🇯🇵' },
     { name: 'Mangás', href: '/discover/manga', icon: BookOpen },
-    { name: 'Livros', href: '/discover/book', icon: '📖' },
   ];
 
   const secondaryNavigation = [

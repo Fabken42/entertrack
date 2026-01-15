@@ -6,7 +6,6 @@ import { connectToDatabase } from '@/lib/database/connect';
 import UserMedia from '@/models/UserMedia';
 import MediaCache from '@/models/MediaCache';
 
-// /app/api/user/media/[id]/route.js
 export async function DELETE(request, context) {
   const { params } = context;
   const { id } = await params;
@@ -49,7 +48,7 @@ export async function DELETE(request, context) {
         { new: true }
       );
 
-      //Deletar APENAS se userCount = 0 E sourceApi = "manual"
+      // Deletar APENAS se userCount = 0 E sourceApi = "manual"
       if (
         updatedCache &&
         updatedCache.usageStats.userCount <= 0 &&
@@ -79,7 +78,7 @@ export async function DELETE(request, context) {
 export async function PUT(request, context) {
   const { params } = context;
   const { id } = await params;
-
+  
   try {
     const session = await getServerSession(authOptions);
 
@@ -89,7 +88,9 @@ export async function PUT(request, context) {
         { status: 401 }
       );
     }
+
     const body = await request.json();
+    console.log(body)
     const {
       status,
       userRating,
@@ -132,6 +133,15 @@ export async function PUT(request, context) {
       } else if (status === 'completed') {
         updateData.completedAt = new Date();
         updateData.droppedAt = null;
+
+        // ✅ CORREÇÃO: Para games completados, garantir progresso 100%
+        if (!updateData.progress) {
+          updateData.progress = { ...existingMedia.progress };
+        }
+        if (!updateData.progress.details) {
+          updateData.progress.details = { ...existingMedia.progress?.details || {} };
+        }
+        updateData.progress.details.percentage = 100;
       } else if (status === 'dropped') {
         updateData.droppedAt = new Date();
         updateData.completedAt = null;
@@ -142,37 +152,32 @@ export async function PUT(request, context) {
       }
     }
 
-    // Datas específicas (se fornecidas)
     if (startedAt !== undefined) updateData.startedAt = startedAt;
     if (completedAt !== undefined) updateData.completedAt = completedAt;
     if (droppedAt !== undefined) updateData.droppedAt = droppedAt;
 
-    // Outros campos
     if (userRating !== undefined) updateData.userRating = userRating;
     if (personalNotes !== undefined) {
       updateData.personalNotes = personalNotes;
     }
 
     if (progress !== undefined) {
+      updateData.progress = {
+        ...existingMedia.progress,
+        lastUpdated: new Date()
+      };
+
       if (progress.details) {
-        updateData.progress = {
-          details: {
-            ...(existingMedia.progress?.details || {}),
-            ...progress.details
-          },
-          lastUpdated: new Date()
+        updateData.progress.details = {
+          ...(existingMedia.progress?.details || {}),
+          ...progress.details
         };
-      } else if (typeof progress === 'object' && Object.keys(progress).length > 0) {
-        updateData.progress = {
-          ...existingMedia.progress,
-          ...progress,
-          lastUpdated: new Date()
-        };
-      } else if (progress === null) {
-        updateData.progress = {
-          details: {},
-          lastUpdated: new Date()
-        };
+      }
+
+      if (progress.tasks !== undefined) {
+        updateData.progress.tasks = Array.isArray(progress.tasks)
+          ? progress.tasks
+          : [];
       }
     }
 

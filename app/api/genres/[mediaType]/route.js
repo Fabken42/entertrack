@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { tmdbClient } from '@/lib/api/tmdb';
 import { rawgClient } from '@/lib/api/rawg';
 import { jikanClient } from '@/lib/api/jikan';
-import { googleBooksClient } from '@/lib/api/google-books';
 
 export async function GET(request, { params }) {
   try {
@@ -34,10 +33,6 @@ export async function GET(request, { params }) {
       case 'manga':
         const mangaGenres = await jikanClient.getGenres('manga'); 
         genres = mangaGenres;
-        break;
-      case 'book':
-        const bookGenres = await googleBooksClient.getGenres();
-        genres = bookGenres;
         break;
       default:
         return NextResponse.json({ error: 'Invalid media type' }, { status: 400 });

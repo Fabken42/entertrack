@@ -30,24 +30,29 @@ const UserMediaSchema = new Schema({
     details: {
       // Para animes: somente episódios
       episodes: { type: Number, default: 0 },
-      
+
       // Para mangás: volumes e capítulos
       volumes: { type: Number, default: 0 },
       chapters: { type: Number, default: 0 },
-      
+
       // Para séries: temporadas e episódios
       seasons: { type: Number, default: 0 },
-      
-      // Para livros: páginas
-      pages: { type: Number, default: 0 },
-      
-      // Para filmes/documentários: minutos
+
+      // Para filmes: minutos
       minutes: { type: Number, default: 0 },
-      
+
+      hours: { type: Number, default: 0 },
+
       // Progresso percentual (para qualquer mídia)
       percentage: { type: Number, default: 0 }
     },
-    
+
+    tasks: [{
+      name: { type: String, required: true },
+      completed: { type: Boolean, default: false },
+      addedAt: { type: Date, default: Date.now }
+    }],
+
     // Data da última atualização
     lastUpdated: { type: Date, default: Date.now }
   },
@@ -81,12 +86,35 @@ const UserMediaSchema = new Schema({
   ]
 });
 
-// Helper para obter progresso baseado no tipo de mídia
-UserMediaSchema.methods.getProgressInfo = function() {
+UserMediaSchema.methods.calculateTaskProgress = function () {
+  if (this.mediaCacheId?.mediaType !== 'game') {
+    return null;
+  }
+
+  const tasks = this.progress?.tasks || [];
+  if (tasks.length === 0) {
+    return {
+      completed: 0,
+      total: 0,
+      percentage: 0
+    };
+  }
+
+  const completedTasks = tasks.filter(task => task.completed).length;
+  const percentage = Math.round((completedTasks / tasks.length) * 100);
+
+  return {
+    completed: completedTasks,
+    total: tasks.length,
+    percentage: percentage
+  };
+};
+
+UserMediaSchema.methods.getProgressInfo = function () {
   const mediaType = this.mediaCacheId?.mediaType;
   const progress = this.progress?.details || {};
-  
-  switch(mediaType) {
+
+  switch (mediaType) {
     case 'anime':
       return {
         type: 'anime',
@@ -107,11 +135,14 @@ UserMediaSchema.methods.getProgressInfo = function() {
         episodes: progress.episodesInSeason || 0,
         unit: 'episodes'
       };
-    case 'book':
+    case 'game':
+      const taskProgress = this.calculateTaskProgress();
       return {
-        type: 'book',
-        pages: progress.pages || 0,
-        unit: 'pages'
+        type: 'game',
+        hours: progress.hours || 0,
+        tasks: taskProgress,
+        pendingTasks: this.progress?.tasks || [],
+        unit: 'tasks'
       };
     case 'movie':
       return {
@@ -128,15 +159,14 @@ UserMediaSchema.methods.getProgressInfo = function() {
   }
 };
 
-// Helper para atualizar progresso
-UserMediaSchema.methods.updateProgress = function(data) {
+UserMediaSchema.methods.updateProgress = function (data) {
   const mediaType = this.mediaCacheId?.mediaType;
-  
+
   if (!this.progress.details) {
     this.progress.details = {};
   }
-  
-  switch(mediaType) {
+
+  switch (mediaType) {
     case 'anime':
       if (data.episodes !== undefined) {
         this.progress.details.episodes = data.episodes;
@@ -158,17 +188,12 @@ UserMediaSchema.methods.updateProgress = function(data) {
         this.progress.details.episodesInSeason = data.episodes;
       }
       break;
-    case 'book':
-      if (data.pages !== undefined) {
-        this.progress.details.pages = data.pages;
-      }
-      break;
     default:
       if (data.percentage !== undefined) {
         this.progress.details.percentage = data.percentage;
       }
   }
-  
+
   this.progress.lastUpdated = new Date();
   this.markModified('progress');
 };

@@ -26,6 +26,7 @@ export default function MediaCard({
   onIncreaseProgress,
   isLibrary = false
 }) {
+  console.log('item: ', item)
   const progressInfo = getProgressInfo(item, mediaType, isLibrary);
 
   const handleCardClick = (e) => {
@@ -136,7 +137,7 @@ export default function MediaCard({
                     <span>{item.releaseYear}</span>
                   </div>
                 )}
-                
+
                 {/* Runtime para filmes */}
                 {mediaType === 'movie' && item.runtime && item.runtime > 0 && (
                   <>
@@ -206,12 +207,7 @@ export default function MediaCard({
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-white/60">Progresso</span>
                   <span className="text-white font-medium">
-                    {progressInfo.current}/{progressInfo.total || '?'} {progressInfo.unit}
-                    {progressInfo.volumes !== undefined && progressInfo.totalVolumes !== undefined && (
-                      <span className="text-white/60 ml-2">
-                        ({progressInfo.volumes || '?'}/{progressInfo.totalVolumes || '?'} vols)
-                      </span>
-                    )}
+                    {progressInfo.display}
                   </span>
                 </div>
                 <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -220,6 +216,13 @@ export default function MediaCard({
                     style={{ width: `${progressInfo.percentage}%` }}
                   />
                 </div>
+
+                {/* ✅ Adicionar horas de jogo para jogos */}
+                {mediaType === 'game' && item.progress?.details?.hours && (
+                  <div className="text-xs text-white/60 mt-1 text-right">
+                    {item.progress.details.hours}h jogadas
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -300,13 +303,13 @@ export default function MediaCard({
                 <span className="font-medium text-white">{formatNumber(item.members)}</span>
               </div>
             )}
-            {shouldShowCount(item.ratingsCount) && (
+            {shouldShowCount(item.ratingCount) && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/60 flex items-center gap-1">
                   <Star className="w-3 h-3" />
                   Avaliações:
                 </span>
-                <span className="font-medium text-white">{formatNumber(item.ratingsCount)}</span>
+                <span className="font-medium text-white">{formatNumber(item.ratingCount)}</span>
               </div>
             )}
             {shouldShowCount(item.popularity) && (
@@ -464,8 +467,8 @@ export default function MediaCard({
           )}
           {mediaType === 'manga' && shouldShowNumber(item.volumes) && (
             <>
-              {(item.releaseYear || 
-                (mediaType === 'movie' && item.runtime) || 
+              {(item.releaseYear ||
+                (mediaType === 'movie' && item.runtime) ||
                 (mediaType === 'anime' && shouldShowNumber(item.episodes))) && <span>•</span>}
               <span>{formatChaptersVolumes(item.volumes, item.status)} vol</span>
             </>
@@ -487,12 +490,7 @@ export default function MediaCard({
             <div className="flex justify-between text-xs mb-1">
               <span className="text-white/60">Progresso</span>
               <span className="text-white font-medium">
-                {progressInfo.current}/{progressInfo.total || '?'} {progressInfo.unit}
-                {progressInfo.volumes !== undefined && progressInfo.totalVolumes !== undefined && (
-                  <span className="text-white/60 ml-1">
-                    ({progressInfo.volumes || '?'}/{progressInfo.totalVolumes || '?'} vols)
-                  </span>
-                )}
+                {progressInfo.display}
               </span>
             </div>
             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -504,6 +502,14 @@ export default function MediaCard({
             <div className="text-xs text-white/40 text-right mt-0.5">
               {progressInfo.percentage}%
             </div>
+
+            {/* ✅ Adicionar horas de jogo para jogos */}
+            {mediaType === 'game' && item.progress?.details?.hours && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/60">Horas de jogo:</span>
+                <span className="text-xs font-medium text-white ml-1">{item.progress.details.hours}h</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -586,15 +592,15 @@ export default function MediaCard({
               </span>
             </div>
           )}
-          {/* ✅ MUDAR DE item.ratingsCount PARA item.apiVoteCount (para jogos) */}
-          {shouldShowCount(item.apiVoteCount || item.ratingsCount) && (
+          {/* ✅ MUDAR DE item.ratingCount PARA item.apiVoteCount (para jogos) */}
+          {shouldShowCount(item.apiVoteCount || item.ratingCount) && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-white/60 flex items-center gap-1">
                 <Star className="w-3 h-3" />
                 Avaliações:
               </span>
               <span className="font-medium text-white">
-                {formatNumber(item.apiVoteCount || item.ratingsCount)}
+                {formatNumber(item.apiVoteCount || item.ratingCount)}
               </span>
             </div>
           )}
@@ -632,14 +638,14 @@ export default function MediaCard({
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/10">
-          {ratingInfo && shouldShowCount(item.ratingsCount) && (
+          {ratingInfo && shouldShowCount(item.ratingCount) && (
             <div className="flex items-center gap-2 text-xs">
               <div className="flex items-center gap-1 px-2 py-1 bg-gray-900/60 rounded-lg">
                 <Star className="w-3 h-3 text-yellow-400 fill-current" />
                 <span className="font-medium text-white">{ratingInfo.display}/5</span>
               </div>
               <span className="text-white/40">•</span>
-              <span className="text-white/60">{formatNumber(item.ratingsCount)} avaliações</span>
+              <span className="text-white/60">{formatNumber(item.ratingCount)} avaliações</span>
             </div>
           )}
 

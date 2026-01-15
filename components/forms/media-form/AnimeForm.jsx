@@ -359,7 +359,7 @@ const AnimeForm = (props) => {
           finalFormData.description = externalData.description || finalFormData.description;
           finalFormData.imageUrl = externalData.imageUrl || finalFormData.imageUrl;
           finalFormData.apiRating = externalData.apiRating;
-          finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingsCount;
+          finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingCount;
           finalFormData.episodes = externalData.episodes || formData.episodes;
           finalFormData.popularity = externalData.popularity;
           finalFormData.members = externalData.members;

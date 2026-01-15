@@ -1,4 +1,3 @@
-// /app/api/media/cache/route.js
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../lib/database/connect';
 import { MediaCache } from '@/models';
@@ -10,7 +9,6 @@ export async function POST(request) {
     const body = await request.json();
     const { sourceApi, sourceId, mediaType, essentialData } = body;
 
-    // VALIDAÇÃO E TRATAMENTO DE VALORES UNDEFINED
     if (!sourceApi || !sourceId || !mediaType) {
       console.error('❌ Campos obrigatórios faltando:', { sourceApi, sourceId, mediaType });
       return NextResponse.json(
@@ -19,7 +17,6 @@ export async function POST(request) {
       );
     }
 
-    // Garantir que essentialData existe e tem título
     if (!essentialData) {
       console.error('❌ essentialData está undefined');
       return NextResponse.json(
@@ -41,9 +38,9 @@ export async function POST(request) {
       description: essentialData.description || '',
       coverImage: essentialData.imageUrl || essentialData.coverImage || '',
       releaseYear: essentialData.releaseYear || null,
+      playHours: essentialData.playHours || null, // ✅ JÁ EXISTE
+      metacritic: essentialData.metacritic || null, // ✅ JÁ EXISTE
       runtime: essentialData.runtime || null,
-
-      status: essentialData.status || 'finished',
       episodes: essentialData.episodes || null,
       seasons: essentialData.seasons || null,
       episodesPerSeason: essentialData.episodesPerSeason || null,
@@ -52,6 +49,7 @@ export async function POST(request) {
       pageCount: essentialData.pageCount || null,
 
       genres: Array.isArray(essentialData.genres) ? essentialData.genres : [],
+      platforms: Array.isArray(essentialData.platforms) ? essentialData.platforms : [],
       averageRating: essentialData.apiRating || essentialData.averageRating || null,
       ratingCount: essentialData.apiVoteCount || essentialData.ratingCount || null,
 
@@ -60,6 +58,9 @@ export async function POST(request) {
       members: essentialData.members || null,
       studios: essentialData.studios || [],
       authors: essentialData.authors || [],
+      
+      // ✅ ADICIONADO: Campo para URL da imagem original se houver
+      originalImageUrl: essentialData.originalImageUrl || essentialData.imageUrl || '',
     };
 
     // Verificar se já existe cache para esta mídia
@@ -70,12 +71,21 @@ export async function POST(request) {
     });
 
     if (existingCache) {
-      // Atualizar dados e estatísticas de uso
-      existingCache.essentialData = {
+      // ✅ CORREÇÃO: Manter playHours e metacritic se já existirem
+      const mergedEssentialData = {
         ...existingCache.essentialData,
         ...validatedEssentialData
       };
 
+      // Se o novo não tem playHours/metacritic mas o antigo tem, manter
+      if (!mergedEssentialData.playHours && existingCache.essentialData.playHours) {
+        mergedEssentialData.playHours = existingCache.essentialData.playHours;
+      }
+      if (!mergedEssentialData.metacritic && existingCache.essentialData.metacritic) {
+        mergedEssentialData.metacritic = existingCache.essentialData.metacritic;
+      }
+
+      existingCache.essentialData = mergedEssentialData;
       existingCache.cacheControl.lastFetched = new Date();
       existingCache.cacheControl.nextFetch = new Date(Date.now() + 24 * 60 * 60 * 1000);
       existingCache.usageStats.accessCount += 1;

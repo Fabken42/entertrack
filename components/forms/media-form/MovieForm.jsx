@@ -79,8 +79,12 @@ const MovieForm = (props) => {
     return [];
   };
 
-  // Extrair progresso inicial de minutes para hours/minutes
   const getInitialProgress = () => {
+    // Primeiro tenta currentMinutes (nova estrutura)
+    if (initialData?.progress?.currentMinutes || initialData?.progress?.currentMinutes === 0) {
+      return convertFromMinutes(initialData.progress.currentMinutes);
+    }
+    // Depois tenta details.minutes (estrutura antiga)
     if (initialData?.progress?.details?.minutes || initialData?.progress?.details?.minutes === 0) {
       return convertFromMinutes(initialData.progress.details.minutes);
     }
@@ -109,7 +113,7 @@ const MovieForm = (props) => {
     if (externalData) {
       // Verifica múltiplas fontes possíveis para rating e votos
       const rating = externalData.rating || externalData.apiRating || externalData.vote_average;
-      const voteCount = externalData.ratingsCount || externalData.apiVoteCount || externalData.vote_count;
+      const voteCount = externalData.ratingCount || externalData.apiVoteCount || externalData.vote_count;
 
       // Garantir que temos números válidos
       const validRating = rating != null && !isNaN(Number(rating)) && Number(rating) > 0;
@@ -378,6 +382,7 @@ const MovieForm = (props) => {
             details: {
               minutes: totalMinutesWatched
             },
+            currentMinutes: totalMinutesWatched,
             lastUpdated: new Date()
           }
         };
@@ -856,18 +861,6 @@ const MovieForm = (props) => {
                 <span className="text-white/60">
                   Duração total: <span className="font-medium text-white">{formatRuntime(totalMinutes || runtimeFromForm)}</span>
                   {' '}({totalMinutes || runtimeFromForm} minutos)
-                </span>
-              </div>
-            )}
-
-            {/* Mostrar tempo atual assistido */}
-            {(totalMinutesWatched > 0) && (
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
-                <span className="text-white/60">
-                  Tempo assistido: <span className="font-medium text-white">
-                    {totalMinutesWatched} minutos ({currentProgress.hours}h {currentProgress.minutes}m)
-                  </span>
                 </span>
               </div>
             )}

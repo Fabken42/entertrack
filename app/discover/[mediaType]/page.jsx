@@ -18,7 +18,7 @@ export default function DiscoverPage() {
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState(mediaType === 'book' ? 'relevance' : 'popularity');
+  const [sortBy, setSortBy] = useState('popularity');
   const [selectedGenre, setSelectedGenre] = useState('');
   const [genres, setGenres] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
@@ -141,7 +141,6 @@ export default function DiscoverPage() {
       series: 'Série',
       anime: 'Anime',
       manga: 'Mangá',
-      book: 'Livro',
       game: 'Jogo'
     };
     return labels[mediaType] || 'Mídia';
@@ -153,7 +152,6 @@ export default function DiscoverPage() {
       series: '📺',
       animes: '🇯🇵',
       mangas: '📚',
-      books: '📖',
       games: '🎮'
     };
     return icons[mediaType] || '✨';
@@ -165,7 +163,6 @@ export default function DiscoverPage() {
       series: 'from-purple-500/20 to-purple-600/20',
       animes: 'from-red-500/20 to-pink-600/20',
       mangas: 'from-indigo-500/20 to-indigo-600/20',
-      books: 'from-emerald-500/20 to-emerald-600/20',
       games: 'from-orange-500/20 to-orange-600/20'
     };
     return colors[mediaType] || 'from-gray-500/20 to-gray-600/20';
@@ -191,12 +188,6 @@ export default function DiscoverPage() {
 
   const getSortOptions = () => {
     switch (mediaType) {
-      case 'book':
-        return [
-          { value: 'relevance', label: 'Mais Relevantes', icon: TrendingUp },
-          { value: 'newest', label: 'Mais Recentes', icon: Calendar },
-        ];
-
       case 'manga':
       case 'anime':
         return [
@@ -452,7 +443,7 @@ export default function DiscoverPage() {
                         // Se for estado vazio, limpa tudo e recarrega
                         setSearchQuery('');
                         setSelectedGenre('');
-                        setSortBy(mediaType === 'books' ? 'relevance' : 'popularity');
+                        setSortBy('popularity');
                         setTimeout(refreshItems, 100);
                       }
                     }}

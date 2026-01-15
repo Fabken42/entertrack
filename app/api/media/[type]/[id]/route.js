@@ -5,7 +5,6 @@ const API_CLIENTS = {
   jikan: jikanClient,
   tmdb: tmdbClient,
   rawg: rawgClient,
-  google_books: googleBooksClient
 };
 
 export default async function handler(req, res) {

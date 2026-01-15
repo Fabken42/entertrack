@@ -21,7 +21,7 @@ const Modal = ({
   React.useEffect(() => {
     setMounted(true);
     
-    if (isOpen) {
+    if (isOpen) { 
       document.body.style.overflow = 'hidden';
       document.documentElement.style.paddingRight = '8px'; // Para evitar conteúdo pulando
     } else {

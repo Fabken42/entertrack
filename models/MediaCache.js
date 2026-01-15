@@ -4,7 +4,7 @@ const { Schema } = mongoose;
 const MediaCacheSchema = new Schema({
   sourceApi: {
     type: String,
-    enum: ['tmdb', 'jikan', 'rawg', 'google_books', 'manual'],
+    enum: ['tmdb', 'jikan', 'rawg', 'manual'],
     required: true,
     index: true
   },
@@ -16,7 +16,7 @@ const MediaCacheSchema = new Schema({
 
   mediaType: {
     type: String,
-    enum: ['movie', 'series', 'anime', 'manga', 'game', 'book'],
+    enum: ['movie', 'series', 'anime', 'manga', 'game'],
     required: true,
     index: true
   },
@@ -26,17 +26,13 @@ const MediaCacheSchema = new Schema({
     description: { type: String },
     coverImage: { type: String },
     releaseYear: { type: Number },
-
-    status: { type: String }, // 'finished', 'ongoing', 'upcoming'
-
     // Campos específicos por tipo
     episodes: { type: Number },
     episodesPerSeason: [{ type: Number }],
     seasons: { type: Number },
     chapters: { type: Number },
     volumes: { type: Number },
-    pageCount: { type: Number },
-    runtime: { type: Number }, //em minutos
+    runtime: { type: Number },
     platforms: [{ type: String }],
 
     // Gêneros
@@ -48,17 +44,13 @@ const MediaCacheSchema = new Schema({
     // Classificação
     averageRating: { type: Number },
     ratingCount: { type: Number },
-    metacriticScore: { type: Number },
+    metacritic: { type: Number },
 
     category: { type: String }, // Ranking de popularidade
     popularity: { type: Number }, // Ranking de popularidade
     members: { type: Number },    // Número de membros
     studios: [{ type: String }],  // Estúdios
     authors: [{ type: String }],  // Autores (manga)
-
-    // Outros campos úteis
-    source: { type: String },     // Ex: 'jikan', 'tmdb'
-    sourceId: { type: String }  // ID na API original
   },
 
   // 🔥 DADOS COMPLEMENTARES (menos usados)

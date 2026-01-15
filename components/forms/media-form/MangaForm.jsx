@@ -411,7 +411,7 @@ const MangaForm = (props) => {
           finalFormData.description = externalData.description || finalFormData.description;
           finalFormData.imageUrl = externalData.imageUrl || finalFormData.imageUrl;
           finalFormData.apiRating = externalData.apiRating;
-          finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingsCount;
+          finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingCount;
           finalFormData.volumes = externalData.volumes || formData.volumes;
           finalFormData.chapters = externalData.chapters || formData.chapters;
           finalFormData.popularity = externalData.popularity;

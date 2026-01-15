@@ -47,7 +47,6 @@ export const MEDIA_TYPES = {
   movie: 'Filme',
   series: 'Série',
   anime: 'Anime',
-  book: 'Livro',
   game: 'Game'
 };
 
