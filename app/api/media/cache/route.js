@@ -2,6 +2,110 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../lib/database/connect';
 import { MediaCache } from '@/models';
 
+// Função para limpar objetos removendo campos undefined/null/vazios
+const cleanObject = (obj, preserveFields = ['title']) => {
+  const cleaned = { ...obj };
+  
+  Object.keys(cleaned).forEach(key => {
+    const value = cleaned[key];
+    
+    // Preservar campos obrigatórios mesmo se vazios
+    if (preserveFields.includes(key)) {
+      return;
+    }
+    
+    // Remover campos com valores "vazios"
+    if (
+      value === undefined || 
+      value === null ||
+      (Array.isArray(value) && value.length === 0) ||
+      (typeof value === 'string' && value.trim() === '') ||
+      (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)
+    ) {
+      delete cleaned[key];
+    }
+  });
+  
+  return cleaned;
+};
+
+// Função para criar essentialData limpo baseado no tipo de mídia
+const createCleanedEssentialData = (essentialData, mediaType) => {
+  // Campos base que todos os tipos podem ter
+  const baseData = {
+    title: essentialData.title,
+    description: essentialData.description,
+    coverImage: essentialData.imageUrl || essentialData.coverImage,
+    releaseYear: essentialData.releaseYear,
+    genres: Array.isArray(essentialData.genres) ? essentialData.genres : undefined,
+    averageRating: essentialData.apiRating || essentialData.averageRating,
+    ratingCount: essentialData.apiVoteCount || essentialData.ratingCount,
+  };
+
+  // Campos específicos por tipo
+  const typeSpecificData = {};
+  
+  switch (mediaType) {
+    case 'game':
+      Object.assign(typeSpecificData, {
+        playHours: essentialData.playHours,
+        metacritic: essentialData.metacritic,
+        platforms: Array.isArray(essentialData.platforms) ? essentialData.platforms : undefined,
+      });
+      break;
+      
+    case 'movie':
+    case 'series':
+      Object.assign(typeSpecificData, {
+        runtime: essentialData.runtime,
+      });
+      
+      if (mediaType === 'series') {
+        Object.assign(typeSpecificData, {
+          episodes: essentialData.episodes,
+          seasons: essentialData.seasons,
+          episodesPerSeason: essentialData.episodesPerSeason,
+        });
+      }
+      break;
+      
+    case 'anime':
+      Object.assign(typeSpecificData, {
+        episodes: essentialData.episodes,
+        popularity: essentialData.popularity,
+        members: essentialData.members,
+        studios: essentialData.studios,
+      });
+      break;
+      
+    case 'manga':
+      Object.assign(typeSpecificData, {
+        chapters: essentialData.chapters,
+        volumes: essentialData.volumes,
+        pageCount: essentialData.pageCount,
+        popularity: essentialData.popularity,
+        members: essentialData.members,
+        authors: essentialData.authors,
+      });
+      break;
+  }
+
+  // Campos que podem existir em qualquer tipo (não específicos)
+  const optionalFields = {
+    originalImageUrl: essentialData.originalImageUrl || essentialData.imageUrl,
+    category: essentialData.category,
+  };
+
+  // Combinar todos os campos e limpar
+  const combinedData = {
+    ...baseData,
+    ...typeSpecificData,
+    ...optionalFields
+  };
+
+  return cleanObject(combinedData, ['title']);
+};
+
 export async function POST(request) {
   try {
     await connectToDatabase();
@@ -25,7 +129,7 @@ export async function POST(request) {
       );
     }
 
-    if (!essentialData.title) {
+    if (!essentialData.title || essentialData.title.trim() === '') {
       console.error('❌ essentialData.title está undefined ou vazio');
       return NextResponse.json(
         { error: 'Missing required field: essentialData.title' },
@@ -33,35 +137,8 @@ export async function POST(request) {
       );
     }
 
-    const validatedEssentialData = {
-      title: essentialData.title,
-      description: essentialData.description || '',
-      coverImage: essentialData.imageUrl || essentialData.coverImage || '',
-      releaseYear: essentialData.releaseYear || null,
-      playHours: essentialData.playHours || null, // ✅ JÁ EXISTE
-      metacritic: essentialData.metacritic || null, // ✅ JÁ EXISTE
-      runtime: essentialData.runtime || null,
-      episodes: essentialData.episodes || null,
-      seasons: essentialData.seasons || null,
-      episodesPerSeason: essentialData.episodesPerSeason || null,
-      chapters: essentialData.chapters || null,
-      volumes: essentialData.volumes || null,
-      pageCount: essentialData.pageCount || null,
-
-      genres: Array.isArray(essentialData.genres) ? essentialData.genres : [],
-      platforms: Array.isArray(essentialData.platforms) ? essentialData.platforms : [],
-      averageRating: essentialData.apiRating || essentialData.averageRating || null,
-      ratingCount: essentialData.apiVoteCount || essentialData.ratingCount || null,
-
-      // CAMPOS JIKAN
-      popularity: essentialData.popularity || null,
-      members: essentialData.members || null,
-      studios: essentialData.studios || [],
-      authors: essentialData.authors || [],
-      
-      // ✅ ADICIONADO: Campo para URL da imagem original se houver
-      originalImageUrl: essentialData.originalImageUrl || essentialData.imageUrl || '',
-    };
+    // ✅ CORREÇÃO: Criar essentialData limpo e específico para o tipo
+    const cleanedEssentialData = createCleanedEssentialData(essentialData, mediaType);
 
     // Verificar se já existe cache para esta mídia
     const existingCache = await MediaCache.findOne({
@@ -71,17 +148,18 @@ export async function POST(request) {
     });
 
     if (existingCache) {
-      // ✅ CORREÇÃO: Manter playHours e metacritic se já existirem
-      const mergedEssentialData = {
+      // ✅ CORREÇÃO: Mesclar mantendo campos existentes importantes
+      const mergedEssentialData = cleanObject({
         ...existingCache.essentialData,
-        ...validatedEssentialData
-      };
+        ...cleanedEssentialData
+      }, ['title']);
 
-      // Se o novo não tem playHours/metacritic mas o antigo tem, manter
-      if (!mergedEssentialData.playHours && existingCache.essentialData.playHours) {
+      // Garantir que campos específicos importantes não sejam perdidos
+      // Mantém playHours e metacritic do cache existente se não vierem no novo
+      if (existingCache.essentialData.playHours !== undefined && cleanedEssentialData.playHours === undefined) {
         mergedEssentialData.playHours = existingCache.essentialData.playHours;
       }
-      if (!mergedEssentialData.metacritic && existingCache.essentialData.metacritic) {
+      if (existingCache.essentialData.metacritic !== undefined && cleanedEssentialData.metacritic === undefined) {
         mergedEssentialData.metacritic = existingCache.essentialData.metacritic;
       }
 
@@ -99,11 +177,12 @@ export async function POST(request) {
       });
     }
 
+    // ✅ CORREÇÃO: Criar cache apenas com campos necessários
     const mediaCache = new MediaCache({
       sourceApi,
       sourceId,
       mediaType,
-      essentialData: validatedEssentialData,
+      essentialData: cleanedEssentialData,
       cacheControl: {
         lastFetched: new Date(),
         nextFetch: new Date(Date.now() + 24 * 60 * 60 * 1000),

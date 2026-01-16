@@ -49,19 +49,107 @@ const useMediaStore = create((set, get) => ({
         break;
     }
 
-    if (!details.percentage) {
-      details.percentage = progressData.percentage || 0;
+    if (progressData.percentage !== undefined) {
+      details.percentage = progressData.percentage;
+    }
+
+    if (Object.keys(details).length === 0 && !progressData.tasks) {
+      return undefined;
     }
 
     const progressPayload = {
       details: details,
       lastUpdated: new Date()
     };
-    if (progressData.tasks !== undefined) {
+    
+    if (progressData.tasks !== undefined && Array.isArray(progressData.tasks)) {
       progressPayload.tasks = progressData.tasks;
     }
 
     return progressPayload;
+  },
+
+  createCleanCacheEssentialData: (mediaData, sourceApi, mediaType) => {
+    const essentialData = {
+      title: mediaData.title?.trim() || 'Título não disponível',
+    };
+
+    if (mediaData.description?.trim()) {
+      essentialData.description = mediaData.description.trim();
+    }
+
+    if (sourceApi === 'manual') {
+      essentialData.coverImage = '/images/icons/placeholder-image.png';
+    } else if (mediaData.imageUrl?.trim()) {
+      essentialData.coverImage = mediaData.imageUrl.trim();
+    } else if (mediaData.coverImage?.trim()) {
+      essentialData.coverImage = mediaData.coverImage.trim();
+    }
+
+    if (mediaData.category) {
+      essentialData.category = mediaData.category;
+    }
+
+    const numericFields = [
+      'releaseYear', 'runtime', 'episodes', 'seasons', 
+      'volumes', 'chapters', 'hours', 'metacritic',
+      'averageRating', 'ratingCount', 'popularity', 'members'
+    ];
+
+    numericFields.forEach(field => {
+      const value = mediaData[field];
+      if (value !== undefined && value !== null) {
+        essentialData[field] = value;
+      }
+    });
+
+    if (mediaData.apiRating !== undefined && mediaData.apiRating !== null) {
+      essentialData.averageRating = mediaData.apiRating;
+    }
+    if (mediaData.apiVoteCount !== undefined && mediaData.apiVoteCount !== null) {
+      essentialData.ratingCount = mediaData.apiVoteCount;
+    }
+
+    if (Array.isArray(mediaData.episodesPerSeason) && mediaData.episodesPerSeason.length > 0) {
+      essentialData.episodesPerSeason = mediaData.episodesPerSeason;
+    }
+
+    if (Array.isArray(mediaData.platforms) && mediaData.platforms.length > 0) {
+      essentialData.platforms = mediaData.platforms;
+    }
+
+    if (Array.isArray(mediaData.studios) && mediaData.studios.length > 0) {
+      essentialData.studios = mediaData.studios;
+    }
+
+    if (Array.isArray(mediaData.authors) && mediaData.authors.length > 0) {
+      essentialData.authors = mediaData.authors;
+    }
+
+    // ✅ CORREÇÃO: Gêneros - só processar se tiver dados
+    if (Array.isArray(mediaData.genres) && mediaData.genres.length > 0) {
+      essentialData.genres = mediaData.genres.map(g => {
+        if (typeof g === 'string') {
+          const genreObj = JikanClient.getAllGenres().find(genre => genre.id === g);
+          return {
+            id: g,
+            name: genreObj?.name || g
+          };
+        }
+        if (typeof g === 'object') {
+          return {
+            id: g.id?.toString() || g.name.toLowerCase().replace(/\s+/g, '-'),
+            name: g.name
+          };
+        }
+        return {
+          id: g.toLowerCase().replace(/\s+/g, '-'),
+          name: g
+        };
+      });
+    }
+
+    return essentialData;
   },
 
   addMedia: async (mediaData) => {
@@ -78,60 +166,12 @@ const useMediaStore = create((set, get) => ({
     const sourceApi = mediaData.sourceApi || 'manual';
     const mediaType = mediaData.mediaType;
 
-    // Para entradas manuais, usar imagem placeholder
-    const coverImage = sourceApi === 'manual'
-      ? '/images/icons/placeholder-image.png'
-      : mediaData.imageUrl || '';
-
+    // ✅ CORREÇÃO: Usar função auxiliar para criar dados limpos do cache
     const cachePayload = {
       sourceApi: sourceApi,
       sourceId: sourceId,
       mediaType: mediaType,
-      essentialData: {
-        title: mediaData.title || 'Título não disponível',
-        description: mediaData.description || '',
-        category: mediaData.category, //para anime/manga
-        coverImage: coverImage,
-        releaseYear: mediaData.releaseYear || null,
-        runtime: mediaData.runtime || null,
-        episodes: mediaData.episodes || null,
-        seasons: mediaData.seasons || null,
-        episodesPerSeason: mediaData.episodesPerSeason || null,
-        volumes: mediaData.volumes || null,
-        chapters: mediaData.chapters || null,
-        platforms: mediaData.platforms || [],
-        hours: mediaData.hours || null,
-        metacritic: mediaData.metacritic || null,
-        genres: Array.isArray(mediaData.genres)
-          ? mediaData.genres.map(g => {
-            if (typeof g === 'string') {
-              const genreObj = JikanClient.getAllGenres().find(genre => genre.id === g);
-              return {
-                id: g,
-                name: genreObj?.name || g
-              };
-            }
-            // Se for objeto (de dados externos)
-            if (typeof g === 'object') {
-              return {
-                id: g.id?.toString() || g.name.toLowerCase().replace(/\s+/g, '-'),
-                name: g.name
-              };
-            }
-            // Se for string simples
-            return {
-              id: g.toLowerCase().replace(/\s+/g, '-'),
-              name: g
-            };
-          })
-          : [],
-        averageRating: mediaData.apiRating || null,
-        ratingCount: mediaData.apiVoteCount || null,
-        popularity: mediaData.popularity || null,
-        members: mediaData.members || null,
-        studios: mediaData.studios || [],
-        authors: mediaData.authors || [],
-      }
+      essentialData: get().createCleanCacheEssentialData(mediaData, sourceApi, mediaType)
     };
 
     const cacheResponse = await fetch('/api/media/cache', {
@@ -153,72 +193,45 @@ const useMediaStore = create((set, get) => ({
 
     const cacheResult = await cacheResponse.json();
 
-    const progressPayload = {
-      details: {
-        hours: mediaData.progress?.details?.hours || 0,
-        episodes: mediaData.progress?.details?.episodes || 0,
-        seasons: mediaData.progress?.details?.seasons || 0,
-        chapters: mediaData.progress?.details?.chapters || 0,
-        volumes: mediaData.progress?.details?.volumes || 0,
-        pages: mediaData.progress?.details?.pages || 0,
-        minutes: mediaData.progress?.details?.minutes || 0,
-        percentage: mediaData.progress?.details?.percentage || 0
+    // ✅ CORREÇÃO: Criar progresso usando a função auxiliar (não inicializar tudo com 0)
+    const progressPayload = get().createProgressPayload(
+      {
+        ...mediaData.progress?.details,
+        tasks: mediaData.progress?.tasks
       },
-      tasks: mediaData.progress?.tasks || [],
-      lastUpdated: new Date()
-    };
+      mediaType
+    );
 
-    if (mediaData.status === 'completed') {
-      progressPayload.details.hours = mediaData.hours || mediaData.progress?.details?.hours || 0;
-    }
-
+    // ✅ CORREÇÃO: Criar payload limpo para UserMedia
     const userMediaPayload = {
       mediaCacheId: cacheResult.cacheId,
       status: mediaData.status || 'planned',
-      userRating: mediaData.userRating || null,
-      personalNotes: mediaData.personalNotes || '',
-      progress: progressPayload || {
-        details: {},
-        lastUpdated: new Date()
-      },
-      ...(mediaData.status === 'in_progress' && { startedAt: new Date() }),
-      ...(mediaData.status === 'completed' && { completedAt: new Date() }),
-      ...(mediaData.status === 'dropped' && { droppedAt: new Date() })
     };
 
-    if (mediaData.status === 'completed' && !progressPayload) {
-      const completedProgressData = {};
-
-      switch (mediaType) {
-        case 'anime':
-          completedProgressData.episodes = mediaData.episodes || 0;
-          completedProgressData.percentage = 100;
-          break;
-        case 'series':
-          completedProgressData.episodes = mediaData.episodes || 0;
-          completedProgressData.seasons = mediaData.seasons || 1;
-          completedProgressData.percentage = 100;
-          break;
-        case 'manga':
-          completedProgressData.chapters = mediaData.chapters || 0;
-          completedProgressData.volumes = mediaData.volumes || 0;
-          completedProgressData.percentage = 100;
-          break;
-        case 'game':
-          completedProgressData.hours = mediaData.hours || 0;
-          if (mediaData.progress?.tasks) {
-            completedProgressData.tasks = mediaData.progress.tasks;
-          }
-          completedProgressData.percentage = 100;
-          break;
-        case 'movie':
-          completedProgressData.minutes = mediaData.minutes || 0;
-          completedProgressData.percentage = 100;
-          break;
-      }
-
-      userMediaPayload.progress = get().createProgressPayload(completedProgressData, mediaType);
+    // ✅ CORREÇÃO: Apenas adicionar campos se tiverem valor válido
+    if (mediaData.userRating !== undefined) {
+      userMediaPayload.userRating = mediaData.userRating;
     }
+
+    if (mediaData.personalNotes?.trim()) {
+      userMediaPayload.personalNotes = mediaData.personalNotes.trim();
+    }
+
+    if (progressPayload) {
+      userMediaPayload.progress = progressPayload;
+    }
+
+    // ✅ CORREÇÃO: Datas baseadas no status (sem valores default desnecessários)
+    if (mediaData.status === 'in_progress') {
+      userMediaPayload.startedAt = new Date();
+    } else if (mediaData.status === 'completed') {
+      userMediaPayload.completedAt = new Date();
+    } else if (mediaData.status === 'dropped') {
+      userMediaPayload.droppedAt = new Date();
+    }
+
+    // ❌ REMOVIDO: Bloco que criava progresso forçado para mídias completadas
+    // Isso causava inicialização desnecessária de campos
 
     const userMediaResponse = await fetch('/api/user/media', {
       method: 'POST',
@@ -250,6 +263,24 @@ const useMediaStore = create((set, get) => ({
     return newMedia;
   },
 
+  // ✅ CORREÇÃO: Função auxiliar para limpar payloads
+  cleanPayload: (obj) => {
+    const cleaned = { ...obj };
+    Object.keys(cleaned).forEach(key => {
+      const value = cleaned[key];
+      if (
+        value === undefined || 
+        value === null ||
+        (typeof value === 'string' && value.trim() === '') ||
+        (Array.isArray(value) && value.length === 0) ||
+        (typeof value === 'object' && !Array.isArray(value) && value !== null && Object.keys(value).length === 0)
+      ) {
+        delete cleaned[key];
+      }
+    });
+    return cleaned;
+  },
+
   updateMedia: async (userMediaId, updateData) => {
     try {
       // Busca a mídia atual para pegar as tasks existentes
@@ -260,34 +291,42 @@ const useMediaStore = create((set, get) => ({
         {
           ...updateData?.progress?.details,
           hours: updateData?.progress?.details?.hours,
-          // Passa as tasks do updateData ou mantém as existentes
           tasks: updateData?.progress?.tasks || existingTasks
         },
         updateData.mediaType
       );
 
+      // ✅ CORREÇÃO: Criar payload limpo (sem valores default desnecessários)
       const updatePayload = {
         status: updateData.status,
-        userRating: updateData.userRating || null,
-        personalNotes: updateData.personalNotes || '',
-        progress: progressPayload,
-        ...(updateData.startedAt && { startedAt: updateData.startedAt }),
-        ...(updateData.completedAt && { completedAt: updateData.completedAt }),
-        ...(updateData.droppedAt && { droppedAt: updateData.droppedAt }),
-        ...(updateData.category && { category: updateData.category })
       };
 
-      // Remove campos undefined
-      Object.keys(updatePayload).forEach(key => {
-        if (updatePayload[key] === undefined) {
-          delete updatePayload[key];
-        }
-      });
+      // ✅ CORREÇÃO: Apenas adicionar campos se tiverem valor
+      if (updateData.userRating !== undefined) {
+        updatePayload.userRating = updateData.userRating;
+      }
+
+      if (updateData.personalNotes?.trim()) {
+        updatePayload.personalNotes = updateData.personalNotes.trim();
+      }
+
+      if (progressPayload) {
+        updatePayload.progress = progressPayload;
+      }
+
+      // ✅ CORREÇÃO: Datas condicionais (já estava correto)
+      if (updateData.startedAt) updatePayload.startedAt = updateData.startedAt;
+      if (updateData.completedAt) updatePayload.completedAt = updateData.completedAt;
+      if (updateData.droppedAt) updatePayload.droppedAt = updateData.droppedAt;
+      if (updateData.category) updatePayload.category = updateData.category;
+
+      // ✅ CORREÇÃO: Usar função cleanPayload para remover campos vazios
+      const cleanedPayload = get().cleanPayload(updatePayload);
 
       const response = await fetch(`/api/user/media/${userMediaId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatePayload)
+        body: JSON.stringify(cleanedPayload)
       });
 
       if (!response.ok) {
@@ -694,26 +733,28 @@ const useMediaStore = create((set, get) => ({
         )
       }));
 
-      // Cria payload para o backend
+      // ✅ CORREÇÃO: Criar payload limpo para o backend
       const progressPayload = {
         lastUpdated: new Date(),
-        current: totalWatched,
-        total: totalAvailable,
-        unit: mediaType === 'manga' ? 'chapters' : 'eps',
-        details: {
+        details: get().cleanPayload({
           ...progressDetails,
           ...updatedDetails
-        }
+        })
       };
 
-      const updatePayload = {
-        progress: progressPayload,
-        mediaType: mediaType
-      };
+      // Remover campos vazios do payload de progresso
+      const cleanProgressPayload = get().cleanPayload(progressPayload);
+      
+      // ✅ CORREÇÃO: Usar função createProgressPayload para consistência
+      const finalProgressPayload = Object.keys(cleanProgressPayload.details || {}).length > 0 
+        ? cleanProgressPayload 
+        : undefined;
 
-      if (shouldMarkAsCompleted) {
-        updatePayload.status = 'completed';
-      }
+      const updatePayload = get().cleanPayload({
+        progress: finalProgressPayload,
+        mediaType: mediaType,
+        ...(shouldMarkAsCompleted && { status: 'completed' })
+      });
 
       // Faz a requisição ao backend em segundo plano
       const response = await fetch(`/api/user/media/${userMediaId}`, {
@@ -744,34 +785,6 @@ const useMediaStore = create((set, get) => ({
           item._id === userMediaId ? updatedMedia : item
         )
       }));
-
-      // // Mensagem de sucesso
-      // let successMessage = 'Progresso atualizado!';
-
-      // if (mediaType === 'anime') {
-      //   successMessage = `Episódio ${updatedDetails.episodes} marcado como assistido!`;
-      //   if (shouldMarkAsCompleted) {
-      //     successMessage = 'Parabéns! Você completou este anime!';
-      //   }
-      // } else if (mediaType === 'series') {
-      //   const newSeason = updatedDetails.seasons || currentSeasons;
-      //   const newEpisode = updatedDetails.episodes || 0;
-
-      //   if (shouldMarkAsCompleted) {
-      //     successMessage = 'Parabéns! Você completou esta série!';
-      //   } else if (updatedDetails.seasons > (progressDetails.seasons || 1)) {
-      //     successMessage = `Avançou para a Temporada ${newSeason}, Episódio 1!`;
-      //   } else {
-      //     successMessage = `Temporada ${newSeason}, Episódio ${newEpisode} marcado como assistido!`;
-      //   }
-      // } else if (mediaType === 'manga') {
-      //   successMessage = `Capítulo ${updatedDetails.chapters} marcado como lido!`;
-      //   if (shouldMarkAsCompleted) {
-      //     successMessage = 'Parabéns! Você completou este mangá!';
-      //   }
-      // }
-
-      // toast.success(successMessage);
       return updatedMedia;
 
     } catch (error) {

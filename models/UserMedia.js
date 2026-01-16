@@ -132,7 +132,7 @@ UserMediaSchema.methods.getProgressInfo = function () {
       return {
         type: 'series',
         seasons: progress.seasons || 0,
-        episodes: progress.episodesInSeason || 0,
+        episodes: progress.episodes || 0,
         unit: 'episodes'
       };
     case 'game':

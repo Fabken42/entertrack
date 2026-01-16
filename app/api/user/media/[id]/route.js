@@ -6,6 +6,67 @@ import { connectToDatabase } from '@/lib/database/connect';
 import UserMedia from '@/models/UserMedia';
 import MediaCache from '@/models/MediaCache';
 
+const updateProgressOnCompletion = (mediaType, existingProgress, cacheData) => {
+  const progress = { ...existingProgress };
+  
+  if (!progress.details) {
+    progress.details = {};
+  }
+
+  switch (mediaType) {
+    case 'anime':
+      const totalEpisodes = cacheData?.essentialData?.episodes;
+      if (totalEpisodes) {
+        progress.details.episodes = totalEpisodes;
+      }
+      break;
+    case 'manga':
+      const totalChapters = cacheData?.essentialData?.chapters;
+      const totalVolumes = cacheData?.essentialData?.volumes;
+      if (totalChapters) progress.details.chapters = totalChapters;
+      if (totalVolumes) progress.details.volumes = totalVolumes;
+      break;
+    case 'series':
+      const totalSeasons = cacheData?.essentialData?.seasons;
+      const totalEpisodesSeries = cacheData?.essentialData?.episodes;
+      if (totalSeasons) progress.details.seasons = totalSeasons;
+      if (totalEpisodesSeries) progress.details.episodes = totalEpisodesSeries;
+      break;
+    case 'game':
+      // Marcar todas as tarefas como completas
+      if (progress.tasks && Array.isArray(progress.tasks)) {
+        progress.tasks = progress.tasks.map(task => ({
+          ...task,
+          completed: true
+        }));
+      }
+      break;
+    case 'movie':
+      const totalMinutes = cacheData?.essentialData?.runtime;
+      if (totalMinutes) progress.details.minutes = totalMinutes;
+      break;
+  }
+
+  // Apenas definir porcentagem para tipos que não sejam game
+  if (mediaType !== 'game') {
+    progress.details.percentage = 100;
+  }
+
+  progress.lastUpdated = new Date();
+  return progress;
+};
+
+// Função auxiliar para limpar campos undefined
+const cleanUpdateData = (data) => {
+  const cleaned = { ...data };
+  Object.keys(cleaned).forEach(key => {
+    if (cleaned[key] === undefined) {
+      delete cleaned[key];
+    }
+  });
+  return cleaned;
+};
+
 export async function DELETE(request, context) {
   const { params } = context;
   const { id } = await params;
@@ -48,7 +109,6 @@ export async function DELETE(request, context) {
         { new: true }
       );
 
-      // Deletar APENAS se userCount = 0 E sourceApi = "manual"
       if (
         updatedCache &&
         updatedCache.usageStats.userCount <= 0 &&
@@ -90,7 +150,8 @@ export async function PUT(request, context) {
     }
 
     const body = await request.json();
-    console.log(body)
+    console.log('Update request body:', body);
+    
     const {
       status,
       userRating,
@@ -107,11 +168,11 @@ export async function PUT(request, context) {
     const existingMedia = await UserMedia.findOne({
       _id: id,
       userId: session.user.id
-    });
+    }).populate('mediaCacheId');
 
     if (!existingMedia) {
       return NextResponse.json(
-        { error: 'Mídia não encontrada, ou você não tem permissão para excluí-la' },
+        { error: 'Mídia não encontrada, ou você não tem permissão para editá-la' },
         { status: 404 }
       );
     }
@@ -134,14 +195,14 @@ export async function PUT(request, context) {
         updateData.completedAt = new Date();
         updateData.droppedAt = null;
 
-        // ✅ CORREÇÃO: Para games completados, garantir progresso 100%
-        if (!updateData.progress) {
-          updateData.progress = { ...existingMedia.progress };
-        }
-        if (!updateData.progress.details) {
-          updateData.progress.details = { ...existingMedia.progress?.details || {} };
-        }
-        updateData.progress.details.percentage = 100;
+        const mediaType = existingMedia.mediaCacheId?.mediaType;
+        const cacheData = existingMedia.mediaCacheId;
+        updateData.progress = updateProgressOnCompletion(
+          mediaType,
+          existingMedia.progress || {},
+          cacheData
+        );
+        
       } else if (status === 'dropped') {
         updateData.droppedAt = new Date();
         updateData.completedAt = null;
@@ -152,39 +213,56 @@ export async function PUT(request, context) {
       }
     }
 
+    // Atualizar datas específicas se fornecidas
     if (startedAt !== undefined) updateData.startedAt = startedAt;
     if (completedAt !== undefined) updateData.completedAt = completedAt;
     if (droppedAt !== undefined) updateData.droppedAt = droppedAt;
 
+    // Atualizar avaliação e notas
     if (userRating !== undefined) updateData.userRating = userRating;
     if (personalNotes !== undefined) {
       updateData.personalNotes = personalNotes;
     }
 
+    // ✅ CORREÇÃO: Atualizar progresso de forma mais eficiente
     if (progress !== undefined) {
-      updateData.progress = {
-        ...existingMedia.progress,
+      const currentProgress = existingMedia.progress || {};
+      const updatedProgress = {
+        ...currentProgress,
         lastUpdated: new Date()
       };
 
       if (progress.details) {
-        updateData.progress.details = {
-          ...(existingMedia.progress?.details || {}),
+        // Criar details apenas com campos fornecidos, não inicializar todos
+        updatedProgress.details = {
+          ...(currentProgress.details || {}),
           ...progress.details
         };
+        
+        // Remover campos undefined para evitar poluição
+        Object.keys(updatedProgress.details).forEach(key => {
+          if (updatedProgress.details[key] === undefined) {
+            delete updatedProgress.details[key];
+          }
+        });
       }
 
       if (progress.tasks !== undefined) {
-        updateData.progress.tasks = Array.isArray(progress.tasks)
+        updatedProgress.tasks = Array.isArray(progress.tasks)
           ? progress.tasks
-          : [];
+          : currentProgress.tasks || [];
       }
+
+      updateData.progress = updatedProgress;
     }
+
+    // Limpar campos undefined antes de atualizar
+    const cleanedUpdateData = cleanUpdateData(updateData);
 
     // Atualizar no banco
     const updatedMedia = await UserMedia.findByIdAndUpdate(
       id,
-      updateData,
+      cleanedUpdateData,
       { new: true, runValidators: true }
     ).populate('mediaCacheId');
 
