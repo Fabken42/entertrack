@@ -66,7 +66,7 @@ export default function MediaCard({
   const pendingTaskName = pendingTask?.name || null;
 
   const shouldShowIncreaseButton = isLibrary &&
-    (item.status === 'in_progress' || item.status === 'dropped') &&
+    item.status === 'in_progress' &&
     onIncreaseProgress &&
     (mediaType === 'anime' || mediaType === 'manga' || mediaType === 'series' || mediaType === 'game') &&
     !(mediaType === 'game' && !hasPendingTasks());

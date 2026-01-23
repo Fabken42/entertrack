@@ -28,7 +28,7 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sidebar-collapsed');
-      return saved ? JSON.parse(saved) : false; 
+      return saved ? JSON.parse(saved) : false;
     }
     return false;
   });
@@ -78,12 +78,6 @@ const Sidebar = () => {
         color: 'text-green-400'
       });
 
-      items.push({
-        name: 'Games',
-        href: '/game',
-        icon: GamepadIcon,
-        color: 'text-purple-400'
-      });
 
       items.push({
         name: 'Animes',
@@ -92,6 +86,12 @@ const Sidebar = () => {
         color: 'text-pink-400'
       });
 
+      items.push({
+        name: 'Jogos',
+        href: '/game',
+        icon: GamepadIcon,
+        color: 'text-purple-400'
+      });
       items.push({
         name: 'Mangás',
         href: '/manga',
@@ -123,17 +123,17 @@ const Sidebar = () => {
     });
 
     items.push({
-      name: 'Games',
-      href: '/discover/game',
-      icon: GamepadIcon,
-      color: 'text-purple-400'
-    });
-
-    items.push({
       name: 'Animes',
       href: '/discover/anime',
       icon: Tv2,
       color: 'text-pink-400'
+    });
+
+    items.push({
+      name: 'Jogos',
+      href: '/discover/game',
+      icon: GamepadIcon,
+      color: 'text-purple-400'
     });
 
     items.push({
@@ -251,7 +251,7 @@ const Sidebar = () => {
               // Se for um título/seção - MODIFICADO: Agora mostra ícone quando recolhida
               if (item.isTitle) {
                 const isCollapsedState = !shouldShowExpanded;
-                
+
                 // Para estado recolhido: mostrar apenas o ícone como um item clicável visual
                 if (isCollapsedState) {
                   return (
@@ -262,7 +262,7 @@ const Sidebar = () => {
                     >
                       <div className="relative">
                         {renderIcon(item, "w-6 h-6 opacity-80 group-hover:opacity-100 transition-opacity")}
-                        
+
                         {/* Tooltip para ícone do título */}
                         <div className="absolute left-full ml-3 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-2xl border border-gray-700 backdrop-blur-sm">
                           <div className="font-bold">{item.name}</div>
@@ -270,7 +270,7 @@ const Sidebar = () => {
                           <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-900 transform rotate-45"></div>
                         </div>
                       </div>
-                      
+
                       {/* Indicador visual para título recolhido */}
                       <div className="absolute bottom-0 left-3 right-3 h-px bg-gradient-to-r from-transparent via-gray-700/30 to-transparent"></div>
                     </div>

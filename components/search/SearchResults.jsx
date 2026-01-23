@@ -166,9 +166,9 @@ const SearchResults = ({
 
               {/* Imagem */}
               <div className="relative flex-shrink-0">
-                {item.imageUrl ? (
+                {item.coverImage ? (
                   <img
-                    src={item.imageUrl}
+                    src={item.coverImage}
                     alt={item.title}
                     className="w-16 h-24 object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
                     onError={(e) => {
