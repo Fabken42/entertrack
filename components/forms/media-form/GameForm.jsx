@@ -107,7 +107,7 @@ const GameForm = (props) => {
       },
       userRating: null,
       personalNotes: '',
-      imageUrl: '',
+      coverImage: '',
       description: '',
       releaseYear: undefined,
       metacritic: undefined,
@@ -123,13 +123,13 @@ const GameForm = (props) => {
         genres: getInitialGenres(),
         userRating: initialData.userRating || null,
         personalNotes: initialData.personalNotes || '',
-        imageUrl: initialData.imageUrl || '',
+        coverImage: initialData.coverImage || '',
         status: initialData.status || 'planned',
         metacritic: initialData.metacritic || null,
         platforms: initialData.platforms || [],
         progress: {
           hours: initialData.hours || initialData.progress?.hours || 0,
-          tasks: initialData.progress?.tasks || [] 
+          tasks: initialData.progress?.tasks || []
         },
       };
     }
@@ -142,7 +142,7 @@ const GameForm = (props) => {
         releaseYear: externalData.releaseYear || undefined,
         genres: getInitialGenres(),
         status: 'planned',
-        imageUrl: externalData.imageUrl || '',
+        coverImage: externalData.coverImage || '',
         metacritic: externalData.metacritic || null,
         platforms: externalData.platforms || [],
         progress: {
@@ -231,9 +231,9 @@ const GameForm = (props) => {
     setCharCount(count);
 
     // Verificar se excede o limite
-    if (count > 3000) {
+    if (count > 1000) {
       setCanSubmit(false);
-      toast.error('Notas pessoais não podem exceder 3000 caracteres');
+      toast.error('Notas pessoais não podem exceder 1000 caracteres');
     } else {
       setCanSubmit(true);
     }
@@ -273,7 +273,7 @@ const GameForm = (props) => {
       }
 
       if (!canSubmit) {
-        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+        toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
       }
 
@@ -282,9 +282,11 @@ const GameForm = (props) => {
 
       if (!isValid) {
         console.error('❌ Form validation failed:', errors);
-        toast.error('Por favor, corrija os erros no formulário');
+        toast.error('Corrija os erros no formulário');
         return;
       }
+
+      const validTasks = tasks.filter(task => task.name && task.name.trim() !== '');
 
       const formValues = {
         title: watch('title'),
@@ -298,13 +300,13 @@ const GameForm = (props) => {
         personalNotes: watch('personalNotes'),
         progress: {
           hours: watch('progress.hours') || 0,
-          tasks: watch('progress.tasks') || []
+          tasks: validTasks
         }
       };
 
       // Verifica novamente o limite de caracteres
-      if (formValues.personalNotes && formValues.personalNotes.length > 3000) {
-        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+      if (formValues.personalNotes && formValues.personalNotes.length > 1000) {
+        toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
       }
 
@@ -318,10 +320,8 @@ const GameForm = (props) => {
           platforms: formValues.platforms || [],
           metacritic: formValues.metacritic || null,
           progress: {
-            details: {
-              hours: formValues.progress?.hours || 0,
-            },
-            tasks: formValues.progress?.tasks || [],
+            hours: formValues.progress?.hours || 0,
+            tasks: validTasks,
             lastUpdated: new Date()
           }
         };
@@ -336,7 +336,7 @@ const GameForm = (props) => {
           finalFormData.sourceApi = 'rawg';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
-          finalFormData.imageUrl = externalData.imageUrl || finalFormData.imageUrl;
+          finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
           finalFormData.apiRating = externalData.rating;
           finalFormData.apiVoteCount = externalData.ratingCount;
           finalFormData.metacritic = externalData.metacritic || finalFormData.metacritic;
@@ -350,7 +350,7 @@ const GameForm = (props) => {
         if (isManualEntry) {
           finalFormData.sourceId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           finalFormData.sourceApi = 'manual';
-          finalFormData.imageUrl = watch('imageUrl') || '';
+          finalFormData.coverImage = watch('coverImage') || '';
         }
 
         console.log('final form data ', finalFormData)
@@ -447,11 +447,11 @@ const GameForm = (props) => {
         )}
 
         {/* Imagem com tags de gêneros */}
-        {hasExternalData && externalData.imageUrl && (
+        {hasExternalData && externalData.coverImage && (
           <div className="flex flex-col items-center">
             <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
               <img
-                src={externalData.imageUrl}
+                src={externalData.coverImage}
                 alt={externalData.title}
                 className="w-full h-full object-cover"
               />
@@ -537,8 +537,8 @@ const GameForm = (props) => {
               <div className="md:col-span-2">
                 <Input
                   label="URL da Imagem"
-                  {...register('imageUrl')}
-                  error={errors.imageUrl?.message}
+                  {...register('coverImage')}
+                  error={errors.coverImage?.message}
                   placeholder="https://exemplo.com/imagem.jpg"
                   variant="glass"
                 />
@@ -690,17 +690,17 @@ const GameForm = (props) => {
                   <label className="block text-sm font-medium text-gray-300">
                     Notas Pessoais (opcional):
                   </label>
-                  <span className={`text-sm ${charCount > 3000 ? 'text-red-400' : 'text-gray-400'}`}>
-                    {charCount}/3000 caracteres
+                  <span className={`text-sm ${charCount > 1000 ? 'text-red-400' : 'text-gray-400'}`}>
+                    {charCount}/1000 caracteres
                   </span>
                 </div>
                 <textarea
                   {...register('personalNotes')}
                   onChange={handlePersonalNotesChange}
                   rows={4}
-                  maxLength={3000}
+                  maxLength={1000}
                   placeholder="Anotações, pensamentos, avaliação detalhada..."
-                  className={`w-full bg-gray-900 border ${charCount > 3000 ? 'border-red-500' : 'border-gray-700'
+                  className={`w-full bg-gray-900 border ${charCount > 1000 ? 'border-red-500' : 'border-gray-700'
                     } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none`}
                 />
                 {errors.personalNotes && (
@@ -708,9 +708,9 @@ const GameForm = (props) => {
                     {errors.personalNotes.message}
                   </p>
                 )}
-                {charCount > 3000 && (
+                {charCount > 1000 && (
                   <p className="mt-1 text-sm text-red-400">
-                    Limite de 3000 caracteres excedido. Reduza seu texto para continuar.
+                    Limite de 1000 caracteres excedido. Reduza seu texto para continuar.
                   </p>
                 )}
               </div>
@@ -751,7 +751,7 @@ const GameForm = (props) => {
               {tasks.length === 0 ? (
                 <div className="text-center py-6 px-4 bg-white/5 rounded-lg border border-dashed border-white/10">
                   <Gamepad className="w-8 h-8 text-white/20 mx-auto mb-2" />
-                  <p className="text-white/60 text-sm mb-3">Nenhuma tarefa adicionada</p>
+                  <p className="text-white/60 text-sm mb-3">Nenhum objetivo adicionado</p>
                   <Button
                     type="button"
                     onClick={addNewTask}
@@ -762,7 +762,7 @@ const GameForm = (props) => {
                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Adicionar primeira tarefa
+                    Adicionar primeiro objetivo
                   </Button>
                 </div>
               ) : (
@@ -791,7 +791,7 @@ const GameForm = (props) => {
                                   e.currentTarget.blur();
                                 }
                               }}
-                              placeholder={`Digite a tarefa ${index + 1}`}
+                              placeholder={`Digite o objetivo ${index + 1}`}
                               className="w-full bg-transparent border-none focus:outline-none text-white placeholder:text-white/40 text-sm"
                             />
                           </div>
@@ -800,7 +800,7 @@ const GameForm = (props) => {
                           type="button"
                           onClick={() => removeTask(index)}
                           className="p-1.5 text-red-400 hover:text-red-300 hover:bg-white/5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                          aria-label="Remover tarefa"
+                          aria-label="Remover objetivo"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

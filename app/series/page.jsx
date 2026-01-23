@@ -451,14 +451,14 @@ export default function SeriesPage() {
             episodes: editingItem.mediaCacheId?.essentialData?.episodes,
             episodesPerSeason: editingItem.mediaCacheId?.essentialData?.episodesPerSeason,
             category: editingItem.mediaCacheId?.essentialData?.category,
-            imageUrl: editingItem.mediaCacheId?.essentialData?.coverImage,
+            coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
             releaseYear: editingItem.mediaCacheId?.essentialData?.releaseYear,
             userRating: editingItem.userRating || null,
             personalNotes: editingItem.personalNotes || '',
             status: editingItem.status,
             progress: {
-              seasons: editingItem.progress?.details?.seasons || 1,
-              episodes: editingItem.progress?.details?.episodes || 1,
+              seasons: editingItem.progress?.seasons || 1,
+              episodes: editingItem.progress?.episodes || 0,
             }
           }}
           onSubmit={handleEditSubmit}

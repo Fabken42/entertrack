@@ -7,7 +7,6 @@ import MovieForm from './MovieForm';
 import SeriesForm from './SeriesForm'; 
 import AnimeForm from './AnimeForm';
 import MangaForm from './MangaForm';
-import BookForm from './BookForm'; 
 import GameForm from './GameForm';
 import toast from 'react-hot-toast';
 
@@ -61,8 +60,6 @@ const MediaFormModal = ({
         return <AnimeForm {...formProps} />;
       case 'manga':
         return <MangaForm {...formProps} />;
-      case 'book':
-        return <BookForm {...formProps} />;
       case 'game':
         return <GameForm {...formProps} />;
       default:

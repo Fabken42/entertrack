@@ -2,52 +2,78 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/authOptions';
 import { connectToDatabase } from '@/lib/database/connect';
-import UserMedia from '@/models/UserMedia';
-import MediaCache from '@/models/MediaCache';
+import { 
+  getCacheModelByType,
+  getUserMediaModelByType
+} from '@/models';
 
-// Função auxiliar para criar progresso inicial baseado no tipo de mídia
+// ATUALIZADA: Função auxiliar para criar progresso inicial baseado no tipo de mídia
 const createInitialProgress = (mediaType, initialProgress = {}) => {
   const progress = {
-    details: {},
-    tasks: initialProgress.tasks || [],
     lastUpdated: new Date()
   };
 
-  // Apenas inicializar campos relevantes para o tipo de mídia
-  const initialDetails = initialProgress.details || {};
-
   switch (mediaType) {
     case 'anime':
-      progress.details.episodes = initialDetails.episodes || 0;
+      progress.episodes = initialProgress.episodes || 0;
       break;
     case 'manga':
-      progress.details.chapters = initialDetails.chapters || 0;
-      progress.details.volumes = initialDetails.volumes || 0;
+      progress.chapters = initialProgress.chapters || 0;
+      progress.volumes = initialProgress.volumes || 0;
       break;
     case 'series':
-      progress.details.seasons = initialDetails.seasons || 0;
-      progress.details.episodes = initialDetails.episodes || 0;
+      progress.seasons = initialProgress.seasons || 0;
+      progress.episodes = initialProgress.episodes || 0;
       break;
     case 'game':
-      progress.details.hours = initialDetails.hours || 0;
+      progress.hours = initialProgress.hours || 0;
       progress.tasks = initialProgress.tasks || [];
       break;
     case 'movie':
-      progress.details.minutes = initialDetails.minutes || 0;
+      progress.minutes = initialProgress.minutes || 0;
       break;
     default:
       // Para tipos genéricos ou desconhecidos, usar percentage
-      progress.details.percentage = initialDetails.percentage || 0;
+      progress.percentage = initialProgress.percentage || 0;
   }
 
   // Remover campos undefined
-  Object.keys(progress.details).forEach(key => {
-    if (progress.details[key] === undefined) {
-      delete progress.details[key];
+  Object.keys(progress).forEach(key => {
+    if (progress[key] === undefined) {
+      delete progress[key];
     }
   });
 
   return progress;
+};
+
+// Função: Buscar todas as mídias do usuário através de todos os tipos
+const getAllUserMedia = async (userId) => {
+  const mediaTypes = ['movie', 'series', 'anime', 'manga', 'game'];
+  const allMedia = [];
+
+  for (const mediaType of mediaTypes) {
+    try {
+      const UserMediaModel = getUserMediaModelByType(mediaType);
+      const userMediaList = await UserMediaModel.find({ userId });
+      
+      // Buscar cache para cada item
+      for (const media of userMediaList) {
+        const CacheModel = getCacheModelByType(mediaType);
+        const cacheData = await CacheModel.findById(media.mediaCacheId);
+        allMedia.push({
+          ...media.toObject(),
+          mediaCacheId: cacheData
+        });
+      }
+    } catch (error) {
+      console.error(`Error fetching ${mediaType} for user ${userId}:`, error);
+      continue;
+    }
+  }
+
+  // Ordenar por data de criação (mais recente primeiro)
+  return allMedia.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
 export async function GET() {
@@ -62,9 +88,9 @@ export async function GET() {
 
     await connectToDatabase();
 
-    const userMedia = await UserMedia.find({ userId: session.user.id })
-      .populate('mediaCacheId')
-      .sort({ createdAt: -1 });
+    // Usar função para buscar todas as mídias do usuário
+    const userMedia = await getAllUserMedia(session.user.id);
+    
     return NextResponse.json(userMedia);
 
   } catch (error) {
@@ -91,7 +117,40 @@ export async function POST(request) {
     const body = await request.json();
     const { mediaCacheId, status, userRating, personalNotes, progress } = body;
 
-    const existingUserMedia = await UserMedia.findOne({
+    // Determinar o tipo de mídia para buscar no cache correto
+    let mediaType = null;
+    let mediaCache = null;
+    
+    // Tentar buscar em cada tipo de cache
+    const cacheTypes = ['movie', 'series', 'anime', 'manga', 'game'];
+    
+    for (const type of cacheTypes) {
+      try {
+        const CacheModel = getCacheModelByType(type);
+        const cache = await CacheModel.findById(mediaCacheId);
+        if (cache) {
+          mediaCache = cache;
+          mediaType = type;
+          break;
+        }
+      } catch (error) {
+        // Continuar para o próximo tipo
+        continue;
+      }
+    }
+
+    if (!mediaCache) {
+      return NextResponse.json(
+        { error: 'Cache da mídia não encontrado' },
+        { status: 404 }
+      );
+    }
+
+    // Obter modelo específico de UserMedia
+    const UserMediaModel = getUserMediaModelByType(mediaType);
+
+    // Verificar duplicata usando o modelo específico
+    const existingUserMedia = await UserMediaModel.findOne({
       userId: session.user.id,
       mediaCacheId
     });
@@ -103,22 +162,15 @@ export async function POST(request) {
       );
     }
 
-    const mediaCache = await MediaCache.findById(mediaCacheId);
-    if (!mediaCache) {
-      return NextResponse.json(
-        { error: 'Cache da mídia não encontrado' },
-        { status: 404 }
-      );
-    }
+    const progressData = createInitialProgress(mediaType, progress || {});
 
-    // ✅ CORREÇÃO: Criar progresso específico para o tipo de mídia
-    const progressData = createInitialProgress(mediaCache.mediaType, progress || {});
-
-    // ✅ CORREÇÃO: Criar objeto limpo sem campos desnecessários
+    // Criar objeto limpo sem campos desnecessários
     const userMediaData = {
       userId: session.user.id,
       mediaCacheId,
-      status: status || 'planned'
+      mediaType: mediaType,
+      status: status || 'planned',
+      lastUpdated: new Date()
     };
 
     // Apenas adicionar campos se tiverem valores válidos
@@ -130,18 +182,13 @@ export async function POST(request) {
       userMediaData.personalNotes = personalNotes.trim();
     }
 
-    if (progressData && Object.keys(progressData.details).length > 0) {
+    // ATUALIZADA: Adicionar progresso se houver campos relevantes
+    const hasProgressData = Object.keys(progressData).some(key => key !== 'lastUpdated');
+    if (hasProgressData) {
       userMediaData.progress = progressData;
-    } else {
-      // Se não houver details, criar estrutura mínima
-      userMediaData.progress = {
-        details: {},
-        tasks: progressData.tasks || [],
-        lastUpdated: new Date()
-      };
     }
 
-    // ✅ CORREÇÃO: Adicionar datas conforme status (mas sem valores padrão desnecessários)
+    // Adicionar datas conforme status
     if (status === 'in_progress') {
       userMediaData.startedAt = new Date();
     } else if (status === 'completed') {
@@ -150,20 +197,19 @@ export async function POST(request) {
       userMediaData.droppedAt = new Date();
     }
 
-    // ✅ CORREÇÃO: Não inicializar tags se não fornecidas
-    // (o schema já define default: [])
-
-    const userMedia = new UserMedia(userMediaData);
+    // Criar usando modelo específico
+    const userMedia = new UserMediaModel(userMediaData);
     await userMedia.save();
 
-    // Atualizar contador de usuários no cache
-    await MediaCache.findByIdAndUpdate(mediaCacheId, {
+    // Atualizar contador de usuários no cache usando modelo específico
+    const CacheModel = getCacheModelByType(mediaType);
+    await CacheModel.findByIdAndUpdate(mediaCacheId, {
       $inc: { 'usageStats.userCount': 1 },
       $set: { 'usageStats.lastAccessed': new Date() }
     });
 
-    // Populate antes de retornar
-    await userMedia.populate('mediaCacheId');
+    // Adicionar cache à resposta
+    userMedia.mediaCacheId = mediaCache;
 
     return NextResponse.json(userMedia);
 
@@ -174,6 +220,14 @@ export async function POST(request) {
       const errors = Object.values(error.errors).map(err => err.message);
       return NextResponse.json(
         { error: 'Erro de validação', details: errors },
+        { status: 400 }
+      );
+    }
+
+    // Verificar se é erro de modelo não encontrado
+    if (error.message?.includes('getUserMediaModelByType') || error.message?.includes('Tipo de mídia não suportado')) {
+      return NextResponse.json(
+        { error: `Tipo de mídia não suportado` },
         { status: 400 }
       );
     }

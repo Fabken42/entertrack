@@ -1,7 +1,7 @@
 // components/media/MediaCard.jsx
 import Card from '../ui/card/Card';
 import { CardContent } from '../ui/card/Card';
-import { Star, Users, TrendingUp, Calendar, Trash2, MessageSquare, Plus, Clock } from 'lucide-react';
+import { Star, Users, TrendingUp, Calendar, Trash2, MessageSquare, Check, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils/general-utils';
 import { formatNumber, formatPopularity, shouldShowCount, formatRuntime } from '@/lib/utils/general-utils';
 import {
@@ -26,7 +26,6 @@ export default function MediaCard({
   onIncreaseProgress,
   isLibrary = false
 }) {
-  console.log('item: ', item)
   const progressInfo = getProgressInfo(item, mediaType, isLibrary);
 
   const handleCardClick = (e) => {
@@ -47,20 +46,56 @@ export default function MediaCard({
 
   const statusBorderColor = getStatusBorderColor(item.status);
 
+  const getFirstPendingTask = () => {
+    if (mediaType === 'game' && item.progress?.tasks) {
+      // Encontra a PRIMEIRA tarefa pendente
+      const pendingTask = item.progress.tasks.find(task => task.completed === false);
+      return pendingTask || null; // Retorna o objeto da tarefa completo
+    }
+    return null;
+  };
+
+  const hasPendingTasks = () => {
+    if (mediaType === 'game' && item.progress?.tasks) {
+      return item.progress.tasks.some(task => task.completed === false);
+    }
+    return false;
+  };
+
+  const pendingTask = getFirstPendingTask();
+  const pendingTaskName = pendingTask?.name || null;
+
   const shouldShowIncreaseButton = isLibrary &&
     (item.status === 'in_progress' || item.status === 'dropped') &&
     onIncreaseProgress &&
-    (mediaType === 'anime' || mediaType === 'manga' || mediaType === 'series');
+    (mediaType === 'anime' || mediaType === 'manga' || mediaType === 'series' || mediaType === 'game') &&
+    !(mediaType === 'game' && !hasPendingTasks());
 
   const getIncreaseButtonLabel = () => {
     switch (mediaType) {
-      case 'anime':
-      case 'series':
-        return '+1 Episódio';
-      case 'manga':
-        return '+1 Capítulo';
+      case 'anime': {
+        const currentEpisode = item.progress?.episodes || 0;
+        const nextEpisode = currentEpisode + 1;
+        return `Ep. ${nextEpisode} assistido`;
+      }
+      case 'series': {
+        const currentEpisode = item.progress?.episodes || 0;
+        const nextEpisode = currentEpisode + 1;
+        const currentSeason = item.progress?.seasons || '?';
+        return `Ep. ${nextEpisode} (T${currentSeason}) assistido`;
+      }
+      case 'manga': {
+        const currentChapter = item.progress?.chapters || 0;
+        const nextChapter = currentChapter + 1;
+        return `Cap.${nextChapter} lido`;
+      }
+      case 'game':
+        if (pendingTaskName) {
+          return `Concluir: ${pendingTaskName}`;
+        }
+        return '';
       default:
-        return '+1 Progresso';
+        return 'Concluir';
     }
   };
 
@@ -89,7 +124,7 @@ export default function MediaCard({
       >
         <div className="relative flex-shrink-0">
           <img
-            src={item.imageUrl || '/images/icons/placeholder-image.png'}
+            src={item.coverImage || '/images/icons/placeholder-image.png'}
             alt={item.title}
             className="w-20 h-28 object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {
@@ -217,10 +252,10 @@ export default function MediaCard({
                   />
                 </div>
 
-                {/* ✅ Adicionar horas de jogo para jogos */}
-                {mediaType === 'game' && item.progress?.details?.hours && (
+                {/* ✅ Adicionar horas jogadas para jogos */}
+                {mediaType === 'game' && item.progress?.hours && (
                   <div className="text-xs text-white/60 mt-1 text-right">
-                    {item.progress.details.hours}h jogadas
+                    {item.progress.hours}h jogadas
                   </div>
                 )}
               </div>
@@ -238,12 +273,14 @@ export default function MediaCard({
                 }}
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5",
-                  "bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30",
-                  "text-pink-300 hover:text-pink-200 border border-pink-500/30 hover:border-pink-500/50",
+                  // Estilo específico para jogos com tarefa pendente
+                  mediaType === 'game' && pendingTaskName
+                    ? "bg-gradient-to-r from-emerald-500/20 to-green-500/20 hover:from-emerald-500/30 hover:to-green-500/30 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 hover:border-emerald-500/50"
+                    : "bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 text-pink-300 hover:text-pink-200 border border-pink-500/30 hover:border-pink-500/50",
                   "hover:scale-105 active:scale-95"
                 )}
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Check className="w-3.5 h-3.5" />
                 {getIncreaseButtonLabel()}
               </button>
 
@@ -356,7 +393,7 @@ export default function MediaCard({
         {/* Imagem */}
         <div className="relative mb-4 rounded-xl overflow-hidden">
           <img
-            src={item.imageUrl || '/images/icons/placeholder-image.png'}
+            src={item.coverImage || '/images/icons/placeholder-image.png'}
             alt={item.title}
             className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
             onError={(e) => {
@@ -404,13 +441,15 @@ export default function MediaCard({
                   onIncreaseProgress(item._id);
                 }}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 shadow-lg",
-                  "bg-gradient-to-r from-pink-500/30 to-purple-500/30 hover:from-pink-500/40 hover:to-purple-500/40",
-                  "text-pink-200 hover:text-white border border-pink-500/40 hover:border-pink-500/60",
-                  "hover:scale-105 active:scale-95 backdrop-blur-sm"
+                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5",
+                  // Estilo específico para jogos com tarefa pendente
+                  mediaType === 'game' && pendingTaskName
+                    ? "bg-gradient-to-r from-emerald-500/20 to-green-500/20 hover:from-emerald-500/30 hover:to-green-500/30 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 hover:border-emerald-500/50"
+                    : "bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 text-pink-300 hover:text-pink-200 border border-pink-500/30 hover:border-pink-500/50",
+                  "hover:scale-105 active:scale-95"
                 )}
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Check className="w-3.5 h-3.5" />
                 {getIncreaseButtonLabel()}
               </button>
             </div>
@@ -503,11 +542,11 @@ export default function MediaCard({
               {progressInfo.percentage}%
             </div>
 
-            {/* ✅ Adicionar horas de jogo para jogos */}
-            {mediaType === 'game' && item.progress?.details?.hours && (
+            {/* ✅ Adicionar horas jogadas para jogos */}
+            {mediaType === 'game' && item.progress?.hours && (
               <div className="flex items-center gap-1">
-                <span className="text-xs text-white/60">Horas de jogo:</span>
-                <span className="text-xs font-medium text-white ml-1">{item.progress.details.hours}h</span>
+                <span className="text-xs text-white/60">Horas jogadas:</span>
+                <span className="text-xs font-medium text-white ml-1">{item.progress.hours}h</span>
               </div>
             )}
           </div>

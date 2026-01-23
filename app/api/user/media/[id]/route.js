@@ -1,36 +1,33 @@
-// /app/api/user/media/[id]/route.js
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/authOptions';
 import { connectToDatabase } from '@/lib/database/connect';
-import UserMedia from '@/models/UserMedia';
-import MediaCache from '@/models/MediaCache';
+import {
+  getCacheModelByType,
+  getUserMediaModelByType
+} from '@/models';
 
 const updateProgressOnCompletion = (mediaType, existingProgress, cacheData) => {
   const progress = { ...existingProgress };
-  
-  if (!progress.details) {
-    progress.details = {};
-  }
 
   switch (mediaType) {
     case 'anime':
       const totalEpisodes = cacheData?.essentialData?.episodes;
       if (totalEpisodes) {
-        progress.details.episodes = totalEpisodes;
+        progress.episodes = totalEpisodes;
       }
       break;
     case 'manga':
       const totalChapters = cacheData?.essentialData?.chapters;
       const totalVolumes = cacheData?.essentialData?.volumes;
-      if (totalChapters) progress.details.chapters = totalChapters;
-      if (totalVolumes) progress.details.volumes = totalVolumes;
+      if (totalChapters) progress.chapters = totalChapters;
+      if (totalVolumes) progress.volumes = totalVolumes;
       break;
     case 'series':
       const totalSeasons = cacheData?.essentialData?.seasons;
       const totalEpisodesSeries = cacheData?.essentialData?.episodes;
-      if (totalSeasons) progress.details.seasons = totalSeasons;
-      if (totalEpisodesSeries) progress.details.episodes = totalEpisodesSeries;
+      if (totalSeasons) progress.seasons = totalSeasons;
+      if (totalEpisodesSeries) progress.episodes = totalEpisodesSeries;
       break;
     case 'game':
       // Marcar todas as tarefas como completas
@@ -43,13 +40,13 @@ const updateProgressOnCompletion = (mediaType, existingProgress, cacheData) => {
       break;
     case 'movie':
       const totalMinutes = cacheData?.essentialData?.runtime;
-      if (totalMinutes) progress.details.minutes = totalMinutes;
+      if (totalMinutes) progress.minutes = totalMinutes;
       break;
   }
 
   // Apenas definir porcentagem para tipos que não sejam game
   if (mediaType !== 'game') {
-    progress.details.percentage = 100;
+    progress.percentage = 100;
   }
 
   progress.lastUpdated = new Date();
@@ -65,6 +62,37 @@ const cleanUpdateData = (data) => {
     }
   });
   return cleaned;
+};
+
+// Helper para buscar UserMedia pelo tipo correto
+const findUserMediaById = async (id, userId) => {
+  // Tentar buscar em cada tipo de UserMedia
+  const mediaTypes = ['movie', 'series', 'anime', 'manga', 'game'];
+
+  for (const mediaType of mediaTypes) {
+    try {
+      const UserMediaModel = getUserMediaModelByType(mediaType);
+      const userMedia = await UserMediaModel.findOne({
+        _id: id,
+        userId
+      });
+
+      if (userMedia) {
+        // Buscar cache correspondente
+        const CacheModel = getCacheModelByType(mediaType);
+        const cacheData = await CacheModel.findById(userMedia.mediaCacheId);
+        return {
+          ...userMedia.toObject(),
+          mediaCacheId: cacheData
+        };
+      }
+    } catch (error) {
+      // Continuar para o próximo tipo
+      continue;
+    }
+  }
+
+  return null;
 };
 
 export async function DELETE(request, context) {
@@ -83,11 +111,8 @@ export async function DELETE(request, context) {
 
     await connectToDatabase();
 
-    // Buscar UserMedia com o MediaCache populado
-    const userMedia = await UserMedia.findOne({
-      _id: id,
-      userId: session.user.id
-    }).populate('mediaCacheId');
+    // Usar helper para buscar UserMedia
+    const userMedia = await findUserMediaById(id, session.user.id);
 
     if (!userMedia) {
       return NextResponse.json(
@@ -97,10 +122,16 @@ export async function DELETE(request, context) {
     }
 
     const mediaCacheId = userMedia.mediaCacheId?._id;
-    await UserMedia.findByIdAndDelete(id);
+    const mediaType = userMedia.mediaType;
+
+    // Usar modelo específico para deletar
+    const UserMediaModel = getUserMediaModelByType(mediaType);
+    await UserMediaModel.findByIdAndDelete(id);
 
     if (mediaCacheId) {
-      const updatedCache = await MediaCache.findByIdAndUpdate(
+      // Usar modelo específico de cache para atualizar
+      const CacheModel = getCacheModelByType(mediaType);
+      const updatedCache = await CacheModel.findByIdAndUpdate(
         mediaCacheId,
         {
           $inc: { 'usageStats.userCount': -1 },
@@ -114,7 +145,7 @@ export async function DELETE(request, context) {
         updatedCache.usageStats.userCount <= 0 &&
         updatedCache.sourceApi === 'manual'
       ) {
-        await MediaCache.findByIdAndDelete(mediaCacheId);
+        await CacheModel.findByIdAndDelete(mediaCacheId);
         console.log(`✅ Cache manual deletado: ${mediaCacheId} (${updatedCache.essentialData?.title})`);
       }
     }
@@ -138,7 +169,7 @@ export async function DELETE(request, context) {
 export async function PUT(request, context) {
   const { params } = context;
   const { id } = await params;
-  
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -150,8 +181,7 @@ export async function PUT(request, context) {
     }
 
     const body = await request.json();
-    console.log('Update request body:', body);
-    
+
     const {
       status,
       userRating,
@@ -164,11 +194,8 @@ export async function PUT(request, context) {
 
     await connectToDatabase();
 
-    // Verificar se o UserMedia existe e pertence ao usuário
-    const existingMedia = await UserMedia.findOne({
-      _id: id,
-      userId: session.user.id
-    }).populate('mediaCacheId');
+    // Usar helper para buscar UserMedia
+    const existingMedia = await findUserMediaById(id, session.user.id);
 
     if (!existingMedia) {
       return NextResponse.json(
@@ -177,9 +204,14 @@ export async function PUT(request, context) {
       );
     }
 
+    const mediaType = existingMedia.mediaType;
+
+    // Obter modelo específico para atualizar
+    const UserMediaModel = getUserMediaModelByType(mediaType);
+
     // Preparar dados para atualização
     const updateData = {
-      updatedAt: new Date()
+      lastUpdated: new Date()
     };
 
     // Atualizar campos se fornecidos
@@ -195,14 +227,13 @@ export async function PUT(request, context) {
         updateData.completedAt = new Date();
         updateData.droppedAt = null;
 
-        const mediaType = existingMedia.mediaCacheId?.mediaType;
         const cacheData = existingMedia.mediaCacheId;
         updateData.progress = updateProgressOnCompletion(
           mediaType,
           existingMedia.progress || {},
           cacheData
         );
-        
+
       } else if (status === 'dropped') {
         updateData.droppedAt = new Date();
         updateData.completedAt = null;
@@ -224,7 +255,7 @@ export async function PUT(request, context) {
       updateData.personalNotes = personalNotes;
     }
 
-    // ✅ CORREÇÃO: Atualizar progresso de forma mais eficiente
+    // Atualizar progresso de forma mais eficiente
     if (progress !== undefined) {
       const currentProgress = existingMedia.progress || {};
       const updatedProgress = {
@@ -232,20 +263,13 @@ export async function PUT(request, context) {
         lastUpdated: new Date()
       };
 
-      if (progress.details) {
-        // Criar details apenas com campos fornecidos, não inicializar todos
-        updatedProgress.details = {
-          ...(currentProgress.details || {}),
-          ...progress.details
-        };
-        
-        // Remover campos undefined para evitar poluição
-        Object.keys(updatedProgress.details).forEach(key => {
-          if (updatedProgress.details[key] === undefined) {
-            delete updatedProgress.details[key];
-          }
-        });
-      }
+      if (progress.hours !== undefined) updatedProgress.hours = progress.hours;
+      if (progress.episodes !== undefined) updatedProgress.episodes = progress.episodes;
+      if (progress.chapters !== undefined) updatedProgress.chapters = progress.chapters;
+      if (progress.volumes !== undefined) updatedProgress.volumes = progress.volumes;
+      if (progress.seasons !== undefined) updatedProgress.seasons = progress.seasons;
+      if (progress.minutes !== undefined) updatedProgress.minutes = progress.minutes;
+      if (progress.percentage !== undefined) updatedProgress.percentage = progress.percentage;
 
       if (progress.tasks !== undefined) {
         updatedProgress.tasks = Array.isArray(progress.tasks)
@@ -259,12 +283,19 @@ export async function PUT(request, context) {
     // Limpar campos undefined antes de atualizar
     const cleanedUpdateData = cleanUpdateData(updateData);
 
-    // Atualizar no banco
-    const updatedMedia = await UserMedia.findByIdAndUpdate(
+    // Usar modelo específico para atualizar
+    const updatedMedia = await UserMediaModel.findByIdAndUpdate(
       id,
       cleanedUpdateData,
       { new: true, runValidators: true }
-    ).populate('mediaCacheId');
+    );
+
+    // Buscar cache para incluir na resposta
+    if (updatedMedia) {
+      const CacheModel = getCacheModelByType(mediaType);
+      const cacheData = await CacheModel.findById(updatedMedia.mediaCacheId);
+      updatedMedia.mediaCacheId = cacheData;
+    }
 
     return NextResponse.json(updatedMedia);
 
@@ -276,6 +307,14 @@ export async function PUT(request, context) {
       const errors = Object.values(error.errors).map(err => err.message);
       return NextResponse.json(
         { error: 'Erro de validação', details: errors },
+        { status: 400 }
+      );
+    }
+
+    // Verificar se é erro de modelo não encontrado
+    if (error.message?.includes('getUserMediaModelByType') || error.message?.includes('Tipo de mídia não suportado')) {
+      return NextResponse.json(
+        { error: `Tipo de mídia não suportado` },
         { status: 400 }
       );
     }
@@ -302,10 +341,8 @@ export async function GET(request, { params }) {
 
     await connectToDatabase();
 
-    const userMedia = await UserMedia.findOne({
-      _id: id,
-      userId: session.user.id
-    }).populate('mediaCacheId');
+    // Usar helper para buscar UserMedia
+    const userMedia = await findUserMediaById(id, session.user.id);
 
     if (!userMedia) {
       return NextResponse.json(
@@ -323,4 +360,4 @@ export async function GET(request, { params }) {
       { status: 500 }
     );
   }
-}
+};

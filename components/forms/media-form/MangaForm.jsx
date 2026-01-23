@@ -151,7 +151,7 @@ const MangaForm = (props) => {
       progress: { currentChapter: 0, currentVolume: 0 },
       userRating: null,
       personalNotes: '',
-      imageUrl: '',
+      coverImage: '',
       description: '',
       releaseYear: undefined,
       volumes: '',
@@ -162,9 +162,9 @@ const MangaForm = (props) => {
       let volumesFromData = initialData.volumes || initialData.mediaCacheId?.essentialData?.volumes || '';
       let chaptersFromData = initialData.chapters || initialData.mediaCacheId?.essentialData?.chapters || '';
       let currentVolume = initialData.progress?.currentVolume ||
-        initialData.progress?.details?.volumes || 0;
+        initialData.progress?.volumes || 0;
       let currentChapter = initialData.progress?.currentChapter ||
-        initialData.progress?.details?.chapters || 0;
+        initialData.progress?.chapters || 0;
 
       // Garante que os valores não ultrapassem os totais
       if (volumesFromData && currentVolume > volumesFromData) {
@@ -183,7 +183,7 @@ const MangaForm = (props) => {
         authors: getInitialAuthors(),
         userRating: initialData.userRating || null,
         personalNotes: initialData.personalNotes || '',
-        imageUrl: initialData.imageUrl || '',
+        coverImage: initialData.coverImage || '',
         status: initialData.status || 'planned',
         volumes: volumesFromData,
         chapters: chaptersFromData,
@@ -203,7 +203,7 @@ const MangaForm = (props) => {
         genres: getInitialGenres(),
         authors: getInitialAuthors(),
         status: 'planned',
-        imageUrl: externalData.imageUrl || '',
+        coverImage: externalData.coverImage || '',
         volumes: externalData.volumes || '',
         chapters: externalData.chapters || '',
         progress: { currentChapter: 0, currentVolume: 0 },
@@ -311,9 +311,9 @@ const MangaForm = (props) => {
 
     setCharCount(count);
 
-    if (count > 3000) {
+    if (count > 1000) {
       setCanSubmit(false);
-      toast.error('Notas pessoais não podem exceder 3000 caracteres');
+      toast.error('Notas pessoais não podem exceder 1000 caracteres');
     } else {
       setCanSubmit(true);
     }
@@ -328,7 +328,7 @@ const MangaForm = (props) => {
       }
 
       if (!canSubmit) {
-        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+        toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
       }
 
@@ -375,8 +375,8 @@ const MangaForm = (props) => {
         }
       };
 
-      if (formData.personalNotes && formData.personalNotes.length > 3000) {
-        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+      if (formData.personalNotes && formData.personalNotes.length > 1000) {
+        toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
       }
 
@@ -392,10 +392,8 @@ const MangaForm = (props) => {
           volumes: formData.volumes || null,
           chapters: formData.chapters || null,
           progress: {
-            details: {
-              volumes: formData.progress?.currentVolume || 0,
-              chapters: formData.progress?.currentChapter || 0,
-            },
+            volumes: formData.progress?.currentVolume || 0,
+            chapters: formData.progress?.currentChapter || 0,
             lastUpdated: new Date()
           },
         };
@@ -409,7 +407,7 @@ const MangaForm = (props) => {
           finalFormData.sourceApi = 'jikan';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
-          finalFormData.imageUrl = externalData.imageUrl || finalFormData.imageUrl;
+          finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
           finalFormData.apiRating = externalData.apiRating;
           finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingCount;
           finalFormData.volumes = externalData.volumes || formData.volumes;
@@ -426,7 +424,7 @@ const MangaForm = (props) => {
         if (isManualEntry) {
           finalFormData.sourceId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           finalFormData.sourceApi = 'manual';
-          finalFormData.imageUrl = '';
+          finalFormData.coverImage = '';
         }
 
         await onSubmit(finalFormData);
@@ -576,11 +574,11 @@ const MangaForm = (props) => {
       )}
 
       {/* Imagem com tags de gêneros */}
-      {hasExternalData && externalData.imageUrl && (
+      {hasExternalData && externalData.coverImage && (
         <div className="flex flex-col items-center">
           <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
             <img
-              src={externalData.imageUrl}
+              src={externalData.coverImage}
               alt={externalData.title}
               className="w-full h-full object-cover"
             />
@@ -837,17 +835,17 @@ const MangaForm = (props) => {
                 <label className="block text-sm font-medium text-gray-300">
                   Notas Pessoais (opcional):
                 </label>
-                <span className={`text-sm ${charCount > 3000 ? 'text-red-400' : 'text-gray-400'}`}>
-                  {charCount}/3000 caracteres
+                <span className={`text-sm ${charCount > 1000 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {charCount}/1000 caracteres
                 </span>
               </div>
               <textarea
                 {...register('personalNotes')}
                 onChange={handlePersonalNotesChange}
                 rows={4}
-                maxLength={3000}
+                maxLength={1000}
                 placeholder="Anotações, pensamentos, avaliação detalhada..."
-                className={`w-full bg-gray-900 border ${charCount > 3000 ? 'border-red-500' : 'border-gray-700'
+                className={`w-full bg-gray-900 border ${charCount > 1000 ? 'border-red-500' : 'border-gray-700'
                   } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none`}
               />
               {errors.personalNotes && (
@@ -855,9 +853,9 @@ const MangaForm = (props) => {
                   {errors.personalNotes.message}
                 </p>
               )}
-              {charCount > 3000 && (
+              {charCount > 1000 && (
                 <p className="mt-1 text-sm text-red-400">
-                  Limite de 3000 caracteres excedido. Reduza seu texto para continuar.
+                  Limite de 1000 caracteres excedido. Reduza seu texto para continuar.
                 </p>
               )}
             </div>

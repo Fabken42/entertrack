@@ -141,7 +141,7 @@ const SeriesForm = (props) => {
       genres: getInitialGenres(),
       userRating: null,
       personalNotes: '',
-      imageUrl: '',
+      coverImage: '',
       description: '',
       releaseYear: undefined,
       progress: { seasons: 1, episodes: 0 }
@@ -156,7 +156,7 @@ const SeriesForm = (props) => {
         genres: getInitialGenres(),
         userRating: initialData.userRating || null,
         personalNotes: initialData.personalNotes || '',
-        imageUrl: initialData.imageUrl || '',
+        coverImage: initialData.coverImage || '',
         status: initialData.status || 'planned',
         progress: {
           seasons: initialData.progress?.seasons || 1,
@@ -173,7 +173,7 @@ const SeriesForm = (props) => {
         releaseYear: externalData.releaseYear || undefined,
         genres: getInitialGenres(),
         status: 'planned',
-        imageUrl: externalData.imageUrl || '',
+        coverImage: externalData.coverImage || '',
         userRating: null,
         progress: { seasons: 1, episodes: 0 },
       };
@@ -208,10 +208,6 @@ const SeriesForm = (props) => {
   const showRatingAndComment = currentStatus === 'completed' || currentStatus === 'dropped';
   const showProgressFields = currentStatus === 'in_progress' || currentStatus === 'dropped';
 
-  // Observar valores atuais para cálculo de progresso
-  const currentSeason = watch('progress.seasons') || 1;
-  const currentEpisode = watch('progress.episodes') || 1;
-
   React.useEffect(() => {
     setValue('genres', selectedGenres, { shouldValidate: true });
   }, [selectedGenres, setValue]);
@@ -234,7 +230,7 @@ const SeriesForm = (props) => {
   React.useEffect(() => {
     // Quando a temporada muda, verifica se o episódio atual é maior que o máximo da nova temporada
     const currentSeasonValue = watch('progress.seasons') || 1;
-    const currentEpisodeValue = watch('progress.episodes') || 1;
+    const currentEpisodeValue = watch('progress.episodes') || 0;
 
     if (seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length >= currentSeasonValue) {
       const maxEpisodes = seasonInfo.episodesPerSeason[currentSeasonValue - 1];
@@ -326,9 +322,9 @@ const SeriesForm = (props) => {
     setCharCount(count);
 
     // Verificar se excede o limite
-    if (count > 3000) {
+    if (count > 1000) {
       setCanSubmit(false);
-      toast.error('Notas pessoais não podem exceder 3000 caracteres');
+      toast.error('Notas pessoais não podem exceder 1000 caracteres');
     } else {
       setCanSubmit(true);
     }
@@ -343,7 +339,7 @@ const SeriesForm = (props) => {
         e.preventDefault();
       }
       if (!canSubmit) {
-        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+        toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
       }
 
@@ -401,8 +397,8 @@ const SeriesForm = (props) => {
           episodes: watch('progress.episodes')
         }
       };
-      if (formData.personalNotes && formData.personalNotes.length > 3000) {
-        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+      if (formData.personalNotes && formData.personalNotes.length > 1000) {
+        toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
       }
 
@@ -418,10 +414,8 @@ const SeriesForm = (props) => {
           episodes: seasonInfo?.episodes || null,
           episodesPerSeason: seasonInfo?.episodesPerSeason || [],
           progress: {
-            details: {
-              seasons: formData.progress?.seasons || 1,
-              episodes: formData.progress?.episodes || 1,
-            },
+            seasons: formData.progress?.seasons || 1,
+            episodes: formData.progress?.episodes || 0,
             lastUpdated: new Date()
           },
         };
@@ -435,7 +429,7 @@ const SeriesForm = (props) => {
           finalFormData.sourceApi = 'tmdb';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
-          finalFormData.imageUrl = externalData.imageUrl || finalFormData.imageUrl;
+          finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
           finalFormData.apiRating = apiRatingData?.rawRating || externalData.apiRating;
           finalFormData.apiVoteCount = apiRatingData?.voteCount || externalData.apiVoteCount;
 
@@ -447,7 +441,7 @@ const SeriesForm = (props) => {
         if (isManualEntry) {
           finalFormData.sourceId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           finalFormData.sourceApi = 'manual';
-          finalFormData.imageUrl = '';
+          finalFormData.coverImage = '';
         }
         await onSubmit(finalFormData);
       }
@@ -547,11 +541,11 @@ const SeriesForm = (props) => {
           </div>
         )}
         {/* Imagem com tags de gêneros */}
-        {hasExternalData && externalData.imageUrl && (
+        {hasExternalData && externalData.coverImage && (
           <div className="flex flex-col items-center">
             <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
               <img
-                src={externalData.imageUrl}
+                src={externalData.coverImage}
                 alt={externalData.title}
                 className="w-full h-full object-cover"
               />
@@ -638,8 +632,8 @@ const SeriesForm = (props) => {
 
               <Input
                 label="URL da Imagem"
-                {...register('imageUrl')}
-                error={errors.imageUrl?.message}
+                {...register('coverImage')}
+                error={errors.coverImage?.message}
                 placeholder="https://exemplo.com/imagem.jpg"
                 variant="glass"
               />
@@ -768,17 +762,17 @@ const SeriesForm = (props) => {
                   <label className="block text-sm font-medium text-gray-300">
                     Notas Pessoais (opcional):
                   </label>
-                  <span className={`text-sm ${charCount > 3000 ? 'text-red-400' : 'text-gray-400'}`}>
-                    {charCount}/3000 caracteres
+                  <span className={`text-sm ${charCount > 1000 ? 'text-red-400' : 'text-gray-400'}`}>
+                    {charCount}/1000 caracteres
                   </span>
                 </div>
                 <textarea
                   {...register('personalNotes')}
                   onChange={handlePersonalNotesChange}
                   rows={4}
-                  maxLength={3000}
+                  maxLength={1000}
                   placeholder="Anotações, pensamentos, avaliação detalhada..."
-                  className={`w-full bg-gray-900 border ${charCount > 3000 ? 'border-red-500' : 'border-gray-700'
+                  className={`w-full bg-gray-900 border ${charCount > 1000 ? 'border-red-500' : 'border-gray-700'
                     } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none`}
                 />
                 {errors.personalNotes && (
@@ -786,9 +780,9 @@ const SeriesForm = (props) => {
                     {errors.personalNotes.message}
                   </p>
                 )}
-                {charCount > 3000 && (
+                {charCount > 1000 && (
                   <p className="mt-1 text-sm text-red-400">
-                    Limite de 3000 caracteres excedido. Reduza seu texto para continuar.
+                    Limite de 1000 caracteres excedido. Reduza seu texto para continuar.
                   </p>
                 )}
               </div>
@@ -933,7 +927,7 @@ const SeriesForm = (props) => {
                       error={errors.progress?.episodes?.message}
                       placeholder={`0${finalEpisodesInSeason ? ` (máx: ${finalEpisodesInSeason})` : totalEpisodes ? ` (máx: ${totalEpisodes})` : ''}`}
                       variant="glass"
-                      min={0} 
+                      min={0}
                       max={finalEpisodesInSeason || totalEpisodes || undefined}
                       step={1}
                     />

@@ -116,10 +116,8 @@ export default function MangasPage() {
           userRating: data.userRating || null,
           personalNotes: data.personalNotes || '',
           progress: data.progress ? {
-            details: {
-              volumes: data.progress.details.volumes || 0,
-              chapters: data.progress.details.chapters || 0,
-            },
+            volumes: data.progress.volumes || 0,
+            chapters: data.progress.chapters || 0,
             lastUpdated: new Date()
           } : undefined,
         };
@@ -457,14 +455,14 @@ export default function MangasPage() {
             title: editingItem.mediaCacheId?.essentialData?.title,
             description: editingItem.mediaCacheId?.essentialData?.description,
             category: editingItem.mediaCacheId?.essentialData?.category,
-            imageUrl: editingItem.mediaCacheId?.essentialData?.coverImage,
+            coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
             releaseYear: editingItem.mediaCacheId?.essentialData?.releaseYear,
             userRating: editingItem.userRating || null,
             personalNotes: editingItem.personalNotes || '',
             status: editingItem.status,
             progress: {
-              currentChapter: editingItem.progress?.details?.chapters || 0,
-              currentVolume: editingItem.progress?.details?.volumes || 0,
+              currentChapter: editingItem.progress?.chapters || 0,
+              currentVolume: editingItem.progress?.volumes || 0,
             }
           }}
           onSubmit={handleEditSubmit}

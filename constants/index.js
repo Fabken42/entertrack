@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 
 export const FETCH_MEDIA_ITEMS_LIMIT = '20';
+export const MAX_PERSONAL_NOTES_CHARACTERS = 1000;
 
 export const statusColors = [
   { value: 'planned', label: '🟡 Planejado' },

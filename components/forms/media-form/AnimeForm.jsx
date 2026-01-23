@@ -115,7 +115,7 @@ const AnimeForm = (props) => {
       progress: { currentEpisode: 0 },
       userRating: null,
       personalNotes: '',
-      imageUrl: '',
+      coverImage: '',
       description: '',
       releaseYear: undefined,
       episodes: '',
@@ -124,7 +124,7 @@ const AnimeForm = (props) => {
     if (initialData) {
       let episodesFromData = initialData.episodes || initialData.mediaCacheId?.essentialData?.episodes || '';
       let currentEpisode = initialData.progress?.currentEpisode ||
-        initialData.progress?.details?.episodes || 0;
+        initialData.progress?.episodes || 0;
 
       // Garante que currentEpisode não ultrapasse o total
       if (episodesFromData && currentEpisode > episodesFromData) {
@@ -139,7 +139,7 @@ const AnimeForm = (props) => {
         genres: getInitialGenres(),
         userRating: initialData.userRating || null,
         personalNotes: initialData.personalNotes || '',
-        imageUrl: initialData.imageUrl || '',
+        coverImage: initialData.coverImage || '',
         status: initialData.status || 'planned',
         episodes: episodesFromData,
         progress: {
@@ -156,7 +156,7 @@ const AnimeForm = (props) => {
         releaseYear: externalData.releaseYear || undefined,
         genres: getInitialGenres(),
         status: 'planned',
-        imageUrl: externalData.imageUrl || '',
+        coverImage: externalData.coverImage || '',
         episodes: externalData.episodes || '',
         progress: { currentEpisode: 0 },
         userRating: null,
@@ -240,9 +240,9 @@ const AnimeForm = (props) => {
     setCharCount(count);
 
     // Verificar se excede o limite
-    if (count > 3000) {
+    if (count > 1000) {
       setCanSubmit(false);
-      toast.error('Notas pessoais não podem exceder 3000 caracteres');
+      toast.error('Notas pessoais não podem exceder 1000 caracteres');
     } else {
       setCanSubmit(true);
     }
@@ -260,7 +260,7 @@ const AnimeForm = (props) => {
 
       // Verifica se pode submeter (limite de caracteres)
       if (!canSubmit) {
-        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+        toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
       }
 
@@ -299,8 +299,8 @@ const AnimeForm = (props) => {
       };
 
       // Verifica novamente o limite de caracteres
-      if (formData.personalNotes && formData.personalNotes.length > 3000) {
-        toast.error('Notas pessoais não podem exceder 3000 caracteres');
+      if (formData.personalNotes && formData.personalNotes.length > 1000) {
+        toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
       }
 
@@ -320,8 +320,8 @@ const AnimeForm = (props) => {
         };
 
         // Verifica novamente o limite de caracteres
-        if (formData.personalNotes && formData.personalNotes.length > 3000) {
-          toast.error('Notas pessoais não podem exceder 3000 caracteres');
+        if (formData.personalNotes && formData.personalNotes.length > 1000) {
+          toast.error('Notas pessoais não podem exceder 1000 caracteres');
           return;
         }
 
@@ -336,16 +336,14 @@ const AnimeForm = (props) => {
           episodes: formData.episodes || null,
           // ✅ REMOVER condicional - sempre enviar progresso
           progress: {
-            details: {
-              episodes: formData.progress?.currentEpisode || 0,
-            },
+            episodes: formData.progress?.currentEpisode || 0,
             lastUpdated: new Date()
           }
         };
 
         // Se for completed e não tem episódios definidos, usar o total
         if (formData.status === 'completed' && formData.episodes) {
-          finalFormData.progress.details.episodes = formData.episodes;
+          finalFormData.progress.episodes = formData.episodes;
         }
 
         if (isEditMode && initialData && initialData._id) {
@@ -357,7 +355,7 @@ const AnimeForm = (props) => {
           finalFormData.sourceApi = 'jikan';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
-          finalFormData.imageUrl = externalData.imageUrl || finalFormData.imageUrl;
+          finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
           finalFormData.apiRating = externalData.apiRating;
           finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingCount;
           finalFormData.episodes = externalData.episodes || formData.episodes;
@@ -373,7 +371,7 @@ const AnimeForm = (props) => {
         if (isManualEntry) {
           finalFormData.sourceId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           finalFormData.sourceApi = 'manual';
-          finalFormData.imageUrl = '';
+          finalFormData.coverImage = '';
         }
 
         await onSubmit(finalFormData);
@@ -493,11 +491,11 @@ const AnimeForm = (props) => {
       )}
 
       {/* Imagem com tags de gêneros */}
-      {hasExternalData && externalData.imageUrl && (
+      {hasExternalData && externalData.coverImage && (
         <div className="flex flex-col items-center">
           <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
             <img
-              src={externalData.imageUrl}
+              src={externalData.coverImage}
               alt={externalData.title}
               className="w-full h-full object-cover"
             />
@@ -735,17 +733,17 @@ const AnimeForm = (props) => {
                 <label className="block text-sm font-medium text-gray-300">
                   Notas Pessoais (opcional):
                 </label>
-                <span className={`text-sm ${charCount > 3000 ? 'text-red-400' : 'text-gray-400'}`}>
-                  {charCount}/3000 caracteres
+                <span className={`text-sm ${charCount > 1000 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {charCount}/1000 caracteres
                 </span>
               </div>
               <textarea
                 {...register('personalNotes')}
                 onChange={handlePersonalNotesChange}
                 rows={4}
-                maxLength={3000}
+                maxLength={1000}
                 placeholder="Anotações, pensamentos, avaliação detalhada..."
-                className={`w-full bg-gray-900 border ${charCount > 3000 ? 'border-red-500' : 'border-gray-700'
+                className={`w-full bg-gray-900 border ${charCount > 1000 ? 'border-red-500' : 'border-gray-700'
                   } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none`}
               />
               {errors.personalNotes && (
@@ -753,9 +751,9 @@ const AnimeForm = (props) => {
                   {errors.personalNotes.message}
                 </p>
               )}
-              {charCount > 3000 && (
+              {charCount > 1000 && (
                 <p className="mt-1 text-sm text-red-400">
-                  Limite de 3000 caracteres excedido. Reduza seu texto para continuar.
+                  Limite de 1000 caracteres excedido. Reduza seu texto para continuar.
                 </p>
               )}
             </div>

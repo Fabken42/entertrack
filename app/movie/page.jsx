@@ -449,13 +449,13 @@ export default function MoviesPage() {
             title: editingItem.mediaCacheId?.essentialData?.title,
             description: editingItem.mediaCacheId?.essentialData?.description,
             category: editingItem.mediaCacheId?.essentialData?.category,
-            imageUrl: editingItem.mediaCacheId?.essentialData?.coverImage,
+            coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
             releaseYear: editingItem.mediaCacheId?.essentialData?.releaseYear,
             userRating: editingItem.userRating || null,
             personalNotes: editingItem.personalNotes || '',
             status: editingItem.status,
             progress: {
-              currentMinutes: editingItem.progress?.details?.minutes || 0,
+              currentMinutes: editingItem.progress?.minutes || 0,
             }
           }}
           onSubmit={handleEditSubmit}
