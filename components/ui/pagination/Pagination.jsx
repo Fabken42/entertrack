@@ -72,15 +72,6 @@ export default function Pagination({
   const visiblePageNumbers = getVisiblePageNumbers();
   const pageOptions = generatePageOptions();
 
-  // Verificar se precisamos mostrar reticências
-  const showStartEllipsis = visiblePageNumbers[0] > 1;
-  const showEndEllipsis = visiblePageNumbers[visiblePageNumbers.length - 1] < totalPages;
-
-  // Exemplos do comportamento:
-  // - Página 5 → mostra páginas 3-7
-  // - Página 2 → mostra páginas 1-5
-  // - Página totalPages-2 → mostra páginas totalPages-4 a totalPages
-
   return (
     <div className={cn('flex flex-col gap-4', className)}>
       {/* Navegação principal */}

@@ -5,6 +5,9 @@ import { jikanClient } from '@/lib/api/jikan';
 import { rawgClient } from '@/lib/api/rawg';
 import { FETCH_MEDIA_ITEMS_LIMIT } from '@/constants';
 
+// Constante para limitar o número máximo de páginas
+const MAX_PAGES = 999;
+
 export async function GET(request, { params }) {
   try {
     const { mediaType } = await params;
@@ -49,6 +52,7 @@ export async function GET(request, { params }) {
 }
 
 const genreCache = new Map();
+
 async function mapGenreIdsToNames(genreIds, type) {
   const cacheKey = `${type}-genres`;
 
@@ -60,7 +64,7 @@ async function mapGenreIdsToNames(genreIds, type) {
   const genres = genreCache.get(cacheKey);
   return genreIds.map(id => {
     const genre = genres.find(g => g.id === id);
-    return genre ? genre.name : id.toString();
+    return genre ? { id: genre.id.toString(), name: genre.name } : { id: id.toString(), name: id.toString() };
   });
 }
 
@@ -114,7 +118,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
 
       const rawTotalResults = response.total_results || 0;
       const totalResults = Math.min(rawTotalResults, FETCH_MEDIA_ITEMS_LIMIT);
-      const maxPages = Math.min(Math.ceil(totalResults / limit), 500);
+      const maxPages = Math.min(Math.ceil(totalResults / limit), MAX_PAGES);
       const safePage = Math.min(page, maxPages);
 
       // Se a página solicitada for maior que o máximo
@@ -141,7 +145,6 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
     }
   }
 
-  // 🔥 CÓDIGO ORIGINAL PARA DISCOVER (sem query)
   const params = {
     sort_by: sortMapping[sortBy] || 'popularity.desc',
     page: page.toString(),
@@ -157,7 +160,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
 
   const rawTotalResults = response.total_results || 0;
   const totalResults = Math.min(rawTotalResults, 10000);
-  const maxPages = Math.min(Math.ceil(totalResults / limit), 500);
+  const maxPages = Math.min(Math.ceil(totalResults / limit), MAX_PAGES);
   const safePage = Math.min(page, maxPages);
 
   if (page > maxPages) {
@@ -196,7 +199,7 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
 
       const rawTotalResults = response.total_results || 0;
       const totalResults = Math.min(rawTotalResults, FETCH_MEDIA_ITEMS_LIMIT);
-      const maxPages = Math.min(Math.ceil(totalResults / limit), 500);
+      const maxPages = Math.min(Math.ceil(totalResults / limit), MAX_PAGES);
       const safePage = Math.min(page, maxPages);
 
       // Se a página solicitada for maior que o máximo
@@ -258,7 +261,7 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
 
   const rawTotalResults = response.total_results || 0;
   const totalResults = Math.min(rawTotalResults, 10000);
-  const maxPages = Math.min(Math.ceil(totalResults / limit), 500);
+  const maxPages = Math.min(Math.ceil(totalResults / limit), MAX_PAGES);
   const safePage = Math.min(page, maxPages);
 
   if (page > maxPages) {
@@ -390,7 +393,7 @@ function processAnimeResults(data, pagination, page, limit) {
   return {
     results: filteredResults,
     total: pagination?.items?.total || filteredResults.length,
-    totalPages: pagination?.last_visible_page || 1,
+    totalPages: Math.min(pagination?.last_visible_page || 1, MAX_PAGES),
     currentPage: page,
     itemsPerPage: limit
   };
@@ -486,7 +489,7 @@ function processMangaResults(data, pagination, page, limit) {
   return {
     results: filteredResults,
     total: pagination?.items?.total || filteredResults.length,
-    totalPages: pagination?.last_visible_page || 1,
+    totalPages: Math.min(pagination?.last_visible_page || 1, MAX_PAGES),
     currentPage: page,
     itemsPerPage: limit
   };
@@ -516,7 +519,7 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
 
   const response = await rawgClient.fetch('/games', params);
 
-  const totalPages = Math.ceil(response.count / limit);
+  const totalPages = Math.min(Math.ceil(response.count / limit), MAX_PAGES);
 
   return {
     results: response.results.map(game => ({
@@ -528,7 +531,10 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
       ratingCount: game.ratings_count,
       metacritic: game.metacritic,
       platforms: game.platforms?.map(p => p.platform.name) || [],
-      genres: game.genres?.map(g => g.name) || []
+      genres: game.genres?.map(g => ({
+        id: g.id.toString(),
+        name: g.name
+      })) || []
     })),
     total: response.count,
     totalPages: totalPages,

@@ -128,7 +128,6 @@ const useMediaStore = create((set, get) => ({
       essentialData.authors = mediaData.authors;
     }
 
-    // ✅ CORREÇÃO: Gêneros - só processar se tiver dados
     if (Array.isArray(mediaData.genres) && mediaData.genres.length > 0) {
       essentialData.genres = mediaData.genres.map(g => {
         if (typeof g === 'string') {
@@ -169,7 +168,6 @@ const useMediaStore = create((set, get) => ({
     const sourceApi = mediaData.sourceApi || 'manual';
     const mediaType = mediaData.mediaType;
 
-    // ✅ CORREÇÃO: Usar função auxiliar para criar dados limpos do cache
     const cachePayload = {
       sourceApi: sourceApi,
       sourceId: sourceId,

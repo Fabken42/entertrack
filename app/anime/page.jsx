@@ -1,7 +1,7 @@
 // app/animes/page.jsx
 'use client';
 
-import { Tv } from 'lucide-react';
+import { Tv, Tv2 } from 'lucide-react';
 import { useMyAnimeListSearch } from '@/lib/hooks/use-myanimelist';
 import { useMediaStore } from '@/store/media-store';
 import MediaPageLayout from '@/components/layout/MediaPageLayout';
@@ -66,7 +66,7 @@ export default function AnimesPage() {
   return (
     <MediaPageLayout
       mediaType="anime"
-      Icon={Tv}
+      Icon={Tv2}
       gradientFrom="from-pink-500/20"
       gradientTo="to-purple-500/20"
       iconColor="text-pink-400"

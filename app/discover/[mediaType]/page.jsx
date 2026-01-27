@@ -159,11 +159,11 @@ export default function DiscoverPage() {
 
   const getMediaTypeColor = () => {
     const colors = {
-      movies: 'from-blue-500/20 to-blue-600/20',
+      movie: 'from-blue-500/20 to-blue-600/20',
       series: 'from-purple-500/20 to-purple-600/20',
-      animes: 'from-red-500/20 to-pink-600/20',
-      mangas: 'from-indigo-500/20 to-indigo-600/20',
-      games: 'from-orange-500/20 to-orange-600/20'
+      anime: 'from-red-500/20 to-pink-600/20',
+      manga: 'from-indigo-500/20 to-indigo-600/20',
+      game: 'from-orange-500/20 to-orange-600/20'
     };
     return colors[mediaType] || 'from-gray-500/20 to-gray-600/20';
   };
@@ -303,7 +303,7 @@ export default function DiscoverPage() {
               {/* Modo de Visualização */}
               <div className="flex flex-col gap-2 w-full md:w-auto">
                 <label className="block text-sm font-medium text-white whitespace-nowrap">
-                  Visualização
+                  Visualização:
                 </label>
                 <div className="flex bg-gray-800/50 rounded-xl p-1.5 border border-white/10">
                   <Button

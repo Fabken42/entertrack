@@ -21,17 +21,14 @@ export async function GET(request, { params }) {
         break;
       case 'game':
         const gameGenres = await rawgClient.getGenres();
-        genres = gameGenres.results.map(genre => ({
-          id: genre.id.toString(),
-          name: genre.name
-        }));
+        genres = gameGenres;
         break;
       case 'anime':
-        const animeGenres = await jikanClient.getGenres('anime'); 
+        const animeGenres = await jikanClient.getGenres('anime');
         genres = animeGenres;
         break;
       case 'manga':
-        const mangaGenres = await jikanClient.getGenres('manga'); 
+        const mangaGenres = await jikanClient.getGenres('manga');
         genres = mangaGenres;
         break;
       default:

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils/general-utils';
 import { Button } from '@/components/ui';
-import { User, LogOut, Menu, X, LogIn, UserPlus, Home, BarChart3, Settings, Film, Tv, BookOpen, GamepadIcon, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { User, LogOut, Menu, X, LogIn, UserPlus, Home, BarChart3, Settings, Film, Tv, BookOpen, GamepadIcon, ChevronDown, LayoutDashboard, Tv2 } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/use-auth';
 import { signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
@@ -21,7 +21,7 @@ const Header = ({ showFullHeader = true }) => {
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Filmes', href: '/movie', icon: Film },
     { name: 'Séries', href: '/series', icon: Tv },
-    { name: 'Animes', href: '/anime', icon: '🇯🇵' },
+    { name: 'Animes', href: '/anime', icon: Tv2 },
     { name: 'Jogos', href: '/game', icon: GamepadIcon },
     { name: 'Mangás', href: '/manga', icon: BookOpen },
   ];
@@ -29,7 +29,7 @@ const Header = ({ showFullHeader = true }) => {
   const discoverNavigation = [
     { name: 'Filmes', href: '/discover/movie', icon: Film },
     { name: 'Séries', href: '/discover/series', icon: Tv },
-    { name: 'Animes', href: '/discover/anime', icon: '🇯🇵' },
+    { name: 'Animes', href: '/discover/anime', icon: Tv2 },
     { name: 'Jogos', href: '/discover/game', icon: GamepadIcon },
     { name: 'Mangás', href: '/discover/manga', icon: BookOpen },
   ];
