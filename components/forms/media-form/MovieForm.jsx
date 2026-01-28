@@ -5,12 +5,12 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Select, TextArea } from '@/components/ui';
-import { Film, Clock, Star, Calendar, Users, TrendingUp } from 'lucide-react';
+import { Film, Clock, Star, Calendar, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { cn, convertFromMinutes, convertToMinutes, formatApiRating, formatRuntime, validateProgress } from '@/lib/utils/general-utils';
+import { cn, convertFromMinutes, convertToMinutes, formatApiRating, formatRuntime } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
 import { ratingLabels } from '@/constants';
-import { getMediaColor } from '@/lib/utils/media-utils';
+import { getMediaColor, formatReleasePeriod } from '@/lib/utils/media-utils';
 import { movieSchema } from '@/lib/schemas/movie-schema';
 import { TMDBClient } from '@/lib/api/tmdb';
 
@@ -23,7 +23,6 @@ const MovieForm = (props) => {
     loading = false,
     onSubmit,
   } = props;
-
   console.log('props: ', props);
 
   // Usando função utilitária para cores
@@ -63,19 +62,34 @@ const MovieForm = (props) => {
   }, []);
 
   const getInitialGenres = () => {
+    // Para initialData (dados existentes)
     if (initialData?.genres) {
-      return initialData.genres.map(g => typeof g === 'object' ? g.name : g);
+      // Se já estiver no formato de objetos, mantém
+      if (Array.isArray(initialData.genres) && initialData.genres.length > 0) {
+        // Verifica se já tem o formato correto
+        if (typeof initialData.genres[0] === 'object' && initialData.genres[0].id) {
+          return initialData.genres;
+        }
+        return g;
+      }
     }
+
+    // Para externalData (dados da API TMDB)
     if (externalData?.genres) {
-      if (externalData.genres && externalData.genres.length > 0) {
+      if (Array.isArray(externalData.genres)) {
         return externalData.genres.map(g => {
           if (typeof g === 'object') {
-            return g.name;
+            // Garante que tem id e name
+            return {
+              id: g.id?.toString() || `tmdb_${Date.now()}`,
+              name: g.name
+            };
           }
-          return g;
+          return { id: 'unknown', name: 'Desconhecido' };
         });
       }
     }
+
     return [];
   };
 
@@ -88,6 +102,18 @@ const MovieForm = (props) => {
       return convertFromMinutes(initialData.progress.minutes);
     }
     return { hours: 0, minutes: 0 };
+  };
+
+  // Função auxiliar para extrair releasePeriod dos dados
+  const extractReleasePeriodFromData = (data) => {
+    if (!data) return undefined;
+
+    // Primeiro tenta obter releasePeriod direto
+    if (data.releasePeriod) {
+      return data.releasePeriod;
+    }
+
+    return undefined;
   };
 
   // Estado local
@@ -138,12 +164,16 @@ const MovieForm = (props) => {
       personalNotes: '',
       coverImage: '',
       description: '',
-      releaseYear: undefined,
+      releasePeriod: undefined,
       runtime: '',
     };
 
     if (initialData) {
       let runtimeFromData = initialData.runtime || initialData.mediaCacheId?.essentialData?.runtime || '';
+
+      // Extrai releasePeriod dos dados iniciais
+      const initialReleasePeriod = extractReleasePeriodFromData(initialData) ||
+        extractReleasePeriodFromData(initialData?.mediaCacheId?.essentialData);
 
       const progress = getInitialProgress();
 
@@ -151,7 +181,7 @@ const MovieForm = (props) => {
         ...defaultValues,
         title: initialData.title || '',
         description: initialData.description || '',
-        releaseYear: initialData.releaseYear || initialData.mediaCacheId?.essentialData?.releaseYear,
+        releasePeriod: initialReleasePeriod, // Usa releasePeriod
         genres: getInitialGenres(),
         userRating: initialData.userRating || null,
         personalNotes: initialData.personalNotes || '',
@@ -166,11 +196,14 @@ const MovieForm = (props) => {
     }
 
     if (externalData) {
+      // Extrai releasePeriod dos dados externos
+      const externalReleasePeriod = extractReleasePeriodFromData(externalData);
+
       return {
         ...defaultValues,
         title: externalData.title || '',
         description: externalData.description || '',
-        releaseYear: externalData.releaseYear || undefined,
+        releasePeriod: externalReleasePeriod, // Usa releasePeriod
         genres: getInitialGenres(),
         status: 'planned',
         coverImage: externalData.coverImage || '',
@@ -225,8 +258,8 @@ const MovieForm = (props) => {
         if (key === 'progress') {
           setValue('progress.hours', values.progress.hours);
           setValue('progress.minutes', values.progress.minutes);
-        } else if (key === 'runtime') {
-          setValue('runtime', values.runtime);
+        } else if (key === 'runtime' || key === 'releasePeriod') {
+          setValue(key, values[key]);
         } else {
           setValue(key, values[key]);
         }
@@ -248,9 +281,11 @@ const MovieForm = (props) => {
   const handleGenreToggle = (genre) => {
     if (hasExternalData && !isEditMode) return;
 
-    const newGenres = selectedGenres.includes(genre)
-      ? selectedGenres.filter(g => g !== genre)
-      : [...selectedGenres, genre];
+    const genreId = genre.id || genre;
+
+    const newGenres = selectedGenres.some(g => (g.id || g) === genreId)
+      ? selectedGenres.filter(g => (g.id || g) !== genreId)
+      : [...selectedGenres, genre]; // <-- Adiciona objeto completo
 
     setSelectedGenres(newGenres);
   };
@@ -352,7 +387,7 @@ const MovieForm = (props) => {
         description: watch('description'),
         genres: watch('genres'),
         status: watch('status'),
-        releaseYear: watch('releaseYear'),
+        releasePeriod: watch('releasePeriod'),
         runtime: watch('runtime'),
         userRating: watch('userRating'),
         personalNotes: watch('personalNotes'),
@@ -371,7 +406,7 @@ const MovieForm = (props) => {
         const finalFormData = {
           ...formData,
           mediaType: 'movie',
-          releaseYear: formData.releaseYear || null,
+          releasePeriod: formData.releasePeriod || null, // Envia releasePeriod
           userRating: formData.userRating || null,
           personalNotes: formData.personalNotes || '',
           genres: selectedGenres,
@@ -403,8 +438,9 @@ const MovieForm = (props) => {
           finalFormData.apiVoteCount = apiRatingData?.voteCount || externalData.apiVoteCount;
           finalFormData.runtime = externalData.runtime || formData.runtime;
 
-          if (!finalFormData.releaseYear && externalData.releaseYear) {
-            finalFormData.releaseYear = externalData.releaseYear;
+          // Atualizado para releasePeriod
+          if (!finalFormData.releasePeriod && externalData.releasePeriod) {
+            finalFormData.releasePeriod = externalData.releasePeriod;
           }
         }
 
@@ -480,14 +516,14 @@ const MovieForm = (props) => {
               </div>
             ) : null}
 
-            {/* Ano de lançamento - verifica se existe */}
-            {externalData.releaseYear != null ? (
+            {/* Período de lançamento - verifica se existe */}
+            {externalData.releasePeriod ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Calendar className="w-4 h-4 text-white/60" />
                 <div>
-                  <span className="text-white/80">Ano:</span>
+                  <span className="text-white/80">Lançamento:</span>
                   <div className="font-medium text-white">
-                    {externalData.releaseYear}
+                    {formatReleasePeriod(externalData.releasePeriod)}
                   </div>
                 </div>
               </div>
@@ -571,19 +607,47 @@ const MovieForm = (props) => {
               variant="glass"
             />
 
+            {/* Campo para Ano */}
             <Input
               label="Ano de Lançamento"
               type="number"
               icon={Calendar}
-              {...register('releaseYear', {
+              {...register('releasePeriod.year', {
                 valueAsNumber: true,
                 setValueAs: (value) => value === '' ? undefined : Number(value)
               })}
-              error={errors.releaseYear?.message}
+              error={errors.releasePeriod?.year?.message}
               placeholder="2024"
               variant="glass"
-              min={1800}
+              min={1900}
               max={new Date().getFullYear() + 5}
+            />
+
+            {/* Campo opcional para Mês */}
+            <Select
+              label="Mês de Lançamento (opcional)"
+              icon={Calendar}
+              {...register('releasePeriod.month', {
+                valueAsNumber: true,
+                setValueAs: (value) => value === '' ? undefined : Number(value)
+              })}
+              error={errors.releasePeriod?.month?.message}
+              variant="glass"
+              options={[
+                { value: '', label: 'Não especificado' },
+                { value: '1', label: 'Janeiro' },
+                { value: '2', label: 'Fevereiro' },
+                { value: '3', label: 'Março' },
+                { value: '4', label: 'Abril' },
+                { value: '5', label: 'Maio' },
+                { value: '6', label: 'Junho' },
+                { value: '7', label: 'Julho' },
+                { value: '8', label: 'Agosto' },
+                { value: '9', label: 'Setembro' },
+                { value: '10', label: 'Outubro' },
+                { value: '11', label: 'Novembro' },
+                { value: '12', label: 'Dezembro' }
+              ]}
             />
 
             <Input

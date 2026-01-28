@@ -6,7 +6,7 @@ import { rawgClient } from '@/lib/api/rawg';
 import { FETCH_MEDIA_ITEMS_LIMIT } from '@/constants';
 
 // Constante para limitar o número máximo de páginas
-const MAX_PAGES = 999;
+const MAX_PAGES = 500;
 
 export async function GET(request, { params }) {
   try {
@@ -89,7 +89,10 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
         title: movie.title,
         description: movie.overview,
         coverImage: tmdbClient.getImageURL(movie.poster_path),
-        releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
+        releasePeriod: movie.release_date ? {
+          year: new Date(movie.release_date).getFullYear(),
+          month: new Date(movie.release_date).getMonth() + 1
+        } : undefined,
         rating: movie.vote_average,
         ratingCount: movie.vote_count,
         runtime: movieDetails.runtime || 0, // Adiciona o runtime aqui
@@ -103,7 +106,10 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
         title: movie.title,
         description: movie.overview,
         coverImage: tmdbClient.getImageURL(movie.poster_path),
-        releaseYear: movie.release_date ? new Date(movie.release_date).getFullYear() : undefined,
+        releasePeriod: movie.release_date ? {
+          year: new Date(movie.release_date).getFullYear(),
+          month: new Date(movie.release_date).getMonth() + 1
+        } : undefined,
         rating: movie.vote_average,
         ratingCount: movie.vote_count,
         runtime: 0, // Runtime padrão em caso de erro
@@ -211,7 +217,10 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
             title: series.name,
             description: series.overview,
             coverImage: tmdbClient.getImageURL(series.poster_path),
-            releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
+            releasePeriod: series.first_air_date ? {
+              year: new Date(series.first_air_date).getFullYear(),
+              month: new Date(series.first_air_date).getMonth() + 1
+            } : undefined,
             rating: series.vote_average,
             ratingCount: series.vote_count,
             genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
@@ -229,7 +238,10 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
           title: series.name,
           description: series.overview,
           coverImage: tmdbClient.getImageURL(series.poster_path),
-          releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
+          releasePeriod: series.first_air_date ? {
+            year: new Date(series.first_air_date).getFullYear(),
+            month: new Date(series.first_air_date).getMonth() + 1
+          } : undefined,
           rating: series.vote_average,
           ratingCount: series.vote_count,
           genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
@@ -273,7 +285,10 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
         title: series.name,
         description: series.overview,
         coverImage: tmdbClient.getImageURL(series.poster_path),
-        releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
+        releasePeriod: series.first_air_date ? {
+          year: new Date(series.first_air_date).getFullYear(),
+          month: new Date(series.first_air_date).getMonth() + 1
+        } : undefined,
         rating: series.vote_average,
         ratingCount: series.vote_count,
         genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
@@ -291,7 +306,10 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
       title: series.name,
       description: series.overview,
       coverImage: tmdbClient.getImageURL(series.poster_path),
-      releaseYear: series.first_air_date ? new Date(series.first_air_date).getFullYear() : undefined,
+      releasePeriod: series.first_air_date ? {
+        year: new Date(series.first_air_date).getFullYear(),
+        month: new Date(series.first_air_date).getMonth() + 1
+      } : undefined,
       rating: series.vote_average,
       ratingCount: series.vote_count,
       genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
@@ -359,7 +377,10 @@ function processAnimeResults(data, pagination, page, limit) {
       title: item.title,
       description: item.synopsis || '*Sem descrição disponível*',
       coverImage: jikanClient.getImageURL(item.images),
-      releaseYear: new Date(item.aired.from).getFullYear() || null,
+      releasePeriod: item.aired.from ? {
+        year: new Date(item.aired.from).getFullYear(),
+        month: new Date(item.aired.from).getMonth() + 1
+      } : null,
       rating: item.score || null,
       ratingCount: item.scored_by || null,
       apiRating: item.score || null,
@@ -371,7 +392,7 @@ function processAnimeResults(data, pagination, page, limit) {
       category: item.type || 'TV',
       members: item.members || null,
       genres: item.genres?.map(g => ({
-        id: g.mal_id?.toString(),
+        id: Number(g.mal_id),
         name: g.name
       })) || []
     }))
@@ -454,7 +475,10 @@ function processMangaResults(data, pagination, page, limit) {
       title: item.title,
       description: item.synopsis || '*Sem descrição disponível*',
       coverImage: jikanClient.getImageURL(item.images),
-      releaseYear: item.published?.from ? new Date(item.published.from).getFullYear() : item.year,
+      releasePeriod: item.published?.from ? {
+        year: new Date(item.published.from).getFullYear(),
+        month: new Date(item.published.from).getMonth() + 1
+      } : (item.year ? { year: item.year } : null),
       rating: item.score || null,
       ratingCount: item.scored_by || null,
       apiRating: item.score || null,
@@ -466,7 +490,7 @@ function processMangaResults(data, pagination, page, limit) {
       category: item.type || 'Manga',
       members: item.members || null,
       genres: item.genres?.map(g => ({
-        id: g.mal_id?.toString(),
+        id: Number(g.mal_id),
         name: g.name
       })) || [],
       authors: item.authors?.map(author => author.name) || []
@@ -526,13 +550,16 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
       id: game.id,
       title: game.name,
       coverImage: rawgClient.getImageURL(game.background_image),
-      releaseYear: game.released ? new Date(game.released).getFullYear() : undefined,
+      releasePeriod: game.released ? {
+        year: new Date(game.released).getFullYear(),
+        month: new Date(game.released).getMonth() + 1
+      } : (game.year ? { year: game.year } : null),
       rating: game.rating,
       ratingCount: game.ratings_count,
       metacritic: game.metacritic,
       platforms: game.platforms?.map(p => p.platform.name) || [],
       genres: game.genres?.map(g => ({
-        id: g.id.toString(),
+        id: Number(g.id),
         name: g.name
       })) || []
     })),

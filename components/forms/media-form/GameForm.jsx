@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { cn, formatApiRating, formatMembers, formatPopularity } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
 import { ratingLabels } from '@/constants';
-import { getMediaColor } from '@/lib/utils/media-utils';
+import { getMediaColor, formatReleasePeriod } from '@/lib/utils/media-utils';
 import { gameSchema } from '@/lib/schemas/game-schema';
 import { RAWGClient } from '@/lib/api/rawg';
 
@@ -40,26 +40,55 @@ const GameForm = (props) => {
   }, []);
 
   const getInitialGenres = () => {
+    // Para initialData (dados existentes)
     if (initialData?.genres) {
-      return initialData.genres.map(g => typeof g === 'object' ? g.id || g.name : g);
-    }
-    if (externalData?.genres) {
-      if (externalData.genres && externalData.genres.length > 0) {
-        return externalData.genres.map(g => {
-          if (typeof g === 'object') {
-            return g.id?.toString() || g.name;
+      if (Array.isArray(initialData.genres) && initialData.genres.length > 0) {
+        // Se já for objetos com id e name, mantém
+        if (typeof initialData.genres[0] === 'object' && initialData.genres[0].id) {
+          return initialData.genres;
+        }
+        // Se for strings ou IDs, converte para objetos
+        return initialData.genres.map(g => {
+          // Se for número, procura por ID
+          if (typeof g === 'number') {
+            const genreFromList = availableGenres.find(ag => ag.id === g);
+            return genreFromList || { id: g, name: `Gênero ${g}` };
           }
           return g;
         });
       }
     }
-    return []; // Array vazio para criação manual
+
+    // Para externalData (dados da API RAWG)
+    if (externalData?.genres) {
+      if (Array.isArray(externalData.genres)) {
+        return externalData.genres.map(g => {
+          if (typeof g === 'object' && (g.id || g.name)) {
+            return {
+              id: Number(g.id) || `rawg_${Date.now()}`,
+              name: g.name || 'Desconhecido'
+            };
+          }
+          return { id: 'unknown', name: 'Desconhecido' };
+        });
+      }
+    }
+
+    return [];
   };
 
   // Estado local
-  const [selectedGenres, setSelectedGenres] = React.useState(
-    getInitialGenres()
-  );
+  const [selectedGenres, setSelectedGenres] = React.useState([]);
+
+  // Adicione useEffect para inicializar quando availableGenres estiver pronto
+  React.useEffect(() => {
+    if (availableGenres.length > 0) {
+      const initialGenres = getInitialGenres();
+      setSelectedGenres(initialGenres);
+      setValue('genres', initialGenres, { shouldValidate: true });
+    }
+  }, [availableGenres]);
+
   const [selectedRating, setSelectedRating] = React.useState(
     initialData?.userRating || null
   );
@@ -97,6 +126,18 @@ const GameForm = (props) => {
     return true;
   };
 
+  // Função auxiliar para extrair releasePeriod dos dados
+  const extractReleasePeriodFromData = (data) => {
+    if (!data) return undefined;
+
+    // Primeiro tenta obter releasePeriod direto
+    if (data.releasePeriod) {
+      return data.releasePeriod;
+    }
+
+    return undefined;
+  };
+
   const getDefaultValues = () => {
     const defaultValues = {
       status: 'planned',
@@ -109,17 +150,21 @@ const GameForm = (props) => {
       personalNotes: '',
       coverImage: '',
       description: '',
-      releaseYear: undefined,
+      releasePeriod: undefined,
       metacritic: undefined,
       platforms: [],
     };
 
     if (initialData) {
+      // Extrai releasePeriod dos dados iniciais
+      const initialReleasePeriod = extractReleasePeriodFromData(initialData) ||
+        extractReleasePeriodFromData(initialData?.mediaCacheId?.essentialData);
+
       return {
         ...defaultValues,
         title: initialData.title || '',
         description: initialData.description || '',
-        releaseYear: initialData.releaseYear || initialData.mediaCacheId?.essentialData?.releaseYear,
+        releasePeriod: initialReleasePeriod, // Usa releasePeriod
         genres: getInitialGenres(),
         userRating: initialData.userRating || null,
         personalNotes: initialData.personalNotes || '',
@@ -135,11 +180,14 @@ const GameForm = (props) => {
     }
 
     if (externalData) {
+      // Extrai releasePeriod dos dados externos
+      const externalReleasePeriod = extractReleasePeriodFromData(externalData);
+
       return {
         ...defaultValues,
         title: externalData.title || '',
         description: externalData.description || '',
-        releaseYear: externalData.releaseYear || undefined,
+        releasePeriod: externalReleasePeriod, // Usa releasePeriod
         genres: getInitialGenres(),
         status: 'planned',
         coverImage: externalData.coverImage || '',
@@ -201,6 +249,8 @@ const GameForm = (props) => {
           setValue('platforms', values.platforms || []);
         } else if (key === 'metacritic') {
           setValue('metacritic', values.metacritic);
+        } else if (key === 'releasePeriod') {
+          setValue('releasePeriod', values.releasePeriod);
         } else {
           setValue(key, values[key]);
         }
@@ -208,12 +258,14 @@ const GameForm = (props) => {
     }
   }, [initialData, setValue]);
 
-  const handleGenreToggle = (genreId) => {
+  const handleGenreToggle = (genre) => {
     if (hasExternalData && !isEditMode) return;
 
-    const newGenres = selectedGenres.includes(genreId)
-      ? selectedGenres.filter(g => g !== genreId)
-      : [...selectedGenres, genreId];
+    const genreId = genre.id || genre;
+
+    const newGenres = selectedGenres && selectedGenres.some(g => (g.id || g) === genreId)
+      ? selectedGenres.filter(g => (g.id || g) !== genreId)
+      : [...(selectedGenres || []), genre];
 
     setSelectedGenres(newGenres);
   };
@@ -293,7 +345,7 @@ const GameForm = (props) => {
         description: watch('description'),
         genres: watch('genres'),
         status: watch('status'),
-        releaseYear: watch('releaseYear'),
+        releasePeriod: watch('releasePeriod'), // Alterado para releasePeriod
         metacritic: watch('metacritic'),
         platforms: watch('platforms'),
         userRating: watch('userRating'),
@@ -316,7 +368,7 @@ const GameForm = (props) => {
           mediaType: 'game',
           userRating: formValues.userRating || null,
           personalNotes: formValues.personalNotes || '',
-          genres: selectedGenres,
+          genres: formValues.genres,
           platforms: formValues.platforms || [],
           metacritic: formValues.metacritic || null,
           progress: {
@@ -342,8 +394,9 @@ const GameForm = (props) => {
           finalFormData.metacritic = externalData.metacritic || finalFormData.metacritic;
           finalFormData.platforms = externalData.platforms || finalFormData.platforms;
 
-          if (!finalFormData.releaseYear && externalData.releaseYear) {
-            finalFormData.releaseYear = externalData.releaseYear;
+          // Atualizado para releasePeriod
+          if (!finalFormData.releasePeriod && externalData.releasePeriod) {
+            finalFormData.releasePeriod = externalData.releasePeriod;
           }
         }
 
@@ -407,14 +460,14 @@ const GameForm = (props) => {
                 </div>
               ) : null}
 
-              {/* Ano de lançamento - verifica se existe */}
-              {externalData.releaseYear != null ? (
+              {/* Período de lançamento - verifica se existe */}
+              {externalData.releasePeriod ? (
                 <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                   <Calendar className="w-4 h-4 text-white/60" />
                   <div>
-                    <span className="text-white/80">Ano:</span>
+                    <span className="text-white/80">Lançamento:</span>
                     <div className="font-medium text-white">
-                      {externalData.releaseYear}
+                      {formatReleasePeriod(externalData.releasePeriod)}
                     </div>
                   </div>
                 </div>
@@ -519,19 +572,47 @@ const GameForm = (props) => {
                 variant="glass"
               />
 
+              {/* Campo para Ano */}
               <Input
                 label="Ano de Lançamento"
                 type="number"
                 icon={Calendar}
-                {...register('releaseYear', {
+                {...register('releasePeriod.year', {
                   valueAsNumber: true,
                   setValueAs: (value) => value === '' ? undefined : Number(value)
                 })}
-                error={errors.releaseYear?.message}
+                error={errors.releasePeriod?.year?.message}
                 placeholder="2024"
                 variant="glass"
                 min={1950}
                 max={new Date().getFullYear() + 5}
+              />
+
+              {/* Campo opcional para Mês */}
+              <Select
+                label="Mês de Lançamento (opcional)"
+                icon={Calendar}
+                {...register('releasePeriod.month', {
+                  valueAsNumber: true,
+                  setValueAs: (value) => value === '' ? undefined : Number(value)
+                })}
+                error={errors.releasePeriod?.month?.message}
+                variant="glass"
+                options={[
+                  { value: '', label: 'Não especificado' },
+                  { value: '1', label: 'Janeiro' },
+                  { value: '2', label: 'Fevereiro' },
+                  { value: '3', label: 'Março' },
+                  { value: '4', label: 'Abril' },
+                  { value: '5', label: 'Maio' },
+                  { value: '6', label: 'Junho' },
+                  { value: '7', label: 'Julho' },
+                  { value: '8', label: 'Agosto' },
+                  { value: '9', label: 'Setembro' },
+                  { value: '10', label: 'Outubro' },
+                  { value: '11', label: 'Novembro' },
+                  { value: '12', label: 'Dezembro' }
+                ]}
               />
 
               <div className="md:col-span-2">
@@ -552,17 +633,17 @@ const GameForm = (props) => {
               <div className="flex flex-wrap gap-2">
                 {availableGenres.map((genre) => (
                   <button
-                    key={genre}
+                    key={genre.id || genre}
                     type="button"
                     onClick={() => handleGenreToggle(genre)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
-                      selectedGenres.includes(genre)
+                      selectedGenres && selectedGenres.some(g => (g.id || g) === (genre.id || genre))
                         ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
                         : 'bg-white/5 text-white/80 hover:bg-white/10'
                     )}
                   >
-                    {genre}
+                    {genre.name || genre}
                   </button>
                 ))}
               </div>

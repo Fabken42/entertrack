@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 import { cn, formatApiRating, formatMembers, formatPopularity } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
 import { ratingLabels } from '@/constants';
-import { getMediaColor } from '@/lib/utils/media-utils';
+import { getMediaColor, formatReleasePeriod } from '@/lib/utils/media-utils';
 import { mangaSchema } from '@/lib/schemas/manga-schema';
 import { JikanClient } from "@/lib/api/jikan.js";
 
@@ -54,21 +54,46 @@ const MangaForm = (props) => {
   }, [initialData, externalData]);
 
   const getInitialGenres = () => {
+    // Para initialData (dados existentes)
     if (initialData?.genres) {
-      return initialData.genres.map(g => typeof g === 'object' ? g.id || g.name : g);
-    }
-    if (externalData?.genres) {
-      if (externalData.genres && externalData.genres.length > 0) {
-        return externalData.genres.map(g => {
-          if (typeof g === 'object') {
-            return g.id?.toString() || g.name;
+      if (Array.isArray(initialData.genres) && initialData.genres.length > 0) {
+        // Se já for objetos com id e name, mantém
+        if (typeof initialData.genres[0] === 'object' && initialData.genres[0].id) {
+          return initialData.genres;
+        }
+        // Se for strings ou IDs, converte para objetos
+        return initialData.genres.map(g => {
+          // Se for número, procura por ID
+          if (typeof g === 'number') {
+            const genreFromList = availableGenres.find(ag => ag.id === g);
+            return genreFromList || { id: g, name: `Gênero ${g}` };
           }
           return g;
         });
       }
-      return ['1'];
     }
-    return []; // Array vazio para criação manual
+
+    // Para externalData (dados da API Jikan)
+    if (externalData?.genres) {
+      if (Array.isArray(externalData.genres)) {
+        return externalData.genres.map(g => {
+          if (typeof g === 'object' && (g.id || g.name)) {
+            return {
+              id: g.id?.toString() || `jikan_${Date.now()}`,
+              name: g.name || 'Desconhecido'
+            };
+          }
+          // Se for string, busca na lista
+          if (typeof g === 'string') {
+            const genreFromList = availableGenres.find(ag => ag.name === g);
+            return genreFromList || { id: `jikan_${g}`, name: g };
+          }
+          return { id: 'unknown', name: 'Desconhecido' };
+        });
+      }
+    }
+
+    return [];
   };
 
   const getInitialAuthors = () => {
@@ -88,9 +113,7 @@ const MangaForm = (props) => {
   };
 
   // Estado local
-  const [selectedGenres, setSelectedGenres] = React.useState(
-    getInitialGenres()
-  );
+  const [selectedGenres, setSelectedGenres] = React.useState([]);
   const [selectedAuthors, setSelectedAuthors] = React.useState(
     getInitialAuthors()
   );
@@ -105,6 +128,18 @@ const MangaForm = (props) => {
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
+
+  // Função auxiliar para extrair releasePeriod dos dados
+  const extractReleasePeriodFromData = (data) => {
+    if (!data) return undefined;
+
+    // Primeiro tenta obter releasePeriod direto
+    if (data.releasePeriod) {
+      return data.releasePeriod;
+    }
+
+    return undefined;
+  };
 
   // Funções para validar progresso
   const validateCurrentVolume = (value) => {
@@ -153,7 +188,7 @@ const MangaForm = (props) => {
       personalNotes: '',
       coverImage: '',
       description: '',
-      releaseYear: undefined,
+      releasePeriod: undefined,
       volumes: '',
       chapters: '',
     };
@@ -165,6 +200,10 @@ const MangaForm = (props) => {
         initialData.progress?.volumes || 0;
       let currentChapter = initialData.progress?.currentChapter ||
         initialData.progress?.chapters || 0;
+
+      // Extrai releasePeriod dos dados iniciais
+      const initialReleasePeriod = extractReleasePeriodFromData(initialData) ||
+        extractReleasePeriodFromData(initialData?.mediaCacheId?.essentialData);
 
       // Garante que os valores não ultrapassem os totais
       if (volumesFromData && currentVolume > volumesFromData) {
@@ -178,7 +217,7 @@ const MangaForm = (props) => {
         ...defaultValues,
         title: initialData.title || '',
         description: initialData.description || '',
-        releaseYear: initialData.releaseYear || initialData.mediaCacheId?.essentialData?.releaseYear,
+        releasePeriod: initialReleasePeriod, // Usa releasePeriod
         genres: getInitialGenres(),
         authors: getInitialAuthors(),
         userRating: initialData.userRating || null,
@@ -195,11 +234,14 @@ const MangaForm = (props) => {
     }
 
     if (externalData) {
+      // Extrai releasePeriod dos dados externos
+      const externalReleasePeriod = extractReleasePeriodFromData(externalData);
+
       return {
         ...defaultValues,
         title: externalData.title || '',
         description: externalData.description || '',
-        releaseYear: externalData.releaseYear || undefined,
+        releasePeriod: externalReleasePeriod, // Usa releasePeriod
         genres: getInitialGenres(),
         authors: getInitialAuthors(),
         status: 'planned',
@@ -224,6 +266,7 @@ const MangaForm = (props) => {
     return defaultValues;
   };
 
+  // 1. PRIMEIRO: declare useForm ANTES dos useEffects que dependem dele
   const {
     register,
     handleSubmit,
@@ -247,8 +290,19 @@ const MangaForm = (props) => {
   const volumesFromForm = watch('volumes');
   const chaptersFromForm = watch('chapters');
 
+  // 2. SEGUNDO: useEffects que dependem de setValue, watch, etc.
   React.useEffect(() => {
-    setValue('genres', selectedGenres, { shouldValidate: true });
+    if (availableGenres.length > 0) {
+      const initialGenres = getInitialGenres();
+      setSelectedGenres(initialGenres);
+      setValue('genres', initialGenres, { shouldValidate: true });
+    }
+  }, [availableGenres]); // setValue não precisa estar nas dependências
+
+  React.useEffect(() => {
+    if (selectedGenres && selectedGenres.length > 0) {
+      setValue('genres', selectedGenres, { shouldValidate: true });
+    }
   }, [selectedGenres, setValue]);
 
   React.useEffect(() => {
@@ -262,7 +316,7 @@ const MangaForm = (props) => {
         if (key === 'progress') {
           setValue('progress.currentChapter', values.progress.currentChapter);
           setValue('progress.currentVolume', values.progress.currentVolume);
-        } else if (key === 'volumes' || key === 'chapters') {
+        } else if (key === 'volumes' || key === 'chapters' || key === 'releasePeriod') {
           setValue(key, values[key]);
         } else {
           setValue(key, values[key]);
@@ -284,12 +338,15 @@ const MangaForm = (props) => {
     }
   }, [chaptersFromForm, initialData, externalData]);
 
-  const handleGenreToggle = (genreId) => {
+  const handleGenreToggle = (genre) => {
     if (hasExternalData && !isEditMode) return;
 
-    const newGenres = selectedGenres.includes(genreId)
-      ? selectedGenres.filter(g => g !== genreId)
-      : [...selectedGenres, genreId];
+    // `genre` agora é um objeto {id, name}
+    const genreId = genre.id || genre;
+
+    const newGenres = selectedGenres && selectedGenres.some(g => (g.id || g) === genreId)
+      ? selectedGenres.filter(g => (g.id || g) !== genreId)
+      : [...(selectedGenres || []), genre];
 
     setSelectedGenres(newGenres);
   };
@@ -364,7 +421,7 @@ const MangaForm = (props) => {
         genres: watch('genres'),
         authors: watch('authors'),
         status: watch('status'),
-        releaseYear: watch('releaseYear'),
+        releasePeriod: watch('releasePeriod'), // Alterado para releasePeriod
         volumes: watch('volumes'),
         chapters: watch('chapters'),
         userRating: watch('userRating'),
@@ -384,10 +441,11 @@ const MangaForm = (props) => {
         const finalFormData = {
           ...formData,
           mediaType: 'manga',
-          releaseYear: formData.releaseYear || null,
+          releasePeriod: formData.releasePeriod || null,
           userRating: formData.userRating || null,
           personalNotes: formData.personalNotes || '',
-          genres: selectedGenres,
+          // Use formData.genres (já validado pelo schema)
+          genres: formData.genres,
           authors: selectedAuthors,
           volumes: formData.volumes || null,
           chapters: formData.chapters || null,
@@ -416,8 +474,9 @@ const MangaForm = (props) => {
           finalFormData.members = externalData.members;
           finalFormData.authors = externalData.authors || [];
 
-          if (!finalFormData.releaseYear && externalData.releaseYear) {
-            finalFormData.releaseYear = externalData.releaseYear;
+          // Atualizado para releasePeriod
+          if (!finalFormData.releasePeriod && externalData.releasePeriod) {
+            finalFormData.releasePeriod = externalData.releasePeriod;
           }
         }
 
@@ -532,14 +591,14 @@ const MangaForm = (props) => {
               </div>
             ) : null}
 
-            {/* Ano de lançamento - verifica se existe */}
-            {externalData.releaseYear != null ? (
+            {/* Período de lançamento - verifica se existe */}
+            {externalData.releasePeriod ? (
               <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                 <Calendar className="w-4 h-4 text-white/60" />
                 <div>
-                  <span className="text-white/80">Ano:</span>
+                  <span className="text-white/80">Lançamento:</span>
                   <div className="font-medium text-white">
-                    {externalData.releaseYear}
+                    {formatReleasePeriod(externalData.releasePeriod)}
                   </div>
                 </div>
               </div>
@@ -658,19 +717,47 @@ const MangaForm = (props) => {
               variant="glass"
             />
 
+            {/* Campo para Ano */}
             <Input
               label="Ano de Lançamento"
               type="number"
               icon={Calendar}
-              {...register('releaseYear', {
+              {...register('releasePeriod.year', {
                 valueAsNumber: true,
                 setValueAs: (value) => value === '' ? undefined : Number(value)
               })}
-              error={errors.releaseYear?.message}
+              error={errors.releasePeriod?.year?.message}
               placeholder="2024"
               variant="glass"
               min={1950}
               max={new Date().getFullYear() + 5}
+            />
+
+            {/* Campo opcional para Mês */}
+            <Select
+              label="Mês de Lançamento (opcional)"
+              icon={Calendar}
+              {...register('releasePeriod.month', {
+                valueAsNumber: true,
+                setValueAs: (value) => value === '' ? undefined : Number(value)
+              })}
+              error={errors.releasePeriod?.month?.message}
+              variant="glass"
+              options={[
+                { value: '', label: 'Não especificado' },
+                { value: '1', label: 'Janeiro' },
+                { value: '2', label: 'Fevereiro' },
+                { value: '3', label: 'Março' },
+                { value: '4', label: 'Abril' },
+                { value: '5', label: 'Maio' },
+                { value: '6', label: 'Junho' },
+                { value: '7', label: 'Julho' },
+                { value: '8', label: 'Agosto' },
+                { value: '9', label: 'Setembro' },
+                { value: '10', label: 'Outubro' },
+                { value: '11', label: 'Novembro' },
+                { value: '12', label: 'Dezembro' }
+              ]}
             />
 
             <div className="space-y-6">
@@ -737,10 +824,10 @@ const MangaForm = (props) => {
                 <button
                   key={genre.id}
                   type="button"
-                  onClick={() => handleGenreToggle(genre.id.toString())}
+                  onClick={() => handleGenreToggle(genre)} // Passa objeto completo
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
-                    selectedGenres.includes(genre.id.toString())
+                    selectedGenres && selectedGenres.some(g => (g.id || g) === genre.id)
                       ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
                       : 'bg-white/5 text-white/80 hover:bg-white/10'
                   )}
@@ -757,14 +844,14 @@ const MangaForm = (props) => {
               </p>
             )}
 
-            {selectedGenres.length === 0 && !isManualEntry && (
+            {selectedGenres && selectedGenres.length === 0 && !isManualEntry && (
               <p className="mt-2 text-sm text-amber-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
                 Selecione pelo menos um gênero
               </p>
             )}
 
-            {selectedGenres.length === 0 && isManualEntry && (
+            {selectedGenres && selectedGenres.length === 0 && isManualEntry && (
               <p className="mt-2 text-sm text-blue-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
                 Gêneros são opcionais para criação manual

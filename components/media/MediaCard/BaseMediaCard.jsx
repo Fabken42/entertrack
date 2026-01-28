@@ -14,6 +14,23 @@ import {
     getStatusLabel,
 } from '@/lib/utils/media-utils';
 
+// Função formatReleasePeriod movida para o componente
+function formatReleasePeriod(releasePeriod) {
+    if (!releasePeriod || !releasePeriod.year) {
+        return null;
+    }
+
+    const { year, month } = releasePeriod;
+    if (month) {
+        const monthNames = [
+            'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+            'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+        ];
+        return `${monthNames[month - 1]}, ${year}`;
+    }
+    return year.toString();
+}
+
 export default function BaseMediaCard({
     item,
     mediaType,
@@ -29,7 +46,6 @@ export default function BaseMediaCard({
     increaseButtonLabel = 'Concluir',
     shouldShowIncreaseButton = false,
 }) {
-    console.log('Renderizando BaseMediaCard para:', item);
     const progressInfo = getProgressInfo(item, mediaType, isLibrary);
 
     const handleCardClick = (e) => {
@@ -45,7 +61,7 @@ export default function BaseMediaCard({
     };
 
     const MediaIcon = getMediaIcon(mediaType);
-    const mediaColor = getMediaColor();
+    const mediaColor = getMediaColor(mediaType);
     const ratingInfo = formatRating(item.rating, mediaType);
     const shouldShowRatingBadge = !isLibrary && ratingInfo;
     const statusBorderColor = getStatusBorderColor(item.status);
@@ -59,32 +75,45 @@ export default function BaseMediaCard({
         item.personalNotes &&
         item.personalNotes.trim() !== '';
 
-    // Nova lógica para controlar visibilidade das estatísticas
-    const shouldShowStats = !isLibrary; // Não mostra estatísticas quando está na biblioteca
+    const shouldShowStats = !isLibrary;
 
-    // Lógica específica para anime e mangá
     const shouldShowAnimeMangaStats = !isLibrary && (mediaType === 'anime' || mediaType === 'manga');
 
-    // Funções auxiliares reutilizáveis
-    const renderBasicInfo = () => (
-        <div className="flex items-center gap-2 mb-3 text-sm text-white/60">
-            {item.releaseYear && (
-                <div className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    <span>{item.releaseYear}</span>
-                </div>
-            )}
-            {mediaType === 'movie' && item.runtime && item.runtime > 0 && (
-                <>
-                    {item.releaseYear && <span>•</span>}
+    const getFormattedReleaseDate = () => {
+        if (item.getFormattedReleaseDate && typeof item.getFormattedReleaseDate === 'function') {
+            return item.getFormattedReleaseDate();
+        }
+        
+        if (item.releasePeriod) {
+            return formatReleasePeriod(item.releasePeriod);
+        }
+        
+        return null;
+    };
+
+    const renderBasicInfo = () => {
+        const releaseDate = getFormattedReleaseDate();
+
+        return (
+            <div className="flex items-center gap-2 mb-3 text-sm text-white/60">
+                {releaseDate && (
                     <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatRuntime(item.runtime)}</span>
+                        <Calendar className="w-3 h-3" />
+                        <span>{releaseDate}</span>
                     </div>
-                </>
-            )}
-        </div>
-    );
+                )}
+                {mediaType === 'movie' && item.runtime && item.runtime > 0 && (
+                    <>
+                        {releaseDate && <span>•</span>}
+                        <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatRuntime(item.runtime)}</span>
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+    };
 
     const renderDeleteButton = () => (
         isLibrary && onDeleteClick && (

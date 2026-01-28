@@ -2,21 +2,30 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../lib/database/connect';
 import { getCacheModelByType } from '@/models';
 
-// Função para limpar objetos removendo campos undefined/null/vazios
 const cleanObject = (obj, preserveFields = ['title']) => {
   const cleaned = { ...obj };
-  
+
   Object.keys(cleaned).forEach(key => {
     const value = cleaned[key];
-    
+
     // Preservar campos obrigatórios mesmo se vazios
     if (preserveFields.includes(key)) {
       return;
     }
-    
+
+    // Tratamento especial para releasePeriod
+    if (key === 'releasePeriod') {
+      if (!value ||
+        (typeof value === 'object' &&
+          (!value.year || Object.keys(value).length === 0))) {
+        delete cleaned[key];
+      }
+      return;
+    }
+
     // Remover campos com valores "vazios"
     if (
-      value === undefined || 
+      value === undefined ||
       value === null ||
       (Array.isArray(value) && value.length === 0) ||
       (typeof value === 'string' && value.trim() === '') ||
@@ -25,18 +34,17 @@ const cleanObject = (obj, preserveFields = ['title']) => {
       delete cleaned[key];
     }
   });
-  
+
   return cleaned;
 };
 
-// Função para criar essentialData limpo baseado no tipo de mídia
 const createCleanedEssentialData = (essentialData, mediaType) => {
   // Campos base que todos os tipos podem ter
   const baseData = {
     title: essentialData.title,
     description: essentialData.description,
     coverImage: essentialData.coverImage,
-    releaseYear: essentialData.releaseYear,
+    releasePeriod: essentialData.releasePeriod,
     genres: Array.isArray(essentialData.genres) ? essentialData.genres : undefined,
     averageRating: essentialData.apiRating || essentialData.averageRating,
     ratingCount: essentialData.apiVoteCount || essentialData.ratingCount,
@@ -44,7 +52,7 @@ const createCleanedEssentialData = (essentialData, mediaType) => {
 
   // Campos específicos por tipo
   const typeSpecificData = {};
-  
+
   switch (mediaType) {
     case 'game':
       Object.assign(typeSpecificData, {
@@ -53,13 +61,13 @@ const createCleanedEssentialData = (essentialData, mediaType) => {
         platforms: Array.isArray(essentialData.platforms) ? essentialData.platforms : undefined,
       });
       break;
-      
+
     case 'movie':
       Object.assign(typeSpecificData, {
         runtime: essentialData.runtime,
       });
       break;
-      
+
     case 'series':
       Object.assign(typeSpecificData, {
         runtime: essentialData.runtime,
@@ -68,7 +76,7 @@ const createCleanedEssentialData = (essentialData, mediaType) => {
         episodesPerSeason: essentialData.episodesPerSeason,
       });
       break;
-      
+
     case 'anime':
       Object.assign(typeSpecificData, {
         episodes: essentialData.episodes,
@@ -77,7 +85,7 @@ const createCleanedEssentialData = (essentialData, mediaType) => {
         studios: essentialData.studios,
       });
       break;
-      
+
     case 'manga':
       Object.assign(typeSpecificData, {
         chapters: essentialData.chapters,
@@ -112,6 +120,7 @@ export async function POST(request) {
     const body = await request.json();
     const { sourceApi, sourceId, mediaType, essentialData } = body;
 
+
     if (!sourceApi || !sourceId || !mediaType) {
       console.error('❌ Campos obrigatórios faltando:', { sourceApi, sourceId, mediaType });
       return NextResponse.json(
@@ -136,14 +145,10 @@ export async function POST(request) {
       );
     }
 
-    // ✅ CORREÇÃO: Criar essentialData limpo e específico para o tipo
     const cleanedEssentialData = createCleanedEssentialData(essentialData, mediaType);
 
-    // ✅ ATUALIZAÇÃO: Obter modelo específico baseado no tipo de mídia
     const CacheModel = getCacheModelByType(mediaType);
 
-    // Verificar se já existe cache para esta mídia
-    // Usar o modelo específico para busca
     const existingCache = await CacheModel.findOne({
       sourceApi,
       sourceId,
@@ -151,14 +156,11 @@ export async function POST(request) {
     });
 
     if (existingCache) {
-      // ✅ CORREÇÃO: Mesclar mantendo campos existentes importantes
       const mergedEssentialData = cleanObject({
         ...existingCache.essentialData,
         ...cleanedEssentialData
       }, ['title']);
 
-      // Garantir que campos específicos importantes não sejam perdidos
-      // Mantém playHours e metacritic do cache existente se não vierem no novo
       if (existingCache.essentialData.playHours !== undefined && cleanedEssentialData.playHours === undefined) {
         mergedEssentialData.playHours = existingCache.essentialData.playHours;
       }
@@ -180,7 +182,6 @@ export async function POST(request) {
       });
     }
 
-    // ✅ CORREÇÃO: Criar cache usando modelo específico
     const mediaCacheData = {
       sourceApi,
       sourceId,
@@ -211,7 +212,6 @@ export async function POST(request) {
     console.error('Error caching media:', error);
     console.error('Stack trace:', error.stack);
 
-    // Verificar se é erro de validação do Mongoose
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(err => err.message);
       return NextResponse.json(
@@ -220,7 +220,6 @@ export async function POST(request) {
       );
     }
 
-    // Verificar se é erro de modelo não encontrado
     if (error.message?.includes('getCacheModelByType') || error.message?.includes('Tipo de mídia não suportado')) {
       return NextResponse.json(
         { error: `Tipo de mídia não suportado: ${body.mediaType}` },
@@ -251,9 +250,8 @@ export async function GET(request) {
       );
     }
 
-    // ✅ ATUALIZAÇÃO: Usar o modelo específico para busca
     const CacheModel = getCacheModelByType(mediaType);
-    
+
     const cache = await CacheModel.findOne({
       sourceApi,
       sourceId,
@@ -267,7 +265,6 @@ export async function GET(request) {
       );
     }
 
-    // Atualizar estatísticas de acesso
     cache.usageStats.accessCount += 1;
     cache.usageStats.lastAccessed = new Date();
     await cache.save();
@@ -276,14 +273,14 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Error fetching media cache:', error);
-    
+
     if (error.message?.includes('getCacheModelByType') || error.message?.includes('Tipo de mídia não suportado')) {
       return NextResponse.json(
         { error: `Tipo de mídia não suportado: ${searchParams.get('mediaType')}` },
         { status: 400 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to fetch media cache: ' + error.message },
       { status: 500 }
@@ -291,7 +288,6 @@ export async function GET(request) {
   }
 }
 
-// ✅ NOVO: Rota DELETE para limpar cache
 export async function DELETE(request) {
   try {
     await connectToDatabase();

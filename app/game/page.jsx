@@ -50,7 +50,7 @@ export default function GamesPage() {
     title: editingItem.mediaCacheId?.essentialData?.title,
     description: editingItem.mediaCacheId?.essentialData?.description,
     coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
-    releaseYear: editingItem.mediaCacheId?.essentialData?.releaseYear,
+    releasePeriod: editingItem.mediaCacheId?.essentialData?.releasePeriod,
     userRating: editingItem.userRating || null,
     hours: editingItem.progress?.hours || 0,
     personalNotes: editingItem.personalNotes || '',

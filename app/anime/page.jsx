@@ -54,7 +54,7 @@ export default function AnimesPage() {
     description: editingItem.mediaCacheId?.essentialData?.description,
     category: editingItem.mediaCacheId?.essentialData?.category,
     coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
-    releaseYear: editingItem.mediaCacheId?.essentialData?.releaseYear,
+    releasePeriod: editingItem.mediaCacheId?.essentialData?.releasePeriod,
     userRating: editingItem.userRating || null,
     personalNotes: editingItem.personalNotes || '',
     status: editingItem.status,

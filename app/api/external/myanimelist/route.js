@@ -32,7 +32,10 @@ export async function GET(request) {
             title: item.title,
             description: item.synopsis,
             coverImage: jikanClient.getImageURL(item.images),
-            releaseYear: item.aired?.from ? new Date(item.aired.from).getFullYear() : null,
+            releasePeriod: item.aired?.from ? {
+              year: new Date(item.aired.from).getFullYear(),
+              month: new Date(item.aired.from).getMonth() + 1
+            } : null,
             category: item.type,
             episodes: item.episodes,
             status: item.status,
@@ -72,7 +75,10 @@ export async function GET(request) {
             title: item.title,
             description: item.synopsis,
             coverImage: jikanClient.getImageURL(item.images),
-            releaseYear: item.published?.from ? new Date(item.published.from).getFullYear() : null,
+            releasePeriod: item.published?.from ? {
+              year: new Date(item.published.from).getFullYear(),
+              month: new Date(item.published.from).getMonth() + 1
+            } : null,
             volumes: item.volumes || 0,
             chapters: item.chapters || 0,
             status: item.status,

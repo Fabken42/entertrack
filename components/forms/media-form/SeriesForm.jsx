@@ -8,7 +8,7 @@ import { Button, Input, Select, TextArea, Modal } from '@/components/ui';
 import { Tv, Calendar, Star, Layers, PlayCircle, Info, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, formatApiRating } from '@/lib/utils/general-utils';
-import { getMediaColor } from '@/lib/utils/media-utils';
+import { getMediaColor, formatReleasePeriod } from '@/lib/utils/media-utils';
 import { statusColors, ratingLabels } from '@/constants';
 import { seriesSchema } from '@/lib/schemas/series-schema';
 import { TMDBClient } from '@/lib/api/tmdb';
@@ -80,20 +80,43 @@ const SeriesForm = (props) => {
   }, []);
 
   const getInitialGenres = () => {
+    // Para initialData (dados existentes)
     if (initialData?.genres) {
-      return initialData.genres.map(g => typeof g === 'object' ? g.name : g);
+      if (Array.isArray(initialData.genres) && initialData.genres.length > 0) {
+        // Se já for objetos com id e name, mantém
+        if (typeof initialData.genres[0] === 'object' && initialData.genres[0].id) {
+          return initialData.genres;
+        }
+        return g;
+      }
     }
+
     if (externalData?.genres) {
-      if (externalData.genres && externalData.genres.length > 0) {
+      if (Array.isArray(externalData.genres)) {
         return externalData.genres.map(g => {
-          if (typeof g === 'object') {
-            return g.name;
+          if (typeof g === 'object' && g.id && g.name) {
+            return {
+              id: Number(g.id),
+              name: g.name
+            };
           }
-          return g;
+          return { id: 'unknown', name: 'Desconhecido' };
         });
       }
     }
+
     return [];
+  };
+
+  const extractReleasePeriodFromData = (data) => {
+    if (!data) return undefined;
+
+    // Primeiro tenta obter releasePeriod direto
+    if (data.releasePeriod) {
+      return data.releasePeriod;
+    }
+
+    return undefined;
   };
 
   // Estado local
@@ -135,6 +158,7 @@ const SeriesForm = (props) => {
     return null;
   }, [externalData]);
 
+
   const getDefaultValues = () => {
     const defaultValues = {
       status: 'planned',
@@ -143,21 +167,30 @@ const SeriesForm = (props) => {
       personalNotes: '',
       coverImage: '',
       description: '',
-      releaseYear: undefined,
+      releasePeriod: undefined,
+      seasons: null, // Adicione
+      episodes: null, // Adicione
+      episodesPerSeason: [], // Adicione
       progress: { seasons: 1, episodes: 0 }
     };
 
     if (initialData) {
+      const initialReleasePeriod = extractReleasePeriodFromData(initialData) ||
+        extractReleasePeriodFromData(initialData?.mediaCacheId?.essentialData);
+
       return {
         ...defaultValues,
         title: initialData.title || '',
         description: initialData.description || '',
-        releaseYear: initialData.releaseYear || initialData.mediaCacheId?.essentialData?.releaseYear,
+        releasePeriod: initialReleasePeriod,
         genres: getInitialGenres(),
         userRating: initialData.userRating || null,
         personalNotes: initialData.personalNotes || '',
         coverImage: initialData.coverImage || '',
         status: initialData.status || 'planned',
+        seasons: initialData.seasons || null,
+        episodes: initialData.episodes || null,
+        episodesPerSeason: initialData.episodesPerSeason || [],
         progress: {
           seasons: initialData.progress?.seasons || 1,
           episodes: initialData.progress?.episodes || 0,
@@ -166,19 +199,23 @@ const SeriesForm = (props) => {
     }
 
     if (externalData) {
+      const externalReleasePeriod = extractReleasePeriodFromData(externalData);
+
       return {
         ...defaultValues,
         title: externalData.title || '',
         description: externalData.description || '',
-        releaseYear: externalData.releaseYear || undefined,
+        releasePeriod: externalReleasePeriod,
         genres: getInitialGenres(),
         status: 'planned',
         coverImage: externalData.coverImage || '',
         userRating: null,
+        seasons: seasonInfo?.seasons || null,
+        episodes: seasonInfo?.episodes || null,
+        episodesPerSeason: seasonInfo?.episodesPerSeason || [],
         progress: { seasons: 1, episodes: 0 },
       };
     }
-
     if (manualCreateQuery) {
       return {
         ...defaultValues,
@@ -219,6 +256,8 @@ const SeriesForm = (props) => {
         if (key === 'progress') {
           setValue('progress.seasons', values.progress.seasons);
           setValue('progress.episodes', values.progress.episodes);
+        } else if (key === 'releasePeriod') {
+          setValue(key, values[key]);
         } else {
           setValue(key, values[key]);
         }
@@ -226,9 +265,7 @@ const SeriesForm = (props) => {
     }
   }, [initialData, setValue]);
 
-  // No useEffect que observa mudança na temporada (adicionar após o useEffect existente)
   React.useEffect(() => {
-    // Quando a temporada muda, verifica se o episódio atual é maior que o máximo da nova temporada
     const currentSeasonValue = watch('progress.seasons') || 1;
     const currentEpisodeValue = watch('progress.episodes') || 0;
 
@@ -245,8 +282,11 @@ const SeriesForm = (props) => {
   const handleGenreToggle = (genre) => {
     if (hasExternalData && !isEditMode) return;
 
-    const newGenres = selectedGenres.includes(genre)
-      ? selectedGenres.filter(g => g !== genre)
+    // `genre` agora é um objeto {id, name}
+    const genreId = genre.id || genre;
+
+    const newGenres = selectedGenres.some(g => (g.id || g) === genreId)
+      ? selectedGenres.filter(g => (g.id || g) !== genreId)
       : [...selectedGenres, genre];
 
     setSelectedGenres(newGenres);
@@ -356,7 +396,7 @@ const SeriesForm = (props) => {
 
         // Validação para episódio (permite 0)
         if (currentEpisodeValue < 0) {
-          toast.error('Episódio atual não pode ser negativo');
+          toast.error('Episódios assistidos não pode ser negativo');
           setValue('progress.episodes', 0, { shouldValidate: true });
           return;
         }
@@ -365,14 +405,14 @@ const SeriesForm = (props) => {
         if (seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length >= currentSeasonValue) {
           const maxEpisodes = seasonInfo.episodesPerSeason[currentSeasonValue - 1];
           if (currentEpisodeValue > maxEpisodes) {
-            toast.error(`Episódio atual (${currentEpisodeValue}) não pode ser maior que ${maxEpisodes} na temporada ${currentSeasonValue}`);
+            toast.error(`Episódios assistidos (${currentEpisodeValue}) não pode ser maior que ${maxEpisodes} na temporada ${currentSeasonValue}`);
             setValue('progress.episodes', maxEpisodes, { shouldValidate: true });
             return;
           }
         }
         // Validação fallback
         else if (seasonInfo?.episodes && currentEpisodeValue > seasonInfo.episodes) {
-          toast.error(`Episódio atual (${currentEpisodeValue}) não pode ser maior que o total (${seasonInfo.episodes})`);
+          toast.error(`Episódios assistidos (${currentEpisodeValue}) não pode ser maior que o total (${seasonInfo.episodes})`);
           setValue('progress.episodes', seasonInfo.episodes, { shouldValidate: true });
           return;
         }
@@ -389,9 +429,12 @@ const SeriesForm = (props) => {
         description: watch('description'),
         genres: watch('genres'),
         status: watch('status'),
-        releaseYear: watch('releaseYear'),
+        releasePeriod: watch('releasePeriod'),
         userRating: watch('userRating'),
         personalNotes: watch('personalNotes'),
+        seasons: watch('seasons'),
+        episodes: watch('episodes'),
+        episodesPerSeason: watch('episodesPerSeason'),
         progress: {
           seasons: watch('progress.seasons'),
           episodes: watch('progress.episodes')
@@ -406,7 +449,7 @@ const SeriesForm = (props) => {
         const finalFormData = {
           ...formData,
           mediaType: 'series',
-          releaseYear: formData.releaseYear || null,
+          releasePeriod: formData.releasePeriod || null, // Envia releasePeriod
           userRating: formData.userRating || null,
           personalNotes: formData.personalNotes || '',
           genres: selectedGenres,
@@ -433,8 +476,9 @@ const SeriesForm = (props) => {
           finalFormData.apiRating = apiRatingData?.rawRating || externalData.apiRating;
           finalFormData.apiVoteCount = apiRatingData?.voteCount || externalData.apiVoteCount;
 
-          if (!finalFormData.releaseYear && externalData.releaseYear) {
-            finalFormData.releaseYear = externalData.releaseYear;
+          // Atualizado para releasePeriod
+          if (!finalFormData.releasePeriod && externalData.releasePeriod) {
+            finalFormData.releasePeriod = externalData.releasePeriod;
           }
         }
 
@@ -524,18 +568,18 @@ const SeriesForm = (props) => {
                   </div>
                 )}
 
-                {/* Ano (quarto) */}
-                {externalData?.releaseYear && (
+                {/* Período de lançamento (quarto) - Atualizado para releasePeriod */}
+                {externalData?.releasePeriod ? (
                   <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
                     <Calendar className="w-4 h-4 text-white/60" />
                     <div>
-                      <span className="text-white/80">Ano:</span>
+                      <span className="text-white/80">Lançamento:</span>
                       <div className="font-medium text-white">
-                        {externalData.releaseYear}
+                        {formatReleasePeriod(externalData.releasePeriod)}
                       </div>
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
           </div>
@@ -615,19 +659,47 @@ const SeriesForm = (props) => {
                 variant="glass"
               />
 
+              {/* Campo para Ano */}
               <Input
                 label="Ano de Lançamento"
                 type="number"
                 icon={Calendar}
-                {...register('releaseYear', {
+                {...register('releasePeriod.year', {
                   valueAsNumber: true,
                   setValueAs: (value) => value === '' ? undefined : Number(value)
                 })}
-                error={errors.releaseYear?.message}
+                error={errors.releasePeriod?.year?.message}
                 placeholder="2020"
                 variant="glass"
                 min={1800}
                 max={new Date().getFullYear() + 5}
+              />
+
+              {/* Campo opcional para Mês */}
+              <Select
+                label="Mês de Lançamento (opcional)"
+                icon={Calendar}
+                {...register('releasePeriod.month', {
+                  valueAsNumber: true,
+                  setValueAs: (value) => value === '' ? undefined : Number(value)
+                })}
+                error={errors.releasePeriod?.month?.message}
+                variant="glass"
+                options={[
+                  { value: '', label: 'Não especificado' },
+                  { value: '1', label: 'Janeiro' },
+                  { value: '2', label: 'Fevereiro' },
+                  { value: '3', label: 'Março' },
+                  { value: '4', label: 'Abril' },
+                  { value: '5', label: 'Maio' },
+                  { value: '6', label: 'Junho' },
+                  { value: '7', label: 'Julho' },
+                  { value: '8', label: 'Agosto' },
+                  { value: '9', label: 'Setembro' },
+                  { value: '10', label: 'Outubro' },
+                  { value: '11', label: 'Novembro' },
+                  { value: '12', label: 'Dezembro' }
+                ]}
               />
 
               <Input
@@ -658,17 +730,17 @@ const SeriesForm = (props) => {
               <div className="flex flex-wrap gap-2">
                 {availableGenres.map((genre) => (
                   <button
-                    key={genre}
+                    key={genre.id}
                     type="button"
                     onClick={() => handleGenreToggle(genre)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
-                      selectedGenres.includes(genre)
+                      selectedGenres.some(g => (g.id || g) === genre.id)
                         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
                         : 'bg-white/5 text-white/80 hover:bg-white/10'
                     )}
                   >
-                    {genre}
+                    {genre.name}
                   </button>
                 ))}
               </div>
@@ -790,7 +862,7 @@ const SeriesForm = (props) => {
           )}
         </div>
 
-        {/* SEÇÃO DE PROGRESSO DA SÉRIE - SEMELHANTE AO MANGAFORM */}
+        {/* SEÇÃO DE PROGRESSO DA SÉRIE */}
         {showProgressFields && (
           <div className={cn(
             "glass border border-white/10 rounded-xl p-6 space-y-4",
@@ -876,7 +948,7 @@ const SeriesForm = (props) => {
 
                   return (
                     <Input
-                      label="Episódio Atual:"
+                      label="Episódios Assistidos:"
                       type="number"
                       icon={PlayCircle}
                       {...register('progress.episodes', {
