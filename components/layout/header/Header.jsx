@@ -21,16 +21,16 @@ const Header = ({ showFullHeader = true }) => {
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Filmes', href: '/movie', icon: Film },
     { name: 'Séries', href: '/series', icon: Tv },
-    { name: 'Animes', href: '/anime', icon: Tv2 },
     { name: 'Jogos', href: '/game', icon: GamepadIcon },
+    { name: 'Animes', href: '/anime', icon: Tv2 },
     { name: 'Mangás', href: '/manga', icon: BookOpen },
   ];
 
   const discoverNavigation = [
     { name: 'Filmes', href: '/discover/movie', icon: Film },
     { name: 'Séries', href: '/discover/series', icon: Tv },
-    { name: 'Animes', href: '/discover/anime', icon: Tv2 },
     { name: 'Jogos', href: '/discover/game', icon: GamepadIcon },
+    { name: 'Animes', href: '/discover/anime', icon: Tv2 },
     { name: 'Mangás', href: '/discover/manga', icon: BookOpen },
   ];
 

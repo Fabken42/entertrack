@@ -24,6 +24,8 @@ const MangaForm = (props) => {
     onSubmit,
   } = props;
 
+  console.log(props)
+
   // Usando função utilitária para cores
   const mediaColor = getMediaColor('mangas');
 
@@ -54,22 +56,14 @@ const MangaForm = (props) => {
   }, [initialData, externalData]);
 
   const getInitialGenres = () => {
-    // Para initialData (dados existentes)
+    // Para initialData (dados existentes - modo edição)
     if (initialData?.genres) {
       if (Array.isArray(initialData.genres) && initialData.genres.length > 0) {
-        // Se já for objetos com id e name, mantém
-        if (typeof initialData.genres[0] === 'object' && initialData.genres[0].id) {
-          return initialData.genres;
-        }
-        // Se for strings ou IDs, converte para objetos
-        return initialData.genres.map(g => {
-          // Se for número, procura por ID
-          if (typeof g === 'number') {
-            const genreFromList = availableGenres.find(ag => ag.id === g);
-            return genreFromList || { id: g, name: `Gênero ${g}` };
-          }
-          return g;
-        });
+        // Remove propriedades extras que não estão no schema (como _id)
+        return initialData.genres.map(genre => ({
+          id: genre.id,
+          name: genre.name
+        }));
       }
     }
 
@@ -118,7 +112,7 @@ const MangaForm = (props) => {
     getInitialAuthors()
   );
   const [selectedRating, setSelectedRating] = React.useState(
-    initialData?.userRating || 3
+    initialData?.userRating || null
   );
   const [charCount, setCharCount] = React.useState(
     initialData?.personalNotes?.length || 0
@@ -131,14 +125,14 @@ const MangaForm = (props) => {
 
   // Função auxiliar para extrair releasePeriod dos dados
   const extractReleasePeriodFromData = (data) => {
-    if (!data) return undefined;
+    if (!data) return null;
 
     // Primeiro tenta obter releasePeriod direto
     if (data.releasePeriod) {
       return data.releasePeriod;
     }
 
-    return undefined;
+    return null;
   };
 
   // Funções para validar progresso
@@ -149,8 +143,8 @@ const MangaForm = (props) => {
 
     const numValue = Number(value);
 
-    if (numValue < 0) {
-      return 'Volume atual não pode ser negativo';
+    if (numValue < 1) {
+      return 'Volume atual não pode ser menor que 1';
     }
 
     if (totalVolumes && numValue > totalVolumes) {
@@ -168,27 +162,35 @@ const MangaForm = (props) => {
     const numValue = Number(value);
 
     if (numValue < 0) {
-      return 'Capítulo atual não pode ser negativo';
+      return 'Capítulos lidos não pode ser negativo';
     }
 
     if (totalChapters && numValue > totalChapters) {
-      return `Capítulo atual não pode ser maior que ${totalChapters}`;
+      return `Capítulos lidos não pode ser maior que ${totalChapters}`;
     }
 
     return true;
   };
+
+  // Adicione useEffect para inicializar quando availableGenres estiver pronto
+  React.useEffect(() => {
+    if (availableGenres.length > 0) {
+      const initialGenres = getInitialGenres();
+      setSelectedGenres(initialGenres);
+    }
+  }, [availableGenres]);
 
   const getDefaultValues = () => {
     const defaultValues = {
       status: 'planned',
       genres: getInitialGenres(),
       authors: getInitialAuthors(),
-      progress: { currentChapter: 0, currentVolume: 0 },
+      progress: { currentChapter: 0, currentVolume: 1 },
       userRating: null,
       personalNotes: '',
       coverImage: '',
       description: '',
-      releasePeriod: undefined,
+      releasePeriod: null,
       volumes: '',
       chapters: '',
     };
@@ -197,7 +199,7 @@ const MangaForm = (props) => {
       let volumesFromData = initialData.volumes || initialData.mediaCacheId?.essentialData?.volumes || '';
       let chaptersFromData = initialData.chapters || initialData.mediaCacheId?.essentialData?.chapters || '';
       let currentVolume = initialData.progress?.currentVolume ||
-        initialData.progress?.volumes || 0;
+        initialData.progress?.volumes || 1;
       let currentChapter = initialData.progress?.currentChapter ||
         initialData.progress?.chapters || 0;
 
@@ -217,7 +219,7 @@ const MangaForm = (props) => {
         ...defaultValues,
         title: initialData.title || '',
         description: initialData.description || '',
-        releasePeriod: initialReleasePeriod, // Usa releasePeriod
+        releasePeriod: initialReleasePeriod,
         genres: getInitialGenres(),
         authors: getInitialAuthors(),
         userRating: initialData.userRating || null,
@@ -241,14 +243,14 @@ const MangaForm = (props) => {
         ...defaultValues,
         title: externalData.title || '',
         description: externalData.description || '',
-        releasePeriod: externalReleasePeriod, // Usa releasePeriod
+        releasePeriod: externalReleasePeriod,
         genres: getInitialGenres(),
         authors: getInitialAuthors(),
         status: 'planned',
         coverImage: externalData.coverImage || '',
         volumes: externalData.volumes || '',
         chapters: externalData.chapters || '',
-        progress: { currentChapter: 0, currentVolume: 0 },
+        progress: { currentChapter: 0, currentVolume: 1 },
         userRating: null,
       };
     }
@@ -266,7 +268,6 @@ const MangaForm = (props) => {
     return defaultValues;
   };
 
-  // 1. PRIMEIRO: declare useForm ANTES dos useEffects que dependem dele
   const {
     register,
     handleSubmit,
@@ -290,19 +291,8 @@ const MangaForm = (props) => {
   const volumesFromForm = watch('volumes');
   const chaptersFromForm = watch('chapters');
 
-  // 2. SEGUNDO: useEffects que dependem de setValue, watch, etc.
   React.useEffect(() => {
-    if (availableGenres.length > 0) {
-      const initialGenres = getInitialGenres();
-      setSelectedGenres(initialGenres);
-      setValue('genres', initialGenres, { shouldValidate: true });
-    }
-  }, [availableGenres]); // setValue não precisa estar nas dependências
-
-  React.useEffect(() => {
-    if (selectedGenres && selectedGenres.length > 0) {
-      setValue('genres', selectedGenres, { shouldValidate: true });
-    }
+    setValue('genres', selectedGenres, { shouldValidate: true });
   }, [selectedGenres, setValue]);
 
   React.useEffect(() => {
@@ -325,28 +315,27 @@ const MangaForm = (props) => {
     }
   }, [initialData, setValue]);
 
-  // Atualizar totais quando valores do formulário manual mudam
-  React.useEffect(() => {
-    if (volumesFromForm && !initialData && !externalData) {
-      console.log('Total de volumes atualizado do formulário:', volumesFromForm);
-    }
-  }, [volumesFromForm, initialData, externalData]);
-
-  React.useEffect(() => {
-    if (chaptersFromForm && !initialData && !externalData) {
-      console.log('Total de capítulos atualizado do formulário:', chaptersFromForm);
-    }
-  }, [chaptersFromForm, initialData, externalData]);
-
   const handleGenreToggle = (genre) => {
+    // Não permitir alterar gêneros em dados importados do Jikan (apenas criação)
     if (hasExternalData && !isEditMode) return;
 
-    // `genre` agora é um objeto {id, name}
     const genreId = genre.id || genre;
+    const isCurrentlySelected = selectedGenres.some(g => {
+      const gId = g.id || g;
+      return gId === genreId;
+    });
 
-    const newGenres = selectedGenres && selectedGenres.some(g => (g.id || g) === genreId)
-      ? selectedGenres.filter(g => (g.id || g) !== genreId)
-      : [...(selectedGenres || []), genre];
+    let newGenres;
+
+    if (isCurrentlySelected) {
+      newGenres = selectedGenres.filter(g => {
+        const gId = g.id || g;
+        return gId !== genreId;
+      });
+    } else {
+      // Adiciona objeto completo mantendo estrutura consistente
+      newGenres = [...selectedGenres, typeof genre === 'object' ? genre : { id: genre, name: genre }];
+    }
 
     setSelectedGenres(newGenres);
   };
@@ -378,12 +367,9 @@ const MangaForm = (props) => {
     setValue('personalNotes', value, { shouldValidate: true });
   };
 
-  const onSubmitForm = async (e) => {
+  const onSubmitForm = async (formData) => {
     try {
-      if (e && e.preventDefault) {
-        e.preventDefault();
-      }
-
+      // Verifica se pode submeter (limite de caracteres)
       if (!canSubmit) {
         toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
@@ -402,7 +388,7 @@ const MangaForm = (props) => {
       }
 
       if (totalChaptersValue && currentChapterValue > totalChaptersValue) {
-        toast.error(`Capítulo atual (${currentChapterValue}) não pode ser maior que o total (${totalChaptersValue})`);
+        toast.error(`Capítulos lidos (${currentChapterValue}) não pode ser maior que o total (${totalChaptersValue})`);
         setValue('progress.currentChapter', totalChaptersValue, { shouldValidate: true });
         return;
       }
@@ -415,28 +401,6 @@ const MangaForm = (props) => {
         return;
       }
 
-      const formData = {
-        title: watch('title'),
-        description: watch('description'),
-        genres: watch('genres'),
-        authors: watch('authors'),
-        status: watch('status'),
-        releasePeriod: watch('releasePeriod'), // Alterado para releasePeriod
-        volumes: watch('volumes'),
-        chapters: watch('chapters'),
-        userRating: watch('userRating'),
-        personalNotes: watch('personalNotes'),
-        progress: {
-          currentChapter: watch('progress.currentChapter'),
-          currentVolume: watch('progress.currentVolume')
-        }
-      };
-
-      if (formData.personalNotes && formData.personalNotes.length > 1000) {
-        toast.error('Notas pessoais não podem exceder 1000 caracteres');
-        return;
-      }
-
       if (onSubmit) {
         const finalFormData = {
           ...formData,
@@ -444,8 +408,7 @@ const MangaForm = (props) => {
           releasePeriod: formData.releasePeriod || null,
           userRating: formData.userRating || null,
           personalNotes: formData.personalNotes || '',
-          // Use formData.genres (já validado pelo schema)
-          genres: formData.genres,
+          genres: selectedGenres,
           authors: selectedAuthors,
           volumes: formData.volumes || null,
           chapters: formData.chapters || null,
@@ -454,9 +417,10 @@ const MangaForm = (props) => {
             chapters: formData.progress?.currentChapter || 0,
             lastUpdated: new Date()
           },
+          category: externalData?.category || null,
         };
 
-        if (isEditMode && initialData && initialData._id) {
+        if (isEditMode && initialData?._id) {
           finalFormData.userMediaId = initialData._id;
         }
 
@@ -468,16 +432,16 @@ const MangaForm = (props) => {
           finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
           finalFormData.apiRating = externalData.apiRating;
           finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingCount;
-          finalFormData.volumes = externalData.volumes || formData.volumes;
-          finalFormData.chapters = externalData.chapters || formData.chapters;
+          finalFormData.volumes = externalData.volumes || finalFormData.volumes;
+          finalFormData.chapters = externalData.chapters || finalFormData.chapters;
           finalFormData.popularity = externalData.popularity;
           finalFormData.members = externalData.members;
-          finalFormData.authors = externalData.authors || [];
 
           // Atualizado para releasePeriod
           if (!finalFormData.releasePeriod && externalData.releasePeriod) {
             finalFormData.releasePeriod = externalData.releasePeriod;
           }
+          finalFormData.category = externalData.category || null;
         }
 
         if (isManualEntry) {
@@ -490,6 +454,7 @@ const MangaForm = (props) => {
       }
     } catch (error) {
       console.error('❌ Erro no onSubmitForm:', error);
+      toast.error('Erro ao salvar mangá');
     }
   };
 
@@ -515,7 +480,7 @@ const MangaForm = (props) => {
   const progressPercentage = calculateProgressPercentage();
 
   return (
-    <form onSubmit={(e) => onSubmitForm(e, handleSubmit(onSubmitForm))} className="space-y-8">
+    <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
       {hasExternalData && (
         <div className={cn("glass border rounded-xl p-6 space-y-4", "border-blue-500/30")}>
           <div className="flex items-center gap-3">
@@ -817,17 +782,21 @@ const MangaForm = (props) => {
 
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              Gêneros {!isManualEntry && ' *'}
+              Gêneros
             </label>
             <div className="flex flex-wrap gap-2">
               {availableGenres.map((genre) => (
                 <button
                   key={genre.id}
                   type="button"
-                  onClick={() => handleGenreToggle(genre)} // Passa objeto completo
+                  onClick={() => handleGenreToggle(genre)}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
-                    selectedGenres && selectedGenres.some(g => (g.id || g) === genre.id)
+                    selectedGenres.some(g => {
+                      const gId = g.id || g;
+                      const genreId = genre.id || genre;
+                      return gId === genreId;
+                    })
                       ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
                       : 'bg-white/5 text-white/80 hover:bg-white/10'
                   )}
@@ -837,6 +806,7 @@ const MangaForm = (props) => {
               ))}
             </div>
 
+            {/* Mensagem de erro para validação do schema */}
             {errors.genres && (
               <p className="mt-2 text-sm text-red-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
@@ -844,17 +814,11 @@ const MangaForm = (props) => {
               </p>
             )}
 
-            {selectedGenres && selectedGenres.length === 0 && !isManualEntry && (
-              <p className="mt-2 text-sm text-amber-400 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
-                Selecione pelo menos um gênero
-              </p>
-            )}
-
-            {selectedGenres && selectedGenres.length === 0 && isManualEntry && (
+            {/* Mensagem informativa para todos os modos (genres é opcional) */}
+            {selectedGenres.length === 0 && (
               <p className="mt-2 text-sm text-blue-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
-                Gêneros são opcionais para criação manual
+                Gêneros são opcionais
               </p>
             )}
           </div>
@@ -977,7 +941,7 @@ const MangaForm = (props) => {
                   valueAsNumber: true,
                   setValueAs: (value) => {
                     if (value === '' || value === null || value === undefined) {
-                      return undefined;
+                      return 1;
                     }
                     const numValue = Number(value);
 
@@ -987,9 +951,8 @@ const MangaForm = (props) => {
                       return maxVolumes;
                     }
 
-                    // Não permite negativo
-                    if (numValue < 0) {
-                      return 0;
+                    if (numValue < 1) {
+                      return 1;
                     }
 
                     return numValue;
@@ -997,9 +960,9 @@ const MangaForm = (props) => {
                   validate: validateCurrentVolume
                 })}
                 error={errors.progress?.currentVolume?.message}
-                placeholder={`0${(totalVolumes || volumesFromForm) ? ` (máx: ${totalVolumes || volumesFromForm})` : ''}`}
+                placeholder={`1${(totalVolumes || volumesFromForm) ? ` (máx: ${totalVolumes || volumesFromForm})` : ''}`}
                 variant="glass"
-                min={0}
+                min={1}
                 max={totalVolumes || volumesFromForm || undefined}
                 step={1}
               />
@@ -1027,14 +990,14 @@ const MangaForm = (props) => {
 
             <div>
               <Input
-                label="Capítulo Atual:"
+                label="Capítulos Lidos:"
                 type="number"
                 icon={Hash}
                 {...register('progress.currentChapter', {
                   valueAsNumber: true,
                   setValueAs: (value) => {
                     if (value === '' || value === null || value === undefined) {
-                      return undefined;
+                      return 0;
                     }
                     const numValue = Number(value);
 

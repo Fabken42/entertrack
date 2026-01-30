@@ -100,7 +100,6 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
       };
     } catch (error) {
       console.error(`Erro ao buscar detalhes do filme ${movie.id}:`, error);
-      // Retorna os dados básicos se falhar
       return {
         id: movie.id,
         title: movie.title,

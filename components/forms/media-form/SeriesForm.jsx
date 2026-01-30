@@ -80,14 +80,14 @@ const SeriesForm = (props) => {
   }, []);
 
   const getInitialGenres = () => {
-    // Para initialData (dados existentes)
+    // Para initialData (dados existentes - modo edição)
     if (initialData?.genres) {
       if (Array.isArray(initialData.genres) && initialData.genres.length > 0) {
-        // Se já for objetos com id e name, mantém
-        if (typeof initialData.genres[0] === 'object' && initialData.genres[0].id) {
-          return initialData.genres;
-        }
-        return g;
+        // Remove propriedades extras que não estão no schema (como _id)
+        return initialData.genres.map(genre => ({
+          id: genre.id,
+          name: genre.name
+        }));
       }
     }
 
@@ -109,14 +109,14 @@ const SeriesForm = (props) => {
   };
 
   const extractReleasePeriodFromData = (data) => {
-    if (!data) return undefined;
+    if (!data) return null;
 
     // Primeiro tenta obter releasePeriod direto
     if (data.releasePeriod) {
       return data.releasePeriod;
     }
 
-    return undefined;
+    return null;
   };
 
   // Estado local
@@ -167,10 +167,10 @@ const SeriesForm = (props) => {
       personalNotes: '',
       coverImage: '',
       description: '',
-      releasePeriod: undefined,
-      seasons: null, // Adicione
-      episodes: null, // Adicione
-      episodesPerSeason: [], // Adicione
+      releasePeriod: null,
+      seasons: null,
+      episodes: null,
+      episodesPerSeason: [],
       progress: { seasons: 1, episodes: 0 }
     };
 
@@ -216,6 +216,7 @@ const SeriesForm = (props) => {
         progress: { seasons: 1, episodes: 0 },
       };
     }
+    
     if (manualCreateQuery) {
       return {
         ...defaultValues,
@@ -280,14 +281,26 @@ const SeriesForm = (props) => {
   }, [watch('progress.seasons'), seasonInfo?.episodesPerSeason, setValue]);
 
   const handleGenreToggle = (genre) => {
+    // Não permitir alterar gêneros em dados importados do TMDB (apenas criação)
     if (hasExternalData && !isEditMode) return;
 
-    // `genre` agora é um objeto {id, name}
     const genreId = genre.id || genre;
+    const isCurrentlySelected = selectedGenres.some(g => {
+      const gId = g.id || g;
+      return gId === genreId;
+    });
 
-    const newGenres = selectedGenres.some(g => (g.id || g) === genreId)
-      ? selectedGenres.filter(g => (g.id || g) !== genreId)
-      : [...selectedGenres, genre];
+    let newGenres;
+    
+    if (isCurrentlySelected) {
+      newGenres = selectedGenres.filter(g => {
+        const gId = g.id || g;
+        return gId !== genreId;
+      });
+    } else {
+      // Adiciona objeto completo mantendo estrutura consistente
+      newGenres = [...selectedGenres, typeof genre === 'object' ? genre : { id: genre, name: genre }];
+    }
 
     setSelectedGenres(newGenres);
   };
@@ -373,11 +386,9 @@ const SeriesForm = (props) => {
     setValue('personalNotes', value, { shouldValidate: true });
   };
 
-  const onSubmitForm = async (e) => {
+  const onSubmitForm = async (formData) => {
     try {
-      if (e && e.preventDefault) {
-        e.preventDefault();
-      }
+      // Verifica se pode submeter (limite de caracteres)
       if (!canSubmit) {
         toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
@@ -424,32 +435,12 @@ const SeriesForm = (props) => {
         toast.error('Por favor, corrija os erros no formulário');
         return;
       }
-      const formData = {
-        title: watch('title'),
-        description: watch('description'),
-        genres: watch('genres'),
-        status: watch('status'),
-        releasePeriod: watch('releasePeriod'),
-        userRating: watch('userRating'),
-        personalNotes: watch('personalNotes'),
-        seasons: watch('seasons'),
-        episodes: watch('episodes'),
-        episodesPerSeason: watch('episodesPerSeason'),
-        progress: {
-          seasons: watch('progress.seasons'),
-          episodes: watch('progress.episodes')
-        }
-      };
-      if (formData.personalNotes && formData.personalNotes.length > 1000) {
-        toast.error('Notas pessoais não podem exceder 1000 caracteres');
-        return;
-      }
 
       if (onSubmit) {
         const finalFormData = {
           ...formData,
           mediaType: 'series',
-          releasePeriod: formData.releasePeriod || null, // Envia releasePeriod
+          releasePeriod: formData.releasePeriod || null,
           userRating: formData.userRating || null,
           personalNotes: formData.personalNotes || '',
           genres: selectedGenres,
@@ -463,7 +454,7 @@ const SeriesForm = (props) => {
           },
         };
 
-        if (isEditMode && initialData && initialData._id) {
+        if (isEditMode && initialData?._id) {
           finalFormData.userMediaId = initialData._id;
         }
 
@@ -487,6 +478,7 @@ const SeriesForm = (props) => {
           finalFormData.sourceApi = 'manual';
           finalFormData.coverImage = '';
         }
+        
         await onSubmit(finalFormData);
       }
     } catch (error) {
@@ -497,7 +489,7 @@ const SeriesForm = (props) => {
 
   return (
     <>
-      <form onSubmit={(e) => onSubmitForm(e, handleSubmit(onSubmitForm))} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
         {hasExternalData && (
           <div className={cn("glass border rounded-xl p-6 space-y-4", "border-purple-500/30")}>
             <div className="flex items-center gap-3">
@@ -725,7 +717,7 @@ const SeriesForm = (props) => {
 
             <div>
               <label className="block text-sm font-medium text-white mb-2">
-                Gêneros {!isManualEntry && ' *'}
+                Gêneros
               </label>
               <div className="flex flex-wrap gap-2">
                 {availableGenres.map((genre) => (
@@ -735,7 +727,11 @@ const SeriesForm = (props) => {
                     onClick={() => handleGenreToggle(genre)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
-                      selectedGenres.some(g => (g.id || g) === genre.id)
+                      selectedGenres.some(g => {
+                        const gId = g.id || g;
+                        const genreId = genre.id || genre;
+                        return gId === genreId;
+                      })
                         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
                         : 'bg-white/5 text-white/80 hover:bg-white/10'
                     )}
@@ -753,19 +749,11 @@ const SeriesForm = (props) => {
                 </p>
               )}
 
-              {/* Mensagem condicional apenas se não for criação manual */}
-              {selectedGenres.length === 0 && !isManualEntry && (
-                <p className="mt-2 text-sm text-amber-400 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
-                  Selecione pelo menos um gênero
-                </p>
-              )}
-
-              {/* Mensagem para criação manual informando que é opcional */}
-              {selectedGenres.length === 0 && isManualEntry && (
+              {/* Mensagem informativa para todos os modos (genres é opcional) */}
+              {selectedGenres.length === 0 && (
                 <p className="mt-2 text-sm text-purple-400 flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
-                  Gêneros são opcionais para criação manual
+                  Gêneros são opcionais
                 </p>
               )}
             </div>

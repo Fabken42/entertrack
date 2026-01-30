@@ -44,7 +44,6 @@ export default function AnimesPage() {
   };
 
   const editModalInitialData = (editingItem) => ({
-    // Adicionar userMediaId explicitamente
     userMediaId: editingItem._id,
     genres: editingItem.mediaCacheId?.essentialData?.genres,
     episodes: editingItem.mediaCacheId?.essentialData?.episodes,

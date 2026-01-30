@@ -10,7 +10,8 @@ const MangaCacheSchema = new Schema({
     volumes: { type: Number },
     popularity: { type: Number },
     members: { type: Number },
-    authors: [{ type: String }]
+    authors: [{ type: String }],
+    category: { type: String },
   }
 });
 

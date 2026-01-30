@@ -78,6 +78,12 @@ const Sidebar = () => {
         color: 'text-green-400'
       });
 
+      items.push({
+        name: 'Jogos',
+        href: '/game',
+        icon: GamepadIcon,
+        color: 'text-purple-400'
+      });
 
       items.push({
         name: 'Animes',
@@ -86,12 +92,6 @@ const Sidebar = () => {
         color: 'text-pink-400'
       });
 
-      items.push({
-        name: 'Jogos',
-        href: '/game',
-        icon: GamepadIcon,
-        color: 'text-purple-400'
-      });
       items.push({
         name: 'Mangás',
         href: '/manga',
@@ -123,17 +123,17 @@ const Sidebar = () => {
     });
 
     items.push({
-      name: 'Animes',
-      href: '/discover/anime',
-      icon: Tv2,
-      color: 'text-pink-400'
-    });
-
-    items.push({
       name: 'Jogos',
       href: '/discover/game',
       icon: GamepadIcon,
       color: 'text-purple-400'
+    });
+
+    items.push({
+      name: 'Animes',
+      href: '/discover/anime',
+      icon: Tv2,
+      color: 'text-pink-400'
     });
 
     items.push({

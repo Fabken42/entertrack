@@ -35,9 +35,13 @@ export default function GameMediaCard({
     };
 
     const renderSpecificContent = () => {
+        const shouldShowHours = item.status &&
+            ['in_progress', 'dropped', 'completed'].includes(item.status) &&
+            item.progress?.hours > 0;
+
         return (
             <div className="w-full mb-3">
-                {item.progress?.hours && (
+                {shouldShowHours && (
                     <div className="inline-flex gap-1 px-2 py-1.5 bg-white/10 rounded-full text-xs text-white/80 font-medium">
                         <span className="font-medium">⏱️</span>
                         <span>Horas jogadas:</span>

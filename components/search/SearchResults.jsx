@@ -2,9 +2,8 @@
 
 import { Loader2, Tv, Film, Book, GamepadIcon, Users, TrendingUp, Star, Calendar, Clock, BookOpen, Search, Target, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils/general-utils';
-import { normalizeSearchResults } from '@/lib/utils/media-utils';
+import { normalizeSearchResults, formatRating } from '@/lib/utils/media-utils';
 import { formatMembers, formatPopularity } from '@/lib/utils/general-utils';
-import { formatRating } from '@/lib/utils/media-utils';
 
 const SearchResults = ({
   results,
@@ -144,7 +143,6 @@ const SearchResults = ({
       {/* Results List */}
       <div className="p-3 space-y-2">
         {normalizedResults.map((item, index) => {
-          // CORREÇÃO AQUI:
           const ratingInfo = formatRating(item.apiRating, mediaType);
           const ratingDisplay = ratingInfo?.display || (item.apiRating ? item.apiRating.toFixed(1) : 'N/A');
           const isHighRating = item.apiRating && item.apiRating >= (mediaType === 'book' || mediaType === 'game' ? 4 : 7.5);
@@ -172,7 +170,7 @@ const SearchResults = ({
                     alt={item.title}
                     className="w-16 h-24 object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
                     onError={(e) => {
-                      e.target.src = '/placeholder-image.jpg';
+                      e.target.src = '/images/icons/placeholder-image.png';
                     }}
                   />
                 ) : (

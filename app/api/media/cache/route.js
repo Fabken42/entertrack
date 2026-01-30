@@ -83,6 +83,7 @@ const createCleanedEssentialData = (essentialData, mediaType) => {
         popularity: essentialData.popularity,
         members: essentialData.members,
         studios: essentialData.studios,
+        category: essentialData.category,
       });
       break;
 
@@ -94,6 +95,7 @@ const createCleanedEssentialData = (essentialData, mediaType) => {
         popularity: essentialData.popularity,
         members: essentialData.members,
         authors: essentialData.authors,
+        category: essentialData.category,
       });
       break;
   }

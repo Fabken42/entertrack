@@ -1,12 +1,13 @@
+// components/media/forms/GameForm.jsx
 'use client';
 
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Select, TextArea, Modal } from '@/components/ui';
-import { Gamepad, Star, Calendar, TrendingUp, Layers, Info, ChevronRight, Clock, Hash, Users } from 'lucide-react';
+import { Gamepad, Star, Calendar, TrendingUp, Layers, Info, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { cn, formatApiRating, formatMembers, formatPopularity } from '@/lib/utils/general-utils';
+import { cn, formatApiRating } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
 import { ratingLabels } from '@/constants';
 import { getMediaColor, formatReleasePeriod } from '@/lib/utils/media-utils';
@@ -40,22 +41,14 @@ const GameForm = (props) => {
   }, []);
 
   const getInitialGenres = () => {
-    // Para initialData (dados existentes)
+    // Para initialData (dados existentes - modo edição)
     if (initialData?.genres) {
       if (Array.isArray(initialData.genres) && initialData.genres.length > 0) {
-        // Se já for objetos com id e name, mantém
-        if (typeof initialData.genres[0] === 'object' && initialData.genres[0].id) {
-          return initialData.genres;
-        }
-        // Se for strings ou IDs, converte para objetos
-        return initialData.genres.map(g => {
-          // Se for número, procura por ID
-          if (typeof g === 'number') {
-            const genreFromList = availableGenres.find(ag => ag.id === g);
-            return genreFromList || { id: g, name: `Gênero ${g}` };
-          }
-          return g;
-        });
+        // Remove propriedades extras que não estão no schema (como _id)
+        return initialData.genres.map(genre => ({
+          id: genre.id,
+          name: genre.name
+        }));
       }
     }
 
@@ -79,16 +72,6 @@ const GameForm = (props) => {
 
   // Estado local
   const [selectedGenres, setSelectedGenres] = React.useState([]);
-
-  // Adicione useEffect para inicializar quando availableGenres estiver pronto
-  React.useEffect(() => {
-    if (availableGenres.length > 0) {
-      const initialGenres = getInitialGenres();
-      setSelectedGenres(initialGenres);
-      setValue('genres', initialGenres, { shouldValidate: true });
-    }
-  }, [availableGenres]);
-
   const [selectedRating, setSelectedRating] = React.useState(
     initialData?.userRating || null
   );
@@ -128,15 +111,24 @@ const GameForm = (props) => {
 
   // Função auxiliar para extrair releasePeriod dos dados
   const extractReleasePeriodFromData = (data) => {
-    if (!data) return undefined;
+    if (!data) return null;
 
     // Primeiro tenta obter releasePeriod direto
     if (data.releasePeriod) {
       return data.releasePeriod;
     }
 
-    return undefined;
+    return null;
   };
+
+  // Adicione useEffect para inicializar quando availableGenres estiver pronto
+  React.useEffect(() => {
+    if (availableGenres.length > 0) {
+      const initialGenres = getInitialGenres();
+      setSelectedGenres(initialGenres);
+      setValue('genres', initialGenres, { shouldValidate: true });
+    }
+  }, [availableGenres]);
 
   const getDefaultValues = () => {
     const defaultValues = {
@@ -150,7 +142,7 @@ const GameForm = (props) => {
       personalNotes: '',
       coverImage: '',
       description: '',
-      releasePeriod: undefined,
+      releasePeriod: null,
       metacritic: undefined,
       platforms: [],
     };
@@ -164,7 +156,7 @@ const GameForm = (props) => {
         ...defaultValues,
         title: initialData.title || '',
         description: initialData.description || '',
-        releasePeriod: initialReleasePeriod, // Usa releasePeriod
+        releasePeriod: initialReleasePeriod,
         genres: getInitialGenres(),
         userRating: initialData.userRating || null,
         personalNotes: initialData.personalNotes || '',
@@ -187,7 +179,7 @@ const GameForm = (props) => {
         ...defaultValues,
         title: externalData.title || '',
         description: externalData.description || '',
-        releasePeriod: externalReleasePeriod, // Usa releasePeriod
+        releasePeriod: externalReleasePeriod,
         genres: getInitialGenres(),
         status: 'planned',
         coverImage: externalData.coverImage || '',
@@ -259,13 +251,26 @@ const GameForm = (props) => {
   }, [initialData, setValue]);
 
   const handleGenreToggle = (genre) => {
+    // Não permitir alterar gêneros em dados importados do RAWG (apenas criação)
     if (hasExternalData && !isEditMode) return;
 
     const genreId = genre.id || genre;
+    const isCurrentlySelected = selectedGenres?.some(g => {
+      const gId = g.id || g;
+      return gId === genreId;
+    });
 
-    const newGenres = selectedGenres && selectedGenres.some(g => (g.id || g) === genreId)
-      ? selectedGenres.filter(g => (g.id || g) !== genreId)
-      : [...(selectedGenres || []), genre];
+    let newGenres;
+    
+    if (isCurrentlySelected) {
+      newGenres = selectedGenres.filter(g => {
+        const gId = g.id || g;
+        return gId !== genreId;
+      });
+    } else {
+      // Adiciona objeto completo mantendo estrutura consistente
+      newGenres = [...(selectedGenres || []), typeof genre === 'object' ? genre : { id: genre, name: genre }];
+    }
 
     setSelectedGenres(newGenres);
   };
@@ -318,12 +323,9 @@ const GameForm = (props) => {
     setTasks(updatedTasks);
   };
 
-  const onSubmitForm = async (e) => {
+  const onSubmitForm = async (formData) => {
     try {
-      if (e && e.preventDefault) {
-        e.preventDefault();
-      }
-
+      // Verifica se pode submeter (limite de caracteres)
       if (!canSubmit) {
         toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
@@ -340,46 +342,24 @@ const GameForm = (props) => {
 
       const validTasks = tasks.filter(task => task.name && task.name.trim() !== '');
 
-      const formValues = {
-        title: watch('title'),
-        description: watch('description'),
-        genres: watch('genres'),
-        status: watch('status'),
-        releasePeriod: watch('releasePeriod'), // Alterado para releasePeriod
-        metacritic: watch('metacritic'),
-        platforms: watch('platforms'),
-        userRating: watch('userRating'),
-        personalNotes: watch('personalNotes'),
-        progress: {
-          hours: watch('progress.hours') || 0,
-          tasks: validTasks
-        }
-      };
-
-      // Verifica novamente o limite de caracteres
-      if (formValues.personalNotes && formValues.personalNotes.length > 1000) {
-        toast.error('Notas pessoais não podem exceder 1000 caracteres');
-        return;
-      }
-
       if (onSubmit) {
         const finalFormData = {
-          ...formValues,
+          ...formData,
           mediaType: 'game',
-          userRating: formValues.userRating || null,
-          personalNotes: formValues.personalNotes || '',
-          genres: formValues.genres,
-          platforms: formValues.platforms || [],
-          metacritic: formValues.metacritic || null,
+          userRating: formData.userRating || null,
+          personalNotes: formData.personalNotes || '',
+          genres: selectedGenres,
+          platforms: formData.platforms || [],
+          metacritic: formData.metacritic || null,
           progress: {
-            hours: formValues.progress?.hours || 0,
+            hours: formData.progress?.hours || 0,
             tasks: validTasks,
             lastUpdated: new Date()
           }
         };
 
         // Adiciona informações específicas para cada modo
-        if (isEditMode && initialData && initialData._id) {
+        if (isEditMode && initialData?._id) {
           finalFormData.userMediaId = initialData._id;
         }
 
@@ -406,7 +386,6 @@ const GameForm = (props) => {
           finalFormData.coverImage = watch('coverImage') || '';
         }
 
-        console.log('final form data ', finalFormData)
         await onSubmit(finalFormData);
       }
     } catch (error) {
@@ -417,7 +396,7 @@ const GameForm = (props) => {
 
   return (
     <>
-      <form onSubmit={(e) => onSubmitForm(e, handleSubmit(onSubmitForm))} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
         {hasExternalData && (
           <div className={cn("glass border rounded-xl p-6 space-y-4", "border-orange-500/30")}>
             <div className="flex items-center gap-3">
@@ -628,7 +607,7 @@ const GameForm = (props) => {
 
             <div>
               <label className="block text-sm font-medium text-white mb-2">
-                Gêneros {!isManualEntry && ' *'}
+                Gêneros
               </label>
               <div className="flex flex-wrap gap-2">
                 {availableGenres.map((genre) => (
@@ -638,7 +617,11 @@ const GameForm = (props) => {
                     onClick={() => handleGenreToggle(genre)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 hover-lift",
-                      selectedGenres && selectedGenres.some(g => (g.id || g) === (genre.id || genre))
+                      selectedGenres?.some(g => {
+                        const gId = g.id || g;
+                        const genreId = genre.id || genre;
+                        return gId === genreId;
+                      })
                         ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
                         : 'bg-white/5 text-white/80 hover:bg-white/10'
                     )}
@@ -656,19 +639,11 @@ const GameForm = (props) => {
                 </p>
               )}
 
-              {/* Mensagem condicional apenas se não for criação manual */}
-              {selectedGenres.length === 0 && !isManualEntry && (
-                <p className="mt-2 text-sm text-amber-400 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span>
-                  Selecione pelo menos um gênero
-                </p>
-              )}
-
-              {/* Mensagem para criação manual informando que é opcional */}
-              {selectedGenres.length === 0 && isManualEntry && (
-                <p className="mt-2 text-sm text-blue-400 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
-                  Gêneros são opcionais para criação manual
+              {/* Mensagem informativa para todos os modos (genres é opcional) */}
+              {selectedGenres.length === 0 && (
+                <p className="mt-2 text-sm text-orange-400 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-orange-400 rounded-full"></span>
+                  Gêneros são opcionais
                 </p>
               )}
             </div>
@@ -711,7 +686,7 @@ const GameForm = (props) => {
           {showPlayHours && (
             <div>
               <Input
-                label="Horas de Jogo"
+                label="Horas jogadas:"
                 type="number"
                 step="1"
                 min="0"

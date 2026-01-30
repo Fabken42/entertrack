@@ -25,7 +25,6 @@ export default function MediaPageLayout({
     pageTitle,
     pageDescription,
     searchHook,
-    // Props para configurações específicas
     emptyStateIcon = '📚',
     editModalInitialData = {},
     onManualCreate,
@@ -440,9 +439,8 @@ export default function MediaPageLayout({
                     }}
                     mediaType={mediaType}
                     initialData={{
-                        // Remover o campo 'editingItem' que não é necessário
                         _id: editingItem._id,
-                        userMediaId: editingItem._id, // Garantir que userMediaId está presente
+                        userMediaId: editingItem._id, 
                         ...editModalInitialData(editingItem)
                     }}
                     onSubmit={handleEditSubmit}

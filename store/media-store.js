@@ -3,6 +3,35 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
 
+// Configurações por tipo de mídia
+const MEDIA_CONFIG = {
+  movie: {
+    progressFields: ['minutes'],
+    displayUnit: 'minutes',
+    essentialFields: ['runtime']
+  },
+  series: {
+    progressFields: ['episodes', 'seasons'],
+    displayUnit: 'episodes',
+    essentialFields: ['episodes', 'seasons', 'episodesPerSeason']
+  },
+  anime: {
+    progressFields: ['episodes'],
+    displayUnit: 'episodes',
+    essentialFields: ['episodes', 'studios','category']
+  },
+  manga: {
+    progressFields: ['chapters', 'volumes'],
+    displayUnit: 'chapters',
+    essentialFields: ['chapters', 'volumes', 'authors','category']
+  },
+  game: {
+    progressFields: ['hours', 'tasks'],
+    displayUnit: 'hours',
+    essentialFields: ['metacritic', 'platforms', 'playtime']
+  }
+};
+
 const useMediaStore = create((set, get) => ({
   userMedia: [],
   isLoading: false,
@@ -25,27 +54,75 @@ const useMediaStore = create((set, get) => ({
     }
   },
 
-  // ========== MÉTODOS DE PROGRESSO ==========
+  // ========== MÉTODOS DE CACHE OTIMIZADOS ==========
+  createCacheEssentialData: (mediaData, sourceApi, mediaType) => {
+    // Estrutura base consistente
+    const essentialData = {
+      title: mediaData.title?.trim() || 'Título não disponível',
+      mediaType,
+      sourceApi,
+      description: mediaData.description?.trim() || '',
+      coverImage: mediaData.coverImage || '',
+      genres: Array.isArray(mediaData.genres)
+        ? mediaData.genres.map((g, index) => {
+          if (typeof g === 'object') {
+            return {
+              id: Number(g.id) || index + 1,
+              name: g.name || g.title || 'Desconhecido'
+            };
+          }
+          return { id: index + 1, name: g };
+        })
+        : [],
+      averageRating: mediaData.apiRating || mediaData.averageRating || null,
+      ratingCount: mediaData.apiVoteCount || mediaData.ratingCount || null,
+      releasePeriod: mediaData.releasePeriod || null,
+      popularity: mediaData.popularity || null,
+      members: mediaData.members || null,
+      metacritic: mediaData.metacritic || null,
+      category: mediaData.category || null,
+    };
+
+    // Adicionar campos específicos do tipo de mídia
+    const config = MEDIA_CONFIG[mediaType];
+    if (config) {
+      config.essentialFields.forEach(field => {
+        if (mediaData[field] !== undefined && mediaData[field] !== null) {
+          essentialData[field] = mediaData[field];
+        }
+      });
+    }
+
+    // Imagem padrão para mídias manuais
+    if (sourceApi === 'manual' && !essentialData.coverImage) {
+      essentialData.coverImage = '/images/icons/placeholder-image.png';
+    }
+
+    // Remover campos nulos/undefined
+    Object.keys(essentialData).forEach(key => {
+      if (essentialData[key] === undefined || essentialData[key] === null) {
+        delete essentialData[key];
+      }
+    });
+
+    return essentialData;
+  },
+
+  // ========== MÉTODOS DE PROGRESSO OTIMIZADOS ==========
   createProgressPayload: (progressData, mediaType) => {
     if (!progressData || Object.keys(progressData).length === 0) {
       return undefined;
     }
 
+    const config = MEDIA_CONFIG[mediaType];
+    if (!config) return undefined;
+
     const progressPayload = {
       lastUpdated: new Date()
     };
 
-    // Mapeamento de campos específicos por tipo de mídia
-    const mediaTypeFields = {
-      anime: ['episodes'],
-      series: ['episodes', 'seasons'],
-      manga: ['chapters', 'volumes'],
-      game: ['hours', 'tasks'],
-      movie: ['minutes']
-    };
-
     // Adicionar campos específicos
-    mediaTypeFields[mediaType]?.forEach(field => {
+    config.progressFields.forEach(field => {
       if (progressData[field] !== undefined) {
         progressPayload[field] = progressData[field];
       }
@@ -56,127 +133,27 @@ const useMediaStore = create((set, get) => ({
       progressPayload.percentage = progressData.percentage;
     }
 
-    // Verificar se há campos válidos (excluindo lastUpdated)
-    const validKeys = Object.keys(progressPayload).filter(
-      key => key !== 'lastUpdated' && progressPayload[key] !== undefined
+    // Verificar se há campos válidos
+    const hasValidFields = config.progressFields.some(
+      field => progressPayload[field] !== undefined
     );
 
-    return validKeys.length > 0 ? progressPayload : undefined;
+    return hasValidFields || progressPayload.percentage !== undefined
+      ? progressPayload
+      : undefined;
   },
 
-  // ========== MÉTODOS DE CACHE ==========
-  createCacheEssentialData: (mediaData, sourceApi, mediaType) => {
-    const essentialData = {
-      title: mediaData.title?.trim() || 'Título não disponível',
-      mediaType: mediaType,
-      sourceApi: sourceApi
-    };
-
-    // Campos básicos
-    const basicFields = [
-      'description', 'coverImage', 'category', 'releasePeriod',
-      'releaseYear', 'averageRating', 'ratingCount', 'popularity',
-      'members', 'runtime', 'metacritic'
-    ];
-
-    basicFields.forEach(field => {
-      const value = mediaData[field];
-      if (value !== undefined && value !== null) {
-        if (typeof value === 'string') {
-          essentialData[field] = value.trim();
-        } else {
-          essentialData[field] = value;
-        }
-      }
-    });
-
-    // Campos de API
-    if (mediaData.apiRating !== undefined && mediaData.apiRating !== null) {
-      essentialData.averageRating = mediaData.apiRating;
-    }
-    if (mediaData.apiVoteCount !== undefined && mediaData.apiVoteCount !== null) {
-      essentialData.ratingCount = mediaData.apiVoteCount;
-    }
-
-    // Campos específicos por tipo de mídia
-    const mediaSpecificFields = {
-      anime: ['episodes', 'studios', 'duration'],
-      manga: ['chapters', 'volumes', 'authors'],
-      game: ['metacritic', 'platforms', 'playtime'],
-      series: ['episodes', 'seasons', 'episodesPerSeason'],
-      movie: ['runtime', 'directors']
-    };
-
-    mediaSpecificFields[mediaType]?.forEach(field => {
-      const value = mediaData[field];
-      if (value !== undefined && value !== null) {
-        essentialData[field] = value;
-      }
-    });
-
-    // Arrays
-    const arrayFields = ['platforms', 'studios', 'authors', 'episodesPerSeason'];
-    arrayFields.forEach(field => {
-      if (Array.isArray(mediaData[field]) && mediaData[field].length > 0) {
-        essentialData[field] = mediaData[field];
-      }
-    });
-
-    // Processar gêneros - CORREÇÃO PRINCIPAL
-    if (Array.isArray(mediaData.genres) && mediaData.genres.length > 0) {
-      essentialData.genres = mediaData.genres.map((g, index) => {
-        if (typeof g === 'object') {
-          // Garantir que id seja um número
-          let genreId = g.id;
-
-          if (genreId !== undefined && genreId !== null) {
-            // Converter para número
-            genreId = Number(genreId);
-
-            // Se a conversão falhar ou resultar em NaN, usar fallback
-            if (isNaN(genreId)) {
-              genreId = index + 1; // Fallback numérico baseado no índice
-            }
-          } else {
-            // Se não houver id, usar fallback numérico
-            genreId = index + 1;
-          }
-
-          return {
-            id: genreId,
-            name: g.name || g.title || 'Desconhecido'
-          };
-        }
-
-        // Se g for apenas uma string
-        return {
-          id: index + 1,
-          name: g
-        };
-      });
-    }
-
-    // Imagem padrão para mídias manuais
-    if (sourceApi === 'manual' && !essentialData.coverImage) {
-      essentialData.coverImage = '/images/icons/placeholder-image.png';
-    }
-
-    return essentialData;
-  },
-
-  // ========== OPERAÇÕES CRUD ==========
+  // ========== OPERAÇÕES CRUD OTIMIZADAS ==========
   addMedia: async (mediaData) => {
-    console.log('adding media: ', mediaData) //para genres, imprime: genres: Array(3) [ "Ação", "Aventura", "Fantasia" ]
     try {
-      // Validação
-      if (!mediaData.sourceId && mediaData.sourceApi !== 'manual') {
+      const { sourceApi = 'manual', mediaType } = mediaData;
+
+      // Validação simplificada
+      if (!mediaData.sourceId && sourceApi !== 'manual') {
         throw new Error('sourceId é obrigatório para mídias externas');
       }
 
-      const sourceId = mediaData.sourceId?.toString() ||
-        `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-      const sourceApi = mediaData.sourceApi || 'manual';
-      const mediaType = mediaData.mediaType;
+      const sourceId = mediaData.sourceId || `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
       // 1. Criar cache
       const cachePayload = {
@@ -199,22 +176,24 @@ const useMediaStore = create((set, get) => ({
 
       const cacheResult = await cacheResponse.json();
 
-      // 2. Criar UserMedia
+      // 2. Criar UserMedia com payload limpo
       const progressPayload = get().createProgressPayload(mediaData.progress, mediaType);
 
-      const userMediaPayload = get().cleanPayload({
+      const userMediaPayload = {
         mediaCacheId: cacheResult.cacheId,
         status: mediaData.status || 'planned',
-        userRating: mediaData.userRating,
-        personalNotes: mediaData.personalNotes?.trim(),
-        progress: progressPayload
-      });
+        userRating: mediaData.userRating || null,
+        personalNotes: mediaData.personalNotes?.trim() || '',
+        progress: progressPayload,
+        ...(get().getStatusDate(mediaData.status) || {})
+      };
 
-      // Adicionar datas baseadas no status
-      const statusDate = get().getStatusDate(mediaData.status);
-      if (statusDate) {
-        Object.assign(userMediaPayload, statusDate);
-      }
+      // Limpar payload
+      Object.keys(userMediaPayload).forEach(key => {
+        if (userMediaPayload[key] === undefined || userMediaPayload[key] === null) {
+          delete userMediaPayload[key];
+        }
+      });
 
       const userMediaResponse = await fetch('/api/user/media', {
         method: 'POST',
@@ -229,7 +208,7 @@ const useMediaStore = create((set, get) => ({
 
       const newMedia = await userMediaResponse.json();
 
-      // 3. Atualizar store
+      // 3. Atualizar store otimista
       set(state => ({
         userMedia: [...state.userMedia, newMedia]
       }));
@@ -250,25 +229,23 @@ const useMediaStore = create((set, get) => ({
         throw new Error('Mídia não encontrada');
       }
 
-      const existingTasks = currentMedia?.progress?.tasks || [];
-      const existingMediaCache = currentMedia?.mediaCacheId;
       const mediaType = updateData.mediaType || currentMedia.mediaType;
+      const existingTasks = currentMedia?.progress?.tasks || [];
 
-      const progressPayload = get().createProgressPayload(
-        {
-          ...updateData.progress,
-          tasks: updateData.progress?.tasks || existingTasks
-        },
-        mediaType
-      );
-
-      const updatePayload = get().cleanPayload({
+      // Preparar payload de atualização
+      const updatePayload = {
         status: updateData.status,
         userRating: updateData.userRating,
         personalNotes: updateData.personalNotes?.trim(),
-        progress: progressPayload,
-        category: updateData.category
-      });
+        category: updateData.category,
+        progress: get().createProgressPayload(
+          {
+            ...updateData.progress,
+            tasks: updateData.progress?.tasks || existingTasks
+          },
+          mediaType
+        )
+      };
 
       // Adicionar datas se o status mudar
       if (updateData.status && updateData.status !== currentMedia.status) {
@@ -277,6 +254,13 @@ const useMediaStore = create((set, get) => ({
           Object.assign(updatePayload, statusDate);
         }
       }
+
+      // Remover campos vazios
+      Object.keys(updatePayload).forEach(key => {
+        if (updatePayload[key] === undefined || updatePayload[key] === null) {
+          delete updatePayload[key];
+        }
+      });
 
       const response = await fetch(`/api/user/media/${userMediaId}`, {
         method: 'PUT',
@@ -294,7 +278,7 @@ const useMediaStore = create((set, get) => ({
       // Preservar o cache original
       const mediaToStore = {
         ...updatedMedia,
-        mediaCacheId: existingMediaCache
+        mediaCacheId: currentMedia.mediaCacheId
       };
 
       set(state => ({
@@ -325,6 +309,7 @@ const useMediaStore = create((set, get) => ({
 
       const result = await response.json();
 
+      // Atualização otimista
       set(state => ({
         userMedia: state.userMedia.filter(media => media._id !== userMediaId)
       }));
@@ -338,12 +323,10 @@ const useMediaStore = create((set, get) => ({
     }
   },
 
-  // ========== MÉTODOS DE PROGRESSO AVANÇADO ==========
+  // ========== MÉTODOS DE PROGRESSO AVANÇADO OTIMIZADOS ==========
   increaseProgress: async (userMediaId, mediaType) => {
     try {
-      const { userMedia } = get();
-      const currentItem = userMedia.find(item => item._id === userMediaId);
-
+      const currentItem = get().userMedia.find(item => item._id === userMediaId);
       if (!currentItem) {
         throw new Error('Item não encontrado');
       }
@@ -352,10 +335,6 @@ const useMediaStore = create((set, get) => ({
         throw new Error('Apenas itens em progresso ou abandonados podem ter progresso aumentado');
       }
 
-      const progress = currentItem.progress || {};
-      const essentialData = currentItem.mediaCacheId?.essentialData || {};
-
-      // Calcular novo progresso
       const progressResult = get().calculateNextProgress(currentItem, mediaType);
 
       if (progressResult.completed) {
@@ -365,15 +344,21 @@ const useMediaStore = create((set, get) => ({
 
       const { updatedProgress, shouldMarkAsCompleted } = progressResult;
 
+      const isGame = mediaType === 'game';
+      const markAsCompleted = shouldMarkAsCompleted && !isGame;
+
+      // MODIFICAÇÃO: Verificar se vai mudar o status automaticamente
+      const isAutoCompletion = markAsCompleted && currentItem.status !== 'completed';
+
       // Atualização otimista
       const optimisticUpdate = {
         ...currentItem,
         progress: {
-          ...progress,
+          ...(currentItem.progress || {}),
           ...updatedProgress,
           lastUpdated: new Date()
         },
-        ...(shouldMarkAsCompleted && { status: 'completed' })
+        ...(markAsCompleted && { status: 'completed' })
       };
 
       set(state => ({
@@ -382,19 +367,20 @@ const useMediaStore = create((set, get) => ({
         )
       }));
 
-      // Enviar para o backend
-      const finalProgressPayload = get().createProgressPayload(
-        {
-          ...progress,
-          ...updatedProgress
-        },
-        mediaType
-      );
+      // MODIFICAÇÃO: Mostrar toast se for uma conclusão automática
+      if (isAutoCompletion) toast.success('🎉 Você completou esta mídia!');
 
-      const updatePayload = get().cleanPayload({
-        progress: finalProgressPayload,
-        ...(shouldMarkAsCompleted && { status: 'completed' })
-      });
+      // Enviar para o backend
+      const updatePayload = {
+        progress: get().createProgressPayload(
+          {
+            ...(currentItem.progress || {}),
+            ...updatedProgress
+          },
+          mediaType
+        ),
+        ...(markAsCompleted && { status: 'completed' })
+      };
 
       const response = await fetch(`/api/user/media/${userMediaId}`, {
         method: 'PUT',
@@ -409,9 +395,7 @@ const useMediaStore = create((set, get) => ({
             item._id === userMediaId ? currentItem : item
           )
         }));
-
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to update progress');
+        throw new Error('Failed to update progress');
       }
 
       const updatedMedia = await response.json();
@@ -440,18 +424,20 @@ const useMediaStore = create((set, get) => ({
     const progress = currentItem.progress || {};
     const essentialData = currentItem.mediaCacheId?.essentialData || {};
 
-    switch (mediaType) {
-      case 'anime':
-        return get().calculateAnimeProgress(progress, essentialData);
-      case 'series':
-        return get().calculateSeriesProgress(progress, essentialData);
-      case 'game':
-        return get().calculateGameProgress(progress);
-      case 'manga':
-        return get().calculateMangaProgress(progress, essentialData);
-      default:
-        throw new Error(`Tipo de mídia não suportado: ${mediaType}`);
+    const calculators = {
+      anime: () => get().calculateAnimeProgress(progress, essentialData),
+      series: () => get().calculateSeriesProgress(progress, essentialData),
+      game: () => get().calculateGameProgress(progress),
+      manga: () => get().calculateMangaProgress(progress, essentialData),
+      movie: () => get().calculateMovieProgress(progress, essentialData)
+    };
+
+    const calculator = calculators[mediaType];
+    if (!calculator) {
+      throw new Error(`Tipo de mídia não suportado: ${mediaType}`);
     }
+
+    return calculator();
   },
 
   calculateAnimeProgress: (progress, essentialData) => {
@@ -572,7 +558,6 @@ const useMediaStore = create((set, get) => ({
 
     const updatedProgress = { chapters: currentChapters + 1 };
 
-    // Calcular volume
     if (totalVolumes > 0 && totalChapters > 0) {
       const chaptersPerVolume = Math.ceil(totalChapters / totalVolumes) || 10;
       const shouldIncreaseVolume = ((currentChapters + 1) % chaptersPerVolume === 1) &&
@@ -591,34 +576,33 @@ const useMediaStore = create((set, get) => ({
     };
   },
 
-  // ========== MÉTODOS AUXILIARES ==========
-  cleanPayload: (obj) => {
-    if (!obj || typeof obj !== 'object') return {};
+  calculateMovieProgress: (progress, essentialData) => {
+    const currentMinutes = progress.minutes || 0;
+    const totalMinutes = essentialData.runtime || 0;
 
-    const cleaned = { ...obj };
-    Object.keys(cleaned).forEach(key => {
-      const value = cleaned[key];
-      if (
-        value === undefined ||
-        value === null ||
-        (typeof value === 'string' && value.trim() === '') ||
-        (Array.isArray(value) && value.length === 0) ||
-        (typeof value === 'object' && !Array.isArray(value) && value !== null && Object.keys(value).length === 0)
-      ) {
-        delete cleaned[key];
-      }
-    });
-    return cleaned;
+    if (totalMinutes > 0 && currentMinutes >= totalMinutes) {
+      return { completed: true };
+    }
+
+    // Incrementa em 10 minutos (ou até o total)
+    const increment = 10;
+    const newMinutes = Math.min(currentMinutes + increment, totalMinutes);
+
+    return {
+      updatedProgress: { minutes: newMinutes },
+      shouldMarkAsCompleted: totalMinutes > 0 && newMinutes >= totalMinutes
+    };
   },
 
+  // ========== MÉTODOS AUXILIARES OTIMIZADOS ==========
   getStatusDate: (status) => {
     const date = new Date();
-    switch (status) {
-      case 'in_progress': return { startedAt: date };
-      case 'completed': return { completedAt: date };
-      case 'dropped': return { droppedAt: date };
-      default: return null;
-    }
+    const statusDates = {
+      in_progress: { startedAt: date },
+      completed: { completedAt: date },
+      dropped: { droppedAt: date }
+    };
+    return statusDates[status] || null;
   },
 
   handleError: (error, context) => {
@@ -632,38 +616,34 @@ const useMediaStore = create((set, get) => ({
       'Failed to remove media': 'Erro ao remover mídia',
       'Failed to update progress': 'Erro ao atualizar progresso',
       'Item não encontrado': 'Mídia não encontrada',
-      'Mídia não encontrada': 'Mídia não encontrada'
+      'Mídia não encontrada': 'Mídia não encontrada',
+      'Este jogo não tem tarefas definidas': 'Este jogo não tem tarefas definidas',
+      'Apenas itens em progresso ou abandonados podem ter progresso aumentado': 'Apenas itens em progresso ou abandonados podem ter progresso aumentado'
     };
 
-    const message = errorMessages[error.message] ||
-      error.message ||
-      'Ocorreu um erro. Tente novamente.';
+    const message = errorMessages[error.message] || error.message || 'Ocorreu um erro. Tente novamente.';
 
     toast.error(message);
     return { success: false, error: message };
   },
 
-  // ========== MÉTODOS DE CONSULTA ==========
+  // ========== MÉTODOS DE CONSULTA OTIMIZADOS ==========
   getMediaByType: (mediaType) => {
-    const { userMedia } = get();
-    return userMedia.filter(item =>
+    return get().userMedia.filter(item =>
       item.mediaCacheId?.mediaType === mediaType
     );
   },
 
   getMediaByStatus: (mediaType, status) => {
-    const { userMedia } = get();
-    return userMedia.filter(item =>
+    return get().userMedia.filter(item =>
       item.mediaCacheId?.mediaType === mediaType &&
       item.status === status
     );
   },
 
   searchMedia: (mediaType, query) => {
-    const { userMedia } = get();
     const searchTerm = query.toLowerCase();
-
-    return userMedia.filter(item => {
+    return get().userMedia.filter(item => {
       if (item.mediaCacheId?.mediaType !== mediaType) return false;
 
       const title = item.mediaCacheId?.essentialData?.title?.toLowerCase() || '';
@@ -674,11 +654,10 @@ const useMediaStore = create((set, get) => ({
   },
 
   getMediaById: (id) => {
-    const { userMedia } = get();
-    return userMedia.find(media => media._id === id);
+    return get().userMedia.find(media => media._id === id);
   },
 
-  // ========== FORMATAÇÃO ==========
+  // ========== FORMATAÇÃO OTIMIZADA ==========
   formatProgressForDisplay: (userMedia) => {
     if (!userMedia || !userMedia.progress) {
       return { display: 'Não iniciado', value: 0, unit: 'percentage' };
@@ -688,18 +667,17 @@ const useMediaStore = create((set, get) => ({
     const mediaType = userMedia.mediaCacheId?.mediaType;
     const totalInfo = userMedia.mediaCacheId?.essentialData || {};
 
-    switch (mediaType) {
-      case 'anime':
-        return {
-          display: progress.episodes
-            ? `Episódio ${progress.episodes}${totalInfo.episodes ? `/${totalInfo.episodes}` : ''}`
-            : 'Não assistido',
-          value: progress.episodes || 0,
-          unit: 'episodes',
-          total: totalInfo.episodes,
-          percentage: progress.percentage
-        };
-      case 'manga':
+    const formatters = {
+      anime: () => ({
+        display: progress.episodes
+          ? `Episódio ${progress.episodes}${totalInfo.episodes ? `/${totalInfo.episodes}` : ''}`
+          : 'Não assistido',
+        value: progress.episodes || 0,
+        unit: 'episodes',
+        total: totalInfo.episodes,
+        percentage: progress.percentage
+      }),
+      manga: () => {
         const parts = [];
         if (progress.chapters) parts.push(`Cap. ${progress.chapters}${totalInfo.chapters ? `/${totalInfo.chapters}` : ''}`);
         if (progress.volumes) parts.push(`Vol. ${progress.volumes}${totalInfo.volumes ? `/${totalInfo.volumes}` : ''}`);
@@ -710,7 +688,8 @@ const useMediaStore = create((set, get) => ({
           total: totalInfo.chapters || totalInfo.volumes,
           percentage: progress.percentage
         };
-      case 'game':
+      },
+      game: () => {
         const taskCount = progress.tasks?.length || 0;
         const completedTasks = progress.tasks?.filter(t => t.completed).length || 0;
         return {
@@ -721,27 +700,43 @@ const useMediaStore = create((set, get) => ({
           unit: 'hours',
           total: null,
           tasks: progress.tasks || [],
-          completedTasks: completedTasks,
+          completedTasks,
           totalTasks: taskCount,
           percentage: progress.percentage
         };
-      case 'series':
+      },
+      series: () => ({
+        display: progress.episodes
+          ? `T${progress.seasons || 1} E${progress.episodes}${totalInfo.episodes ? `/${totalInfo.episodes}` : ''}`
+          : 'Não assistido',
+        value: progress.episodes || 0,
+        unit: 'episodes',
+        total: totalInfo.episodes,
+        percentage: progress.percentage
+      }),
+      movie: () => {
+        const currentMinutes = progress.minutes || 0;
+        const totalMinutes = totalInfo.runtime || 0;
+        const percentage = totalMinutes > 0 ? Math.round((currentMinutes / totalMinutes) * 100) : 0;
+
         return {
-          display: progress.episodes
-            ? `T${progress.seasons || 1} E${progress.episodes}${totalInfo.episodes ? `/${totalInfo.episodes}` : ''}`
-            : 'Não assistido',
-          value: progress.episodes || 0,
-          unit: 'episodes',
-          total: totalInfo.episodes,
-          percentage: progress.percentage
+          display: totalMinutes > 0
+            ? `${Math.floor(currentMinutes / 60)}h ${currentMinutes % 60}m / ${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
+            : `${Math.floor(currentMinutes / 60)}h ${currentMinutes % 60}m`,
+          value: currentMinutes,
+          unit: 'minutes',
+          total: totalMinutes,
+          percentage
         };
-      default:
-        return {
-          display: progress.percentage ? `${progress.percentage}%` : '0%',
-          value: progress.percentage || 0,
-          unit: 'percentage'
-        };
-    }
+      }
+    };
+
+    const formatter = formatters[mediaType];
+    return formatter ? formatter() : {
+      display: progress.percentage ? `${progress.percentage}%` : '0%',
+      value: progress.percentage || 0,
+      unit: 'percentage'
+    };
   },
 
   // ========== MÉTODOS DE RESET/UTILITÁRIOS ==========
@@ -758,21 +753,55 @@ const useMediaStore = create((set, get) => ({
       completed: 0,
       dropped: 0,
       totalHours: 0,
-      totalEpisodes: 0
+      totalEpisodes: 0,
+      totalChapters: 0,
+      totalMinutes: 0
     };
 
     mediaList.forEach(item => {
       stats[item.status] = (stats[item.status] || 0) + 1;
 
-      if (item.progress?.hours) {
-        stats.totalHours += item.progress.hours;
-      }
-      if (item.progress?.episodes) {
-        stats.totalEpisodes += item.progress.episodes;
-      }
+      if (item.progress?.hours) stats.totalHours += item.progress.hours;
+      if (item.progress?.episodes) stats.totalEpisodes += item.progress.episodes;
+      if (item.progress?.chapters) stats.totalChapters += item.progress.chapters;
+      if (item.progress?.minutes) stats.totalMinutes += item.progress.minutes;
     });
 
     return stats;
+  },
+
+  // ========== MÉTODOS DE ORDENAÇÃO ==========
+  sortMedia: (mediaType, sortBy = 'title', sortOrder = 'asc') => {
+    const mediaList = get().getMediaByType(mediaType);
+
+    return [...mediaList].sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortBy) {
+        case 'title':
+          aValue = a.mediaCacheId?.essentialData?.title?.toLowerCase() || '';
+          bValue = b.mediaCacheId?.essentialData?.title?.toLowerCase() || '';
+          break;
+        case 'rating':
+          aValue = a.userRating || a.mediaCacheId?.essentialData?.averageRating || 0;
+          bValue = b.userRating || b.mediaCacheId?.essentialData?.averageRating || 0;
+          break;
+        case 'progress':
+          aValue = get().formatProgressForDisplay(a).percentage || 0;
+          bValue = get().formatProgressForDisplay(b).percentage || 0;
+          break;
+        case 'addedDate':
+          aValue = new Date(a.createdAt || 0);
+          bValue = new Date(b.createdAt || 0);
+          break;
+        default:
+          aValue = 0;
+          bValue = 0;
+      }
+
+      const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
   }
 }));
 

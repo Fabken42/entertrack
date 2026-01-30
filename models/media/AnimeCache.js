@@ -9,7 +9,8 @@ const AnimeCacheSchema = new Schema({
     episodes: { type: Number },
     popularity: { type: Number },
     members: { type: Number },
-    studios: [{ type: String }]
+    studios: [{ type: String }],
+    category: { type: String },
   }
 });
 
