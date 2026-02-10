@@ -1,5 +1,8 @@
 import { getCacheModelByType } from '@/models/media';
 import { getUserMediaModelByType } from '@/models/user';
+import { jikanClient } from '@/lib/api/jikan';
+import { tmdbClient } from '@/lib/api/tmdb';
+import { rawgClient } from '@/lib/api/rawg';
 
 const API_CLIENTS = {
   jikan: jikanClient,
@@ -13,7 +16,7 @@ export default async function handler(req, res) {
 
   // 1. Determinar o tipo de mídia baseado na source
   const mediaType = getMediaTypeFromSource(source);
-  
+
   // 2. Verificar cache primeiro usando o modelo correto
   const CacheModel = getCacheModelByType(mediaType);
   const cached = await CacheModel.findOne({
@@ -22,14 +25,14 @@ export default async function handler(req, res) {
   });
 
   const now = new Date();
-  
+
   // 3. Cache válido?
   if (cached && cached.cacheControl.nextFetch > now) {
     // Atualizar estatísticas
     cached.usageStats.accessCount += 1;
     cached.usageStats.lastAccessed = now;
     await cached.save();
-    
+
     // 4. Se temos userId, buscar informações do usuário também
     let userMediaData = null;
     if (userId) {
@@ -39,7 +42,7 @@ export default async function handler(req, res) {
         mediaCacheId: cached._id
       }).lean();
     }
-    
+
     return res.status(200).json({
       ...cached.essentialData,
       userData: userMediaData
@@ -54,10 +57,10 @@ export default async function handler(req, res) {
     }
 
     const freshData = await apiClient.fetchById(id);
-    
+
     // 6. Normalizar dados (usando sua função normalizeSearchResults)
     const normalizedData = normalizeMediaData(freshData, source);
-    
+
     // 7. Atualizar ou criar cache usando o modelo específico
     const cacheData = {
       sourceApi: source,
@@ -97,12 +100,12 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error(`Error fetching from ${source}:`, error);
-    
+
     // 9. Se API falhar, retornar cache mesmo que expirado
     if (cached) {
       cached.cacheControl.errorCount += 1;
       await cached.save();
-      
+
       // Buscar dados do usuário se userId estiver presente
       let userMediaData = null;
       if (userId) {
@@ -112,13 +115,13 @@ export default async function handler(req, res) {
           mediaCacheId: cached._id
         }).lean();
       }
-      
+
       return res.status(200).json({
         ...cached.essentialData,
         userData: userMediaData
       });
     }
-    
+
     res.status(500).json({ error: 'Failed to fetch media data' });
   }
 }
@@ -131,7 +134,7 @@ function getMediaTypeFromSource(source) {
     'rawg': 'game',
     'manual': null // Será definido no payload
   };
-  
+
   const type = sourceToType[source];
   if (!type) {
     throw new Error(`Fonte não suportada: ${source}`);
@@ -157,7 +160,7 @@ function normalizeMediaData(rawData, source) {
 // Função para calcular quando buscar novamente
 function calculateNextFetch(mediaData) {
   const now = new Date();
-  
+
   if (mediaData.status === 'ongoing') {
     // Conteúdo em lançamento: atualizar em 1 dia
     return new Date(now.getTime() + 24 * 60 * 60 * 1000);
