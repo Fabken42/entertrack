@@ -5,7 +5,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Select, TextArea } from '@/components/ui';
-import { BookOpen, Hash, Star, Calendar, Users, TrendingUp, User } from 'lucide-react';
+import { BookOpen, Hash, Star, Calendar, Users, TrendingUp, User, ChevronDown, ChevronUp, PlayCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, formatApiRating, formatMembers, formatPopularity } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
@@ -27,7 +27,14 @@ const MangaForm = (props) => {
   console.log(props)
 
   // Usando função utilitária para cores
-  const mediaColor = getMediaColor('mangas');
+  const mediaColor = getMediaColor('manga');
+
+  // 🔥 NOVO: Estado para controlar se a seção de informações está expandida
+  const [isInfoExpanded, setIsInfoExpanded] = React.useState(() => {
+    // Se tem externalData (abriu da página de descoberta), começa expandido
+    // Se só tem initialData (abriu de /manga), começa recolhido
+    return !!externalData && !initialData;
+  });
 
   // Obter todos os gêneros do Jikan
   const availableGenres = React.useMemo(() => {
@@ -55,11 +62,58 @@ const MangaForm = (props) => {
     return null;
   }, [initialData, externalData]);
 
+  // 🔥 NOVO: Obter dados de exibição (combinando initialData e externalData)
+  const getDisplayData = () => {
+    // Prioriza externalData para informações da API
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        coverImage: externalData.coverImage,
+        averageRating: externalData.averageRating,
+        ratingCount: externalData.ratingCount,
+        popularity: externalData.popularity,
+        members: externalData.members,
+        releasePeriod: externalData.releasePeriod,
+        volumes: externalData.volumes,
+        chapters: externalData.chapters,
+        authors: externalData.authors,
+        genres: externalData.genres,
+        category: externalData.category,
+        source: 'external'
+      };
+    }
+
+    // Se não tem externalData mas tem initialData (modo edição)
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        coverImage: initialData.coverImage,
+        averageRating: initialData.averageRating,
+        ratingCount: initialData.ratingCount,
+        popularity: initialData.popularity,
+        members: initialData.members,
+        releasePeriod: initialData.releasePeriod,
+        volumes: initialData.volumes,
+        chapters: initialData.chapters,
+        authors: initialData.authors,
+        genres: initialData.genres,
+        category: initialData.category,
+        source: 'initial'
+      };
+    }
+
+    return null;
+  };
+
+  const displayData = getDisplayData();
+  const hasDisplayData = !!displayData;
+  const isExternalData = displayData?.source === 'external';
+
   const getInitialGenres = () => {
-    // Para initialData (dados existentes - modo edição)
     if (initialData?.genres) {
       if (Array.isArray(initialData.genres) && initialData.genres.length > 0) {
-        // Remove propriedades extras que não estão no schema (como _id)
         return initialData.genres.map(genre => ({
           id: genre.id,
           name: genre.name
@@ -73,7 +127,7 @@ const MangaForm = (props) => {
         return externalData.genres.map(g => {
           if (typeof g === 'object' && (g.id || g.name)) {
             return {
-              id: g.id?.toString() || `jikan_${Date.now()}`,
+              id: g.id || 0,
               name: g.name || 'Desconhecido'
             };
           }
@@ -340,12 +394,6 @@ const MangaForm = (props) => {
     setSelectedGenres(newGenres);
   };
 
-  const handleAuthorChange = (e) => {
-    const value = e.target.value;
-    const authorsArray = value.split(',').map(author => author.trim()).filter(author => author.length > 0);
-    setSelectedAuthors(authorsArray);
-  };
-
   const handleRatingChangeInternal = (rating) => {
     setSelectedRating(rating);
     setValue('userRating', rating, { shouldValidate: true });
@@ -425,13 +473,13 @@ const MangaForm = (props) => {
         }
 
         if (externalData && !isEditMode) {
-          finalFormData.sourceId = externalData.id?.toString();
+          finalFormData.sourceId = externalData.sourceId?.toString();
           finalFormData.sourceApi = 'jikan';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
           finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
-          finalFormData.apiRating = externalData.apiRating;
-          finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingCount;
+          finalFormData.averageRating = externalData.averageRating;
+          finalFormData.ratingCount = externalData.ratingCount;
           finalFormData.volumes = externalData.volumes || finalFormData.volumes;
           finalFormData.chapters = externalData.chapters || finalFormData.chapters;
           finalFormData.popularity = externalData.popularity;
@@ -479,185 +527,231 @@ const MangaForm = (props) => {
 
   const progressPercentage = calculateProgressPercentage();
 
+  const handleAuthorChange = (e) => {
+    const value = e.target.value;
+    // Atualiza o estado com a string completa
+    setSelectedAuthors([value]);
+  };
+
+  const handleAuthorBlur = (e) => {
+    const value = e.target.value;
+    if (value.trim()) {
+      // Divide por vírgula, remove espaços extras e filtra vazios
+      const authorsArray = value
+        .split(',')
+        .map(author => author.trim())
+        .filter(author => author.length > 0);
+
+      setSelectedAuthors(authorsArray);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
-      {hasExternalData && (
-        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-blue-500/30")}>
-          <div className="flex items-center gap-3">
-            <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <BookOpen className="w-5 h-5" />
+      {/* 🔥 ATUALIZADO: Seção de informações básicas agora recolhível */}
+      {hasDisplayData && (
+        <div className={cn("glass border rounded-xl overflow-hidden transition-all duration-300", "border-blue-500/30")}>
+          {/* Cabeçalho recolhível */}
+          <button
+            type="button"
+            onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn("p-2 rounded-lg", mediaColor)}>
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-semibold text-white">
+                  {displayData.title}
+                </h3>
+                <p className="text-sm text-white/60">
+                  {isExternalData ? 'Dados importados do myanimelist' : 'Informações do mangá'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-white">
-                {externalData.title}
-              </h3>
-              <p className="text-sm text-white/60">Dados importados do myanimelist</p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-white/60">
+                {isInfoExpanded ? 'Recolher' : 'Expandir'}
+              </span>
+              {isInfoExpanded ? (
+                <ChevronUp className="w-5 h-5 text-white/60" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-white/60" />
+              )}
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {/* Nota - verifica se existe e é maior que 0 */}
-            {(externalData.apiRating != null && externalData.apiRating > 0 &&
-              externalData.apiVoteCount != null && externalData.apiVoteCount > 0) ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                <div>
-                  <span className="text-white/80">Nota:</span>
-                  <div className="font-medium text-white">
-                    {formatApiRating(externalData.apiRating)?.display || externalData.apiRating.toFixed(1)}/5
+          </button>
+
+          {/* Conteúdo da seção - só mostra se expandido */}
+          {isInfoExpanded && (
+            <div className="px-6 pb-6 space-y-6">
+              {/* Grid de informações */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {/* Nota - verifica se existe e é maior que 0 */}
+                {(displayData.averageRating != null && displayData.averageRating > 0 &&
+                  displayData.ratingCount != null && displayData.ratingCount > 0) ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                    <div>
+                      <span className="text-white/80">Nota:</span>
+                      <div className="font-medium text-white">
+                        {formatApiRating(displayData.averageRating)?.display || displayData.averageRating.toFixed(1)}/5
+                      </div>
+                      <div className="text-xs text-white/60">
+                        ({displayData.ratingCount.toLocaleString()} votos)
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-white/60">
-                    ({externalData.apiVoteCount.toLocaleString()} votos)
+                ) : null}
+
+                {/* Popularidade - verifica se existe e é maior que 0 */}
+                {displayData.popularity != null && displayData.popularity > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <TrendingUp className="w-4 h-4 text-blue-400" />
+                    <div>
+                      <span className="text-white/80">Popularidade:</span>
+                      <div className="font-medium text-white">{formatPopularity(displayData.popularity)}</div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ) : null}
+                ) : null}
 
-            {/* Popularidade - verifica se existe e é maior que 0 */}
-            {externalData.popularity != null && externalData.popularity > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-blue-400" />
-                <div>
-                  <span className="text-white/80">Popularidade:</span>
-                  <div className="font-medium text-white">{formatPopularity(externalData.popularity)}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Membros - verifica se existe e é maior que 0 */}
-            {externalData.members != null && externalData.members > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Users className="w-4 h-4 text-green-400" />
-                <div>
-                  <span className="text-white/80">Membros:</span>
-                  <div className="font-medium text-white">{formatMembers(externalData.members)}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Volumes - verifica se existe e é maior que 0 */}
-            {externalData.volumes != null && externalData.volumes > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <BookOpen className="w-4 h-4 text-blue-400" />
-                <div>
-                  <span className="text-white/80">Volumes:</span>
-                  <div className="font-medium text-white">{externalData.volumes}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Capítulos - verifica se existe e é maior que 0 */}
-            {externalData.chapters != null && externalData.chapters > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Hash className="w-4 h-4 text-cyan-400" />
-                <div>
-                  <span className="text-white/80">Capítulos:</span>
-                  <div className="font-medium text-white">{externalData.chapters}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Período de lançamento - verifica se existe */}
-            {externalData.releasePeriod ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Calendar className="w-4 h-4 text-white/60" />
-                <div>
-                  <span className="text-white/80">Lançamento:</span>
-                  <div className="font-medium text-white">
-                    {formatReleasePeriod(externalData.releasePeriod)}
+                {/* Membros - verifica se existe e é maior que 0 */}
+                {displayData.members != null && displayData.members > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Users className="w-4 h-4 text-green-400" />
+                    <div>
+                      <span className="text-white/80">Membros:</span>
+                      <div className="font-medium text-white">{formatMembers(displayData.members)}</div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ) : null}
+                ) : null}
 
-            {/* Autores - verifica se existe e tem pelo menos 1 */}
-            {externalData.authors && externalData.authors.length > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <User className="w-4 h-4 text-purple-400" />
-                <div>
-                  <span className="text-white/80">
-                    {externalData.authors.length === 1 ? 'Autor:' : 'Autores:'}
-                  </span>
-                  <div className="font-medium text-white">
-                    {externalData.authors.slice(0, 3).map((author, index, arr) => (
-                      <span key={index}>
-                        {author}
-                        {index < arr.length - 1 && index < 2 && ', '}
+                {/* Volumes - verifica se existe e é maior que 0 */}
+                {displayData.volumes != null && displayData.volumes > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <BookOpen className="w-4 h-4 text-blue-400" />
+                    <div>
+                      <span className="text-white/80">Volumes:</span>
+                      <div className="font-medium text-white">{displayData.volumes}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Capítulos - verifica se existe e é maior que 0 */}
+                {displayData.chapters != null && displayData.chapters > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Hash className="w-4 h-4 text-cyan-400" />
+                    <div>
+                      <span className="text-white/80">Capítulos:</span>
+                      <div className="font-medium text-white">{displayData.chapters}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Período de lançamento - verifica se existe */}
+                {displayData.releasePeriod ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Calendar className="w-4 h-4 text-white/60" />
+                    <div>
+                      <span className="text-white/80">Lançamento:</span>
+                      <div className="font-medium text-white">
+                        {formatReleasePeriod(displayData.releasePeriod)}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Autores - verifica se existe e tem pelo menos 1 */}
+                {displayData.authors && displayData.authors.length > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <User className="w-4 h-4 text-purple-400" />
+                    <div>
+                      <span className="text-white/80">
+                        {displayData.authors.length === 1 ? 'Autor:' : 'Autores:'}
                       </span>
-                    ))}
+                      <div className="font-medium text-white">
+                        {displayData.authors.slice(0, 3).map((author, index, arr) => (
+                          <span key={index}>
+                            {author}
+                            {index < arr.length - 1 && index < 2 && ', '}
+                          </span>
+                        ))}
+                      </div>
+                      {displayData.authors.length > 3 && (
+                        <div className="text-xs text-white/60">
+                          +{displayData.authors.length - 3} outro(s)
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {externalData.authors.length > 3 && (
-                    <div className="text-xs text-white/60">
-                      +{externalData.authors.length - 3} outro(s)
+                ) : null}
+              </div>
+
+              {/* Imagem com tags de gêneros */}
+              {displayData.coverImage && (
+                <div className="flex flex-col items-center">
+                  <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
+                    <img
+                      src={displayData.coverImage}
+                      alt={displayData.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  {displayData.genres && displayData.genres.length > 0 && (
+                    <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
+                      {/* ✅ Tag de Category (primeira, com cor diferente) */}
+                      {displayData.category && (
+                        <span className="px-3 py-1.5 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 
+                               text-blue-300 text-sm font-bold rounded-lg border border-blue-500/30 
+                               hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300">
+                          {displayData.category}
+                        </span>
+                      )}
+
+                      {/* Gêneros normais (cores azul) */}
+                      {displayData.genres.slice(0, displayData.category ? 4 : 5).map((genre, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 
+             text-purple-300 text-sm font-medium rounded-lg border border-purple-500/30 
+             hover:from-purple-500/30 hover:to-pink-500/30 transition-all duration-300"
+                        >
+                          {typeof genre === 'object' ? genre.name : genre}
+                        </span>
+                      ))}
+
+                      {/* Mostra contador se houver mais gêneros */}
+                      {displayData.genres.length > (displayData.category ? 4 : 5) && (
+                        <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
+                          +{displayData.genres.length - (displayData.category ? 4 : 5)}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {/* Imagem com tags de gêneros */}
-      {hasExternalData && externalData.coverImage && (
-        <div className="flex flex-col items-center">
-          <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
-            <img
-              src={externalData.coverImage}
-              alt={externalData.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-
-          {externalData.genres && externalData.genres.length > 0 && (
-            <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
-              {/* ✅ Tag de Category (primeira, com cor diferente) */}
-              {externalData.category && (
-                <span className="px-3 py-1.5 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 
-                       text-blue-300 text-sm font-bold rounded-lg border border-blue-500/30 
-                       hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300">
-                  {/* Converte para primeira letra maiúscula e resto minúscula */}
-                  {externalData.category}
-                </span>
               )}
 
-              {/* Gêneros normais (cores rosa) */}
-              {externalData.genres.slice(0, externalData.category ? 4 : 5).map((genre, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1.5 bg-gradient-to-r from-pink-500/20 to-purple-500/20 
-                     text-pink-300 text-sm font-medium rounded-lg border border-pink-500/30 
-                     hover:from-pink-500/30 hover:to-purple-500/30 transition-all duration-300"
-                >
-                  {typeof genre === 'object' ? genre.name : genre}
-                </span>
-              ))}
-
-              {/* Mostra contador se houver mais gêneros */}
-              {externalData.genres.length > (externalData.category ? 4 : 5) && (
-                <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
-                  +{externalData.genres.length - (externalData.category ? 4 : 5)}
-                </span>
+              {/* Sinopse */}
+              {displayData?.description && (
+                <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("p-2 rounded-lg", mediaColor)}>
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white mb-3">
+                        Sinopse
+                      </h3>
+                      <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
+                        {displayData.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {externalData?.description && (
-        <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-3">
-                Sinopse
-              </h3>
-              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
-                {externalData.description}
-              </p>
-            </div>
-          </div>
         </div>
       )}
 
@@ -674,57 +768,77 @@ const MangaForm = (props) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input
-              label="Título *"
-              {...register('title')}
-              error={errors.title?.message}
-              placeholder="Título do mangá"
-              variant="glass"
-            />
+            {/* Coluna 1 */}
+            <div className="space-y-6">
+              <Input
+                label="Título *"
+                {...register('title')}
+                error={errors.title?.message}
+                placeholder="Título do mangá"
+                variant="glass"
+              />
 
-            {/* Campo para Ano */}
-            <Input
-              label="Ano de Lançamento"
-              type="number"
-              icon={Calendar}
-              {...register('releasePeriod.year', {
-                valueAsNumber: true,
-                setValueAs: (value) => value === '' ? undefined : Number(value)
-              })}
-              error={errors.releasePeriod?.year?.message}
-              placeholder="2024"
-              variant="glass"
-              min={1950}
-              max={new Date().getFullYear() + 5}
-            />
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Ano"
+                  type="number"
+                  icon={Calendar}
+                  {...register('releasePeriod.year', {
+                    valueAsNumber: true,
+                    setValueAs: (value) => value === '' ? undefined : Number(value)
+                  })}
+                  error={errors.releasePeriod?.year?.message}
+                  placeholder="2024"
+                  variant="glass"
+                  min={1950}
+                  max={new Date().getFullYear() + 5}
+                />
 
-            {/* Campo opcional para Mês */}
-            <Select
-              label="Mês de Lançamento (opcional)"
-              icon={Calendar}
-              {...register('releasePeriod.month', {
-                valueAsNumber: true,
-                setValueAs: (value) => value === '' ? undefined : Number(value)
-              })}
-              error={errors.releasePeriod?.month?.message}
-              variant="glass"
-              options={[
-                { value: '', label: 'Não especificado' },
-                { value: '1', label: 'Janeiro' },
-                { value: '2', label: 'Fevereiro' },
-                { value: '3', label: 'Março' },
-                { value: '4', label: 'Abril' },
-                { value: '5', label: 'Maio' },
-                { value: '6', label: 'Junho' },
-                { value: '7', label: 'Julho' },
-                { value: '8', label: 'Agosto' },
-                { value: '9', label: 'Setembro' },
-                { value: '10', label: 'Outubro' },
-                { value: '11', label: 'Novembro' },
-                { value: '12', label: 'Dezembro' }
-              ]}
-            />
+                <Select
+                  label="Mês"
+                  icon={Calendar}
+                  {...register('releasePeriod.month', {
+                    valueAsNumber: true,
+                    setValueAs: (value) => value === '' ? undefined : Number(value)
+                  })}
+                  error={errors.releasePeriod?.month?.message}
+                  variant="glass"
+                  options={[
+                    { value: '', label: 'Mês' },
+                    { value: '1', label: 'Jan' },
+                    { value: '2', label: 'Fev' },
+                    { value: '3', label: 'Mar' },
+                    { value: '4', label: 'Abr' },
+                    { value: '5', label: 'Mai' },
+                    { value: '6', label: 'Jun' },
+                    { value: '7', label: 'Jul' },
+                    { value: '8', label: 'Ago' },
+                    { value: '9', label: 'Set' },
+                    { value: '10', label: 'Out' },
+                    { value: '11', label: 'Nov' },
+                    { value: '12', label: 'Dez' }
+                  ]}
+                />
+              </div>
 
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Autores (separados por vírgula)
+                </label>
+                <Input
+                  value={selectedAuthors.join(', ')}
+                  onChange={handleAuthorChange}
+                  onBlur={handleAuthorBlur} // Adicione este evento
+                  placeholder="Autor 1, Autor 2, ..."
+                  variant="glass"
+                />
+                <p className="mt-1 text-xs text-white/50">
+                  Digite os autores separados por vírgula
+                </p>
+              </div>
+            </div>
+
+            {/* Coluna 2 */}
             <div className="space-y-6">
               <Input
                 label="Número de Volumes"
@@ -753,33 +867,22 @@ const MangaForm = (props) => {
                 variant="glass"
                 min={1}
               />
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-white mb-2">
-                Autores (separados por vírgula)
-              </label>
-              <Input
-                value={selectedAuthors.join(', ')}
-                onChange={handleAuthorChange}
-                placeholder="Autor 1, Autor 2, ..."
-                variant="glass"
-              />
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Sinopse
+                </label>
+                <TextArea
+                  {...register('description')}
+                  placeholder="Descreva o mangá..."
+                  variant="glass"
+                  rows={4}
+                />
+              </div>
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Sinopse
-            </label>
-            <TextArea
-              {...register('description')}
-              placeholder="Descreva o mangá..."
-              variant="glass"
-              rows={4}
-            />
-          </div>
-
+          {/* Gêneros (full width abaixo do grid) */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
               Gêneros
@@ -806,7 +909,6 @@ const MangaForm = (props) => {
               ))}
             </div>
 
-            {/* Mensagem de erro para validação do schema */}
             {errors.genres && (
               <p className="mt-2 text-sm text-red-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
@@ -814,7 +916,6 @@ const MangaForm = (props) => {
               </p>
             )}
 
-            {/* Mensagem informativa para todos os modos (genres é opcional) */}
             {selectedGenres.length === 0 && (
               <p className="mt-2 text-sm text-blue-400 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
@@ -832,7 +933,7 @@ const MangaForm = (props) => {
           </div>
           <div>
             <h3 className="font-semibold text-white">
-              {hasExternalData ? 'Sua experiência' : 'Sua avaliação'}
+              {hasDisplayData ? 'Sua experiência' : 'Sua avaliação'}
             </h3>
             <p className="text-sm text-white/60">Como você avalia este conteúdo?</p>
           </div>
@@ -920,8 +1021,8 @@ const MangaForm = (props) => {
           "border-l-4 border-blue-500/30"
         )}>
           <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20">
-              <BookOpen className="w-5 h-5 text-blue-400" />
+            <div className={cn("p-2 rounded-lg", mediaColor)}>
+              <PlayCircle className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-white">Progresso do Mangá</h3>
@@ -1095,9 +1196,9 @@ const MangaForm = (props) => {
           variant="primary"
           loading={loading}
           disabled={loading || !canSubmit}
-          className="min-w-[100px] bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="min-w-[100px] bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
+          {initialData ? 'Atualizar' : hasDisplayData ? 'Adicionar à minha lista' : 'Criar'}
         </Button>
       </div>
     </form>

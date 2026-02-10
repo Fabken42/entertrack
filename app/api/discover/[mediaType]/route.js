@@ -19,23 +19,42 @@ export async function GET(request, { params }) {
     const limit = parseInt(FETCH_MEDIA_ITEMS_LIMIT);
     const query = searchParams.get('query') || '';
 
+    const minRating = searchParams.get('minRating');
+    const minVotes = searchParams.get('minVotes');
+    const minScore = searchParams.get('minScore');
+    const minMetacritic = searchParams.get('minMetacritic');
+
+    const seasonYear = searchParams.get('seasonYear');
+    const season = searchParams.get('season');
+    const searchMode = searchParams.get('searchMode') || 'discover';
+
     let results;
 
     switch (mediaType) {
       case 'movie':
-        results = await discoverMovies(genre, sortBy, page, limit, query);
+        // ✅ Passe minRating e minVotes
+        results = await discoverMovies(genre, sortBy, page, limit, query, minRating * 2, minVotes);
         break;
       case 'series':
-        results = await discoverSeries(genre, sortBy, page, limit, query);
+        // ✅ Passe minRating e minVotes
+        results = await discoverSeries(genre, sortBy, page, limit, query, minRating * 2, minVotes);
         break;
       case 'anime':
-        results = await discoverAnimes(genre, sortBy, page, limit, query);
+        if (searchMode === 'season' && seasonYear && season) {
+          // ✅ Passe minScore para seasonal também
+          results = await discoverSeasonalAnimes(seasonYear, season, sortBy, page, limit, minScore * 2, genre);
+        } else {
+          // ✅ Já está passando minScore
+          results = await discoverAnimes(genre, sortBy, page, limit, query, minScore * 2);
+        }
         break;
       case 'game':
-        results = await discoverGames(genre, sortBy, page, limit, query);
+        // ✅ Passe minMetacritic
+        results = await discoverGames(genre, sortBy, page, limit, query, minMetacritic);
         break;
       case 'manga':
-        results = await discoverMangas(genre, sortBy, page, limit, query);
+        // ✅ Passe minScore (verifique se a função recebe este parâmetro)
+        results = await discoverMangas(genre, sortBy, page, limit, query, minScore * 2);
         break;
       default:
         return NextResponse.json({ error: 'Invalid media type' }, { status: 400 });
@@ -51,71 +70,13 @@ export async function GET(request, { params }) {
   }
 }
 
-const genreCache = new Map();
-
-async function mapGenreIdsToNames(genreIds, type) {
-  const cacheKey = `${type}-genres`;
-
-  if (!genreCache.has(cacheKey)) {
-    const genresData = await tmdbClient.getGenres(type);
-    genreCache.set(cacheKey, genresData.genres);
-  }
-
-  const genres = genreCache.get(cacheKey);
-  return genreIds.map(id => {
-    const genre = genres.find(g => g.id === id);
-    return genre ? { id: genre.id.toString(), name: genre.name } : { id: id.toString(), name: id.toString() };
-  });
-}
-
-async function discoverMovies(genre, sortBy, page, limit, query = '') {
+async function discoverMovies(genre, sortBy, page, limit, query = '', minRating = null, minVotes = null) {
   const sortMapping = {
     popularity: 'popularity.desc',
     newest: 'primary_release_date.desc',
     rating: 'vote_average.desc',
     most_rated: 'vote_count.desc'
   };
-
-  // Função auxiliar para buscar detalhes completos do filme incluindo runtime
-  async function getMovieDetails(movie) {
-    try {
-      // Busca detalhes completos do filme
-      const movieDetails = await tmdbClient.fetch(`/movie/${movie.id}`, {
-        language: 'pt-BR'
-      });
-
-      return {
-        id: movie.id,
-        title: movie.title,
-        description: movie.overview,
-        coverImage: tmdbClient.getImageURL(movie.poster_path),
-        releasePeriod: movie.release_date ? {
-          year: new Date(movie.release_date).getFullYear(),
-          month: new Date(movie.release_date).getMonth() + 1
-        } : undefined,
-        rating: movie.vote_average,
-        ratingCount: movie.vote_count,
-        runtime: movieDetails.runtime || 0, // Adiciona o runtime aqui
-        genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
-      };
-    } catch (error) {
-      console.error(`Erro ao buscar detalhes do filme ${movie.id}:`, error);
-      return {
-        id: movie.id,
-        title: movie.title,
-        description: movie.overview,
-        coverImage: tmdbClient.getImageURL(movie.poster_path),
-        releasePeriod: movie.release_date ? {
-          year: new Date(movie.release_date).getFullYear(),
-          month: new Date(movie.release_date).getMonth() + 1
-        } : undefined,
-        rating: movie.vote_average,
-        ratingCount: movie.vote_count,
-        runtime: 0, // Runtime padrão em caso de erro
-        genres: await mapGenreIdsToNames(movie.genre_ids || [], 'movie')
-      };
-    }
-  }
 
   if (query && query.trim() !== '') {
     try {
@@ -126,11 +87,12 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
       const maxPages = Math.min(Math.ceil(totalResults / limit), MAX_PAGES);
       const safePage = Math.min(page, maxPages);
 
-      // Se a página solicitada for maior que o máximo
       if (page > maxPages) {
         const correctedResponse = await tmdbClient.searchMovies(query, maxPages);
         return {
-          results: await Promise.all(correctedResponse.results.map(getMovieDetails)),
+          results: await Promise.all(correctedResponse.results.map(movie =>
+            tmdbClient.formatMovieData(movie, true)
+          )),
           total: totalResults,
           totalPages: maxPages,
           currentPage: maxPages,
@@ -139,7 +101,9 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
       }
 
       return {
-        results: await Promise.all(response.results.map(getMovieDetails)),
+        results: await Promise.all(response.results.map(movie =>
+          tmdbClient.formatMovieData(movie, true)
+        )),
         total: totalResults,
         totalPages: maxPages,
         currentPage: safePage,
@@ -153,9 +117,21 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
   const params = {
     sort_by: sortMapping[sortBy] || 'popularity.desc',
     page: page.toString(),
-    'vote_count.gte': sortBy === 'rating' ? '50' : '10',
     language: 'pt-BR'
   };
+
+  // 🔥 ADICIONE FILTRO DE NOTA MÍNIMA
+  if (minRating !== null && minRating !== '') {
+    params['vote_average.gte'] = parseFloat(minRating);
+  }
+
+  // 🔥 ADICIONE FILTRO DE AVALIAÇÕES MÍNIMAS
+  if (minVotes !== null && minVotes !== '') {
+    params['vote_count.gte'] = parseInt(minVotes);
+  } else {
+    // Valor padrão baseado no tipo de ordenação
+    params['vote_count.gte'] = sortBy === 'rating' ? '50' : '10';
+  }
 
   if (genre && genre !== '') {
     params.with_genres = genre;
@@ -172,7 +148,9 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
     params.page = maxPages.toString();
     const correctedResponse = await tmdbClient.fetch('/discover/movie', params);
     return {
-      results: await Promise.all(correctedResponse.results.map(getMovieDetails)),
+      results: await Promise.all(correctedResponse.results.map(movie =>
+        tmdbClient.formatMovieData(movie, true)
+      )),
       total: totalResults,
       totalPages: maxPages,
       currentPage: maxPages,
@@ -181,7 +159,9 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
   }
 
   return {
-    results: await Promise.all(response.results.map(getMovieDetails)),
+    results: await Promise.all(response.results.map(movie =>
+      tmdbClient.formatMovieData(movie, true)
+    )),
     total: totalResults,
     totalPages: maxPages,
     currentPage: safePage,
@@ -189,7 +169,7 @@ async function discoverMovies(genre, sortBy, page, limit, query = '') {
   };
 }
 
-async function discoverSeries(genre, sortBy, page, limit, query = '') {
+async function discoverSeries(genre, sortBy, page, limit, query = '', minRating = null, minVotes = null) {
   const sortMapping = {
     popularity: 'popularity.desc',
     newest: 'first_air_date.desc',
@@ -197,7 +177,6 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
     most_rated: 'vote_count.desc'
   };
 
-  // 🔥 NOVO: Se houver query, usar search em vez de discover
   if (query && query.trim() !== '') {
     try {
       const response = await tmdbClient.searchTVShows(query, page);
@@ -207,23 +186,12 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
       const maxPages = Math.min(Math.ceil(totalResults / limit), MAX_PAGES);
       const safePage = Math.min(page, maxPages);
 
-      // Se a página solicitada for maior que o máximo
       if (page > maxPages) {
         const correctedResponse = await tmdbClient.searchTVShows(query, maxPages);
         return {
-          results: await Promise.all(correctedResponse.results.map(async (series) => ({
-            id: series.id,
-            title: series.name,
-            description: series.overview,
-            coverImage: tmdbClient.getImageURL(series.poster_path),
-            releasePeriod: series.first_air_date ? {
-              year: new Date(series.first_air_date).getFullYear(),
-              month: new Date(series.first_air_date).getMonth() + 1
-            } : undefined,
-            rating: series.vote_average,
-            ratingCount: series.vote_count,
-            genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
-          }))),
+          results: await Promise.all(correctedResponse.results.map(series =>
+            tmdbClient.formatSeriesData(series)
+          )),
           total: totalResults,
           totalPages: maxPages,
           currentPage: maxPages,
@@ -232,19 +200,9 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
       }
 
       return {
-        results: await Promise.all(response.results.map(async (series) => ({
-          id: series.id,
-          title: series.name,
-          description: series.overview,
-          coverImage: tmdbClient.getImageURL(series.poster_path),
-          releasePeriod: series.first_air_date ? {
-            year: new Date(series.first_air_date).getFullYear(),
-            month: new Date(series.first_air_date).getMonth() + 1
-          } : undefined,
-          rating: series.vote_average,
-          ratingCount: series.vote_count,
-          genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
-        }))),
+        results: await Promise.all(response.results.map(series =>
+          tmdbClient.formatSeriesData(series)
+        )),
         total: totalResults,
         totalPages: maxPages,
         currentPage: safePage,
@@ -252,17 +210,26 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
       };
     } catch (error) {
       console.error('TMDB search error:', error);
-      // Fallback para discover se a busca falhar
     }
   }
 
-  // 🔥 CÓDIGO ORIGINAL PARA DISCOVER (sem query)
   const params = {
     sort_by: sortMapping[sortBy] || 'popularity.desc',
     page: page.toString(),
-    'vote_count.gte': sortBy === 'rating' ? '50' : '10',
     language: 'pt-BR'
   };
+
+  // 🔥 ADICIONE FILTRO DE NOTA MÍNIMA
+  if (minRating !== null && minRating !== '') {
+    params['vote_average.gte'] = parseFloat(minRating);
+  }
+
+  // 🔥 ADICIONE FILTRO DE AVALIAÇÕES MÍNIMAS
+  if (minVotes !== null && minVotes !== '') {
+    params['vote_count.gte'] = parseInt(minVotes);
+  } else {
+    params['vote_count.gte'] = sortBy === 'rating' ? '50' : '10';
+  }
 
   if (genre && genre !== '') {
     params.with_genres = genre;
@@ -279,19 +246,9 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
     params.page = maxPages.toString();
     const correctedResponse = await tmdbClient.fetch('/discover/tv', params);
     return {
-      results: await Promise.all(correctedResponse.results.map(async (series) => ({
-        id: series.id,
-        title: series.name,
-        description: series.overview,
-        coverImage: tmdbClient.getImageURL(series.poster_path),
-        releasePeriod: series.first_air_date ? {
-          year: new Date(series.first_air_date).getFullYear(),
-          month: new Date(series.first_air_date).getMonth() + 1
-        } : undefined,
-        rating: series.vote_average,
-        ratingCount: series.vote_count,
-        genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
-      }))),
+      results: await Promise.all(correctedResponse.results.map(series =>
+        tmdbClient.formatSeriesData(series)
+      )),
       total: totalResults,
       totalPages: maxPages,
       currentPage: maxPages,
@@ -300,19 +257,9 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
   }
 
   return {
-    results: await Promise.all(response.results.map(async (series) => ({
-      id: series.id,
-      title: series.name,
-      description: series.overview,
-      coverImage: tmdbClient.getImageURL(series.poster_path),
-      releasePeriod: series.first_air_date ? {
-        year: new Date(series.first_air_date).getFullYear(),
-        month: new Date(series.first_air_date).getMonth() + 1
-      } : undefined,
-      rating: series.vote_average,
-      ratingCount: series.vote_count,
-      genres: await mapGenreIdsToNames(series.genre_ids || [], 'tv')
-    }))),
+    results: await Promise.all(response.results.map(series =>
+      tmdbClient.formatSeriesData(series)
+    )),
     total: totalResults,
     totalPages: maxPages,
     currentPage: safePage,
@@ -320,35 +267,62 @@ async function discoverSeries(genre, sortBy, page, limit, query = '') {
   };
 }
 
-async function discoverAnimes(genre, sortBy, page, limit, query = '') {
+async function discoverSeasonalAnimes(year, season, sortBy = 'popularity', page = 1, limit = 20, minScore = null, genre = null) {
   try {
-    if (query && query.trim() !== '') {
-      const response = await jikanClient.searchAnime(query, page, limit);
+    // Mapear sortBy para parâmetros do Jikan
+    const orderMap = {
+      'popularity': 'popularity',
+      'rating': 'score',
+      'newest': 'start_date'
+    };
 
-      if (!response.data) {
-        throw new Error('No data in Jikan search response');
-      }
+    const filters = {
+      ...(minScore && { minScore: parseFloat(minScore) }),
+      ...(genre && genre !== '' && { genres: genre }),
+      orderBy: orderMap[sortBy] || 'popularity',
+      sort: sortBy === 'popularity' ? 'asc' : 'desc'
+    };
 
-      return processAnimeResults(response.data, response.pagination, page, limit);
-    }
-
-    if (!genre || genre === '') {
-      // Usar getAllAnimeSorted que NÃO envia parâmetro genres
-      const response = await jikanClient.getAllAnimeSorted(sortBy, page, limit);
-
-      if (!response.data) {
-        throw new Error('No data in Jikan getAllAnimeSorted response');
-      }
-
-      return processAnimeResults(response.data, response.pagination, page, limit);
-    }
-
-    // COM GÊNERO ESPECÍFICO
-    const response = await jikanClient.getAnimeByGenreSorted(genre, sortBy, page, limit);
+    const response = await jikanClient.getSeasonalAnime(year, season, page, limit, filters);
 
     if (!response.data) {
-      throw new Error('No data in Jikan genre response');
+      throw new Error('No data in Jikan seasonal response');
     }
+
+    return processAnimeResults(response.data, response.pagination, page, limit);
+
+  } catch (error) {
+    console.error('Jikan API error in discoverSeasonalAnimes:', error);
+    console.error('Error stack:', error.stack);
+
+    return {
+      results: [],
+      total: 0,
+      totalPages: 0,
+      currentPage: page,
+      itemsPerPage: limit,
+      error: error.message
+    };
+  }
+}
+
+async function discoverAnimes(genre, sortBy, page, limit, query = '', minScore = null) {
+  try {
+    let response;
+
+    if (query && query.trim() !== '') {
+      response = await jikanClient.searchAnime(query, page, limit);
+    } else if (!genre || genre === '') {
+      // 🔥 PASSE O minScore PARA O MÉTODO
+      response = await jikanClient.getAllAnimeSorted(sortBy, page, limit, minScore);
+    } else {
+      response = await jikanClient.getAnimeByGenreSorted(genre, sortBy, page, limit, minScore);
+    }
+
+    if (!response.data) {
+      throw new Error('No data in Jikan response');
+    }
+
     return processAnimeResults(response.data, response.pagination, page, limit);
 
   } catch (error) {
@@ -371,38 +345,21 @@ function processAnimeResults(data, pagination, page, limit) {
   const duplicateCount = { count: 0, ids: [] };
 
   const filteredResults = data
-    .map(item => ({
-      id: item.mal_id,
-      title: item.title,
-      description: item.synopsis || '*Sem descrição disponível*',
-      coverImage: jikanClient.getImageURL(item.images),
-      releasePeriod: item.aired.from ? {
-        year: new Date(item.aired.from).getFullYear(),
-        month: new Date(item.aired.from).getMonth() + 1
-      } : null,
-      rating: item.score || null,
-      ratingCount: item.scored_by || null,
-      apiRating: item.score || null,
-      apiVoteCount: item.scored_by || null,
-      popularity: item.popularity || null,
-      studios: item.studios?.map(studio => studio.name) || [],
-      episodes: item.episodes || null,
-      status: item.status || 'Unknown',
-      category: item.type || 'TV',
-      members: item.members || null,
-      genres: item.genres?.map(g => ({
-        id: Number(g.mal_id),
-        name: g.name
-      })) || []
-    }))
+    .map(item => {
+      const formatted = jikanClient.formatAnimeData(item);
+
+      return {
+        ...formatted,
+      };
+    })
     .filter(item => {
-      if (seenIds.has(item.id)) {
-        console.warn(`⚠️ Duplicate anime ID: ${item.id} - ${item.title}`);
+      if (seenIds.has(item.sourceId)) {
+        console.warn(`⚠️ Duplicate anime ID: ${item.sourceId} - ${item.title}`);
         duplicateCount.count++;
-        duplicateCount.ids.push(item.id);
+        duplicateCount.ids.push(item.sourceId);
         return false;
       }
-      seenIds.add(item.id);
+      seenIds.add(item.sourceId);
       return true;
     });
 
@@ -419,32 +376,21 @@ function processAnimeResults(data, pagination, page, limit) {
   };
 }
 
-async function discoverMangas(genre, sortBy, page, limit, query = '') {
+async function discoverMangas(genre, sortBy, page, limit, query = '', minScore = null) {
   try {
-    // Se houver query, usar search
+    let response;
+
     if (query && query.trim() !== '') {
-      const response = await jikanClient.searchManga(query, page, limit);
-
-      if (!response.data) {
-        throw new Error('No data in Jikan manga search response');
-      }
-
-      return processMangaResults(response.data, response.pagination, page, limit);
+      response = await jikanClient.searchManga(query, page, limit);
+    } else if (!genre || genre === '') {
+      // 🔥 PASSE O minScore PARA O MÉTODO
+      response = await jikanClient.getAllMangaSorted(sortBy, page, limit, minScore);
+    } else {
+      response = await jikanClient.getMangaByGenreSorted(genre, sortBy, page, limit, minScore);
     }
-
-    if (!genre || genre === '') {
-      const response = await jikanClient.getAllMangaSorted(sortBy, page, limit);
-
-      if (!response.data) {
-        throw new Error('No data in Jikan getAllMangaSorted response');
-      }
-
-      return processMangaResults(response.data, response.pagination, page, limit);
-    }
-    const response = await jikanClient.getMangaByGenreSorted(genre, sortBy, page, limit);
 
     if (!response.data) {
-      throw new Error('No data in Jikan manga genre response');
+      throw new Error('No data in Jikan manga response');
     }
 
     return processMangaResults(response.data, response.pagination, page, limit);
@@ -468,40 +414,24 @@ function processMangaResults(data, pagination, page, limit) {
   const seenIds = new Set();
   const duplicateCount = { count: 0, ids: [] };
 
+  // 🔥 USE A FUNÇÃO formatMangaData() do jikanClient
   const filteredResults = data
-    .map(item => ({
-      id: item.mal_id,
-      title: item.title,
-      description: item.synopsis || '*Sem descrição disponível*',
-      coverImage: jikanClient.getImageURL(item.images),
-      releasePeriod: item.published?.from ? {
-        year: new Date(item.published.from).getFullYear(),
-        month: new Date(item.published.from).getMonth() + 1
-      } : (item.year ? { year: item.year } : null),
-      rating: item.score || null,
-      ratingCount: item.scored_by || null,
-      apiRating: item.score || null,
-      apiVoteCount: item.scored_by || null,
-      popularity: item.popularity || null,
-      volumes: item.volumes || null,
-      chapters: item.chapters || null,
-      status: item.status || 'Unknown',
-      category: item.type || 'Manga',
-      members: item.members || null,
-      genres: item.genres?.map(g => ({
-        id: Number(g.mal_id),
-        name: g.name
-      })) || [],
-      authors: item.authors?.map(author => author.name) || []
-    }))
+    .map(item => {
+      const formatted = jikanClient.formatMangaData(item);
+
+      // Adicione campos extras que podem não estar no formatMangaData()
+      return {
+        ...formatted
+      };
+    })
     .filter(item => {
-      if (seenIds.has(item.id)) {
-        console.warn(`⚠️ Duplicate manga ID: ${item.id} - ${item.title}`);
+      if (seenIds.has(item.sourceId)) {
+        console.warn(`⚠️ Duplicate manga ID: ${item.sourceId} - ${item.title}`);
         duplicateCount.count++;
-        duplicateCount.ids.push(item.id);
+        duplicateCount.ids.push(item.sourceId);
         return false;
       }
-      seenIds.add(item.id);
+      seenIds.add(item.sourceId);
       return true;
     });
 
@@ -518,7 +448,7 @@ function processMangaResults(data, pagination, page, limit) {
   };
 }
 
-async function discoverGames(genre, sortBy, page, limit, query = '') {
+async function discoverGames(genre, sortBy, page, limit, query = '', minMetacritic = null) {
   const sortMapping = {
     popularity: '-added',
     newest: '-released',
@@ -535,7 +465,11 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
     params.genres = genre;
   }
 
-  // 🔥 NOVO: Se houver query, usar search
+  // 🔥 ADICIONE FILTRO METACRITIC
+  if (minMetacritic !== null && minMetacritic !== '') {
+    params.metacritic = `${parseInt(minMetacritic)},100`;
+  }
+
   if (query && query.trim() !== '') {
     params.search = query;
   }
@@ -545,23 +479,7 @@ async function discoverGames(genre, sortBy, page, limit, query = '') {
   const totalPages = Math.min(Math.ceil(response.count / limit), MAX_PAGES);
 
   return {
-    results: response.results.map(game => ({
-      id: game.id,
-      title: game.name,
-      coverImage: rawgClient.getImageURL(game.background_image),
-      releasePeriod: game.released ? {
-        year: new Date(game.released).getFullYear(),
-        month: new Date(game.released).getMonth() + 1
-      } : (game.year ? { year: game.year } : null),
-      rating: game.rating,
-      ratingCount: game.ratings_count,
-      metacritic: game.metacritic,
-      platforms: game.platforms?.map(p => p.platform.name) || [],
-      genres: game.genres?.map(g => ({
-        id: Number(g.id),
-        name: g.name
-      })) || []
-    })),
+    results: response.results.map(game => rawgClient.formatGameData(game)),
     total: response.count,
     totalPages: totalPages,
     currentPage: page,

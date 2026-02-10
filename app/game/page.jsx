@@ -44,7 +44,6 @@ export default function GamesPage() {
   };
 
   const editModalInitialData = (editingItem) => ({
-    // Adicionar userMediaId explicitamente
     userMediaId: editingItem._id,
     genres: editingItem.mediaCacheId?.essentialData?.genres,
     title: editingItem.mediaCacheId?.essentialData?.title,
@@ -56,9 +55,10 @@ export default function GamesPage() {
     personalNotes: editingItem.personalNotes || '',
     status: editingItem.status,
     progress: editingItem.progress || {},
-    apiRating: editingItem.mediaCacheId?.essentialData?.averageRating,
-    apiVoteCount: editingItem.mediaCacheId?.essentialData?.ratingCount,
+    averageRating: editingItem.mediaCacheId?.essentialData?.averageRating,
+    ratingCount: editingItem.mediaCacheId?.essentialData?.ratingCount,
     metacritic: editingItem.mediaCacheId?.essentialData?.metacritic,
+    playtime: editingItem.mediaCacheId?.essentialData?.playtime,
     platforms: editingItem.mediaCacheId?.essentialData?.platforms,
   });
 
@@ -66,9 +66,8 @@ export default function GamesPage() {
     <MediaPageLayout
       mediaType="game"
       Icon={Gamepad}
-      gradientFrom="from-orange-500/20"
-      gradientTo="to-red-500/20"
-      iconColor="text-orange-400"
+      mediaBg='bg-purple-500/20'
+      iconColor="text-purple-400"
       placeholderText="Buscar jogos no RAWG..."
       pageTitle={
         <>

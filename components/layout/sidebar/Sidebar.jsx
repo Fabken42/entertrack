@@ -54,14 +54,14 @@ const Sidebar = () => {
         href: '#',
         icon: Library,
         isTitle: true,
-        color: 'text-blue-400'
+        color: 'text-slate-300'
       });
 
       items.push({
         name: 'Dashboard',
         href: '/dashboard',
         icon: LayoutDashboard,
-        color: 'text-cyan-400'
+        color: 'text-sky-400'
       });
 
       items.push({
@@ -89,14 +89,14 @@ const Sidebar = () => {
         name: 'Animes',
         href: '/anime',
         icon: Tv2,
-        color: 'text-pink-400'
+        color: 'text-red-400'
       });
 
       items.push({
         name: 'Mangás',
         href: '/manga',
         icon: BookOpen,
-        color: 'text-red-400'
+        color: 'text-orange-400'
       });
     }
 
@@ -105,7 +105,7 @@ const Sidebar = () => {
       href: '#',
       icon: Sparkles,
       isTitle: true,
-      color: 'text-purple-400'
+      color: 'text-slate-300'
     });
 
     items.push({
@@ -133,14 +133,14 @@ const Sidebar = () => {
       name: 'Animes',
       href: '/discover/anime',
       icon: Tv2,
-      color: 'text-pink-400'
+      color: 'text-red-400'
     });
 
     items.push({
       name: 'Mangás',
       href: '/discover/manga',
       icon: BookOpen,
-      color: 'text-red-400'
+      color: 'text-orange-400'
     });
 
     if (isAuthenticated) {
@@ -149,7 +149,7 @@ const Sidebar = () => {
         href: '#',
         icon: Users,
         isTitle: true,
-        color: 'text-gray-400'
+        color: 'text-slate-300'
       });
 
       items.push({

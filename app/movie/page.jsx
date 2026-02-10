@@ -44,16 +44,16 @@ export default function MoviesPage() {
   };
 
   const editModalInitialData = (editingItem) => ({
-    // Adicionar userMediaId explicitamente
     userMediaId: editingItem._id,
     genres: editingItem.mediaCacheId?.essentialData?.genres,
     runtime: editingItem.mediaCacheId?.essentialData?.runtime,
     sourceId: editingItem.mediaCacheId?.sourceId,
     title: editingItem.mediaCacheId?.essentialData?.title,
     description: editingItem.mediaCacheId?.essentialData?.description,
-    category: editingItem.mediaCacheId?.essentialData?.category,
     coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
     releasePeriod: editingItem.mediaCacheId?.essentialData?.releasePeriod,
+    averageRating: editingItem.mediaCacheId?.essentialData?.averageRating,
+    ratingCount: editingItem.mediaCacheId?.essentialData?.ratingCount,
     userRating: editingItem.userRating || null,
     personalNotes: editingItem.personalNotes || '',
     status: editingItem.status,
@@ -66,9 +66,8 @@ export default function MoviesPage() {
     <MediaPageLayout
       mediaType="movie"
       Icon={Film}
-      gradientFrom="from-blue-500/20"
-      gradientTo="to-teal-500/20"
-      iconColor="text-blue-400"
+      mediaBg='bg-cyan-500/20'
+      iconColor="text-cyan-400"
       placeholderText="Buscar filmes no TMDB..."
       pageTitle={
         <>

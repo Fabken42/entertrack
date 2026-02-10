@@ -38,7 +38,6 @@ export const UserMediaBaseSchema = new Schema({
   },
   
   personalNotes: { type: String, maxlength: 3000, default: '' },
-  tags: [{ type: String }],
   
   // Datas de controle
   startedAt: { type: Date },

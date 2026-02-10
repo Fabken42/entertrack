@@ -5,7 +5,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Select, TextArea } from '@/components/ui';
-import { Film, Clock, Star, Calendar, TrendingUp } from 'lucide-react';
+import { Film, Clock, Star, Calendar, TrendingUp, ChevronDown, ChevronUp, PlayCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, convertFromMinutes, convertToMinutes, formatApiRating, formatRuntime } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
@@ -25,8 +25,15 @@ const MovieForm = (props) => {
   } = props;
 
   console.log(props)
-  
-  const mediaColor = getMediaColor('movies');
+
+  const mediaColor = getMediaColor('movie');
+
+  // 🔥 NOVO: Estado para controlar se a seção de informações está expandida
+  const [isInfoExpanded, setIsInfoExpanded] = React.useState(() => {
+    // Se tem externalData (abriu da página de descoberta), começa expandido
+    // Se só tem initialData (abriu de /movie), começa recolhido
+    return !!externalData && !initialData;
+  });
 
   const runtime = React.useMemo(() => {
     if (initialData?.runtime) {
@@ -58,6 +65,70 @@ const MovieForm = (props) => {
     }
   }, []);
 
+  // 🔥 NOVO: Obter dados de exibição (combinando initialData e externalData)
+  const getDisplayData = () => {
+    // Prioriza externalData para informações da API
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        coverImage: externalData.coverImage,
+        averageRating: externalData.averageRating,
+        ratingCount: externalData.ratingCount,
+        popularity: externalData.popularity,
+        releasePeriod: externalData.releasePeriod,
+        runtime: externalData.runtime,
+        genres: externalData.genres,
+        source: 'external'
+      };
+    }
+
+    // Se não tem externalData mas tem initialData (modo edição)
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        coverImage: initialData.coverImage,
+        averageRating: initialData.averageRating,
+        ratingCount: initialData.ratingCount,
+        popularity: initialData.popularity,
+        releasePeriod: initialData.releasePeriod,
+        runtime: initialData.runtime,
+        genres: initialData.genres,
+        source: 'initial'
+      };
+    }
+
+    return null;
+  };
+
+  const displayData = getDisplayData();
+  const hasDisplayData = !!displayData;
+  const isExternalData = displayData?.source === 'external';
+
+  // Preparar dados de rating da API para exibição
+  const apiRatingData = React.useMemo(() => {
+    if (displayData) {
+      // Verifica múltiplas fontes possíveis para rating e votos
+      const rating = displayData.averageRating;
+      const voteCount = displayData.ratingCount;
+
+      // Garantir que temos números válidos
+      const validRating = rating != null && !isNaN(Number(rating)) && Number(rating) > 0;
+      const validVoteCount = voteCount != null && !isNaN(Number(voteCount)) && Number(voteCount) > 0;
+
+      if (validRating && validVoteCount) {
+        const formattedRating = formatApiRating(rating);
+        return {
+          rating: formattedRating?.display || Number(rating).toFixed(1),
+          voteCount: Number(voteCount),
+          rawRating: Number(rating)
+        };
+      }
+    }
+    return null;
+  }, [displayData]);
+
   const getInitialGenres = () => {
     // Para initialData (dados existentes - modo edição)
     if (initialData?.genres) {
@@ -76,7 +147,7 @@ const MovieForm = (props) => {
         return externalData.genres.map(g => {
           if (typeof g === 'object') {
             return {
-              id: g.id?.toString() || `tmdb_${Date.now()}`,
+              id: g.id || 0,
               name: g.name
             };
           }
@@ -127,29 +198,6 @@ const MovieForm = (props) => {
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
-
-  // Preparar dados de rating da API para exibição
-  const apiRatingData = React.useMemo(() => {
-    if (externalData) {
-      // Verifica múltiplas fontes possíveis para rating e votos
-      const rating = externalData.rating || externalData.apiRating || externalData.vote_average;
-      const voteCount = externalData.ratingCount || externalData.apiVoteCount || externalData.vote_count;
-
-      // Garantir que temos números válidos
-      const validRating = rating != null && !isNaN(Number(rating)) && Number(rating) > 0;
-      const validVoteCount = voteCount != null && !isNaN(Number(voteCount)) && Number(voteCount) > 0;
-
-      if (validRating && validVoteCount) {
-        const formattedRating = formatApiRating(rating);
-        return {
-          rating: formattedRating?.display || Number(rating).toFixed(1),
-          voteCount: Number(voteCount),
-          rawRating: Number(rating)
-        };
-      }
-    }
-    return null;
-  }, [externalData]);
 
   const getDefaultValues = () => {
     const defaultValues = {
@@ -284,7 +332,7 @@ const MovieForm = (props) => {
     });
 
     let newGenres;
-    
+
     if (isCurrentlySelected) {
       newGenres = selectedGenres.filter(g => {
         const gId = g.id || g;
@@ -414,13 +462,13 @@ const MovieForm = (props) => {
       }
 
       if (externalData && !isEditMode) {
-        finalFormData.sourceId = externalData.id?.toString();
+        finalFormData.sourceId = externalData.sourceId?.toString();
         finalFormData.sourceApi = 'tmdb';
         finalFormData.title = externalData.title || finalFormData.title;
         finalFormData.description = externalData.description || finalFormData.description;
         finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
-        finalFormData.apiRating = apiRatingData?.rawRating || externalData.apiRating;
-        finalFormData.apiVoteCount = apiRatingData?.voteCount || externalData.apiVoteCount;
+        finalFormData.averageRating = apiRatingData?.rawRating || externalData.averageRating;
+        finalFormData.ratingCount = apiRatingData?.voteCount || externalData.ratingCount;
         finalFormData.runtime = externalData.runtime || formData.runtime;
 
         // Atualizado para releasePeriod
@@ -451,125 +499,153 @@ const MovieForm = (props) => {
 
   return (
     <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
-      {hasExternalData && (
-        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-blue-500/30")}>
-          <div className="flex items-center gap-3">
-            <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <Film className="w-5 h-5" />
+      {/* 🔥 ATUALIZADO: Seção de informações básicas agora recolhível */}
+      {hasDisplayData && (
+        <div className={cn("glass border rounded-xl overflow-hidden transition-all duration-300", "border-blue-500/30")}>
+          {/* Cabeçalho recolhível */}
+          <button
+            type="button"
+            onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
+          > 
+            <div className="flex items-center gap-3">
+              <div className={cn("p-2 rounded-lg", mediaColor)}>
+                <Film className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-semibold text-white">
+                  {displayData.title}
+                </h3>
+                <p className="text-sm text-white/60">
+                  {isExternalData ? 'Dados importados do TMDB' : 'Informações do filme'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-white">
-                {externalData.title}
-              </h3>
-              <p className="text-sm text-white/60">Dados importados do TMDB</p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-white/60">
+                {isInfoExpanded ? 'Recolher' : 'Expandir'}
+              </span>
+              {isInfoExpanded ? (
+                <ChevronUp className="w-5 h-5 text-white/60" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-white/60" />
+              )}
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {/* Nota - verifica se existe e é maior que 0 */}
-            {apiRatingData ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                <div>
-                  <span className="text-white/80">Nota:</span>
-                  <div className="font-medium text-white">
-                    {apiRatingData.rating}/5
+          </button>
+
+          {/* Conteúdo da seção - só mostra se expandido */}
+          {isInfoExpanded && (
+            <div className="px-6 pb-6 space-y-6">
+              {/* Grid de informações */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {/* Nota - verifica se existe e é maior que 0 */}
+                {apiRatingData ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                    <div>
+                      <span className="text-white/80">Nota:</span>
+                      <div className="font-medium text-white">
+                        {apiRatingData.rating}/5
+                      </div>
+                      <div className="text-xs text-white/60">
+                        ({apiRatingData.voteCount.toLocaleString()} votos)
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-white/60">
-                    ({apiRatingData.voteCount.toLocaleString()} votos)
+                ) : null}
+
+                {/* Duração - verifica se existe e é maior que 0 */}
+                {displayData.runtime != null && displayData.runtime > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Clock className="w-4 h-4 text-blue-400" />
+                    <div>
+                      <span className="text-white/80">Duração:</span>
+                      <div className="font-medium text-white">{formatRuntime(displayData.runtime)}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Popularidade - verifica se existe e é maior que 0 */}
+                {displayData.popularity != null && displayData.popularity > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <TrendingUp className="w-4 h-4 text-green-400" />
+                    <div>
+                      <span className="text-white/80">Popularidade:</span>
+                      <div className="font-medium text-white">{displayData.popularity.toFixed(1)}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Período de lançamento - verifica se existe */}
+                {displayData.releasePeriod ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Calendar className="w-4 h-4 text-white/60" />
+                    <div>
+                      <span className="text-white/80">Lançamento:</span>
+                      <div className="font-medium text-white">
+                        {formatReleasePeriod(displayData.releasePeriod)}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Imagem com tags de gêneros */}
+              {displayData.coverImage && (
+                <div className="flex flex-col items-center">
+                  <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
+                    <img
+                      src={displayData.coverImage}
+                      alt={displayData.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  {displayData.genres && displayData.genres.length > 0 && (
+                    <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
+                      {/* Gêneros normais (cores azuis) */}
+                      {displayData.genres.slice(0, 5).map((genre, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 
+             text-purple-300 text-sm font-medium rounded-lg border border-purple-500/30 
+             hover:from-purple-500/30 hover:to-pink-500/30 transition-all duration-300"
+                        >
+                          {typeof genre === 'object' ? genre.name : genre}
+                        </span>
+                      ))}
+
+                      {/* Mostra contador se houver mais gêneros */}
+                      {displayData.genres.length > 5 && (
+                        <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
+                          +{displayData.genres.length - 5}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sinopse */}
+              {displayData?.description && (
+                <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("p-2 rounded-lg", mediaColor)}>
+                      <Film className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white mb-3">
+                        Sinopse
+                      </h3>
+                      <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
+                        {displayData.description}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : null}
-
-            {/* Duração - verifica se existe e é maior que 0 */}
-            {externalData.runtime != null && externalData.runtime > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Clock className="w-4 h-4 text-blue-400" />
-                <div>
-                  <span className="text-white/80">Duração:</span>
-                  <div className="font-medium text-white">{formatRuntime(externalData.runtime)}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Popularidade - verifica se existe e é maior que 0 */}
-            {externalData.popularity != null && externalData.popularity > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-green-400" />
-                <div>
-                  <span className="text-white/80">Popularidade:</span>
-                  <div className="font-medium text-white">{externalData.popularity.toFixed(1)}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Período de lançamento - verifica se existe */}
-            {externalData.releasePeriod ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Calendar className="w-4 h-4 text-white/60" />
-                <div>
-                  <span className="text-white/80">Lançamento:</span>
-                  <div className="font-medium text-white">
-                    {formatReleasePeriod(externalData.releasePeriod)}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {/* Imagem com tags de gêneros */}
-      {hasExternalData && externalData.coverImage && (
-        <div className="flex flex-col items-center">
-          <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
-            <img
-              src={externalData.coverImage}
-              alt={externalData.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-
-          {externalData.genres && externalData.genres.length > 0 && (
-            <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
-              {/* Gêneros normais (cores azuis) */}
-              {externalData.genres.slice(0, 5).map((genre, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1.5 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 
-                     text-blue-300 text-sm font-medium rounded-lg border border-blue-500/30 
-                     hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300"
-                >
-                  {typeof genre === 'object' ? genre.name : genre}
-                </span>
-              ))}
-
-              {/* Mostra contador se houver mais gêneros */}
-              {externalData.genres.length > 5 && (
-                <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
-                  +{externalData.genres.length - 5}
-                </span>
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {externalData?.description && (
-        <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <Film className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-3">
-                Sinopse
-              </h3>
-              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
-                {externalData.description}
-              </p>
-            </div>
-          </div>
         </div>
       )}
 
@@ -655,13 +731,6 @@ const MovieForm = (props) => {
               min={1}
             />
 
-            <Input
-              label="URL da Imagem"
-              {...register('coverImage')}
-              error={errors.coverImage?.message}
-              placeholder="https://exemplo.com/imagem.jpg"
-              variant="glass"
-            />
           </div>
 
           <div>
@@ -728,7 +797,7 @@ const MovieForm = (props) => {
           </div>
           <div>
             <h3 className="font-semibold text-white">
-              {hasExternalData ? 'Sua experiência' : 'Sua avaliação'}
+              {hasDisplayData ? 'Sua experiência' : 'Sua avaliação'}
             </h3>
             <p className="text-sm text-white/60">Como você avalia este conteúdo?</p>
           </div>
@@ -817,9 +886,9 @@ const MovieForm = (props) => {
           "border-l-4 border-blue-500/30"
         )}>
           <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20">
-              <Film className="w-5 h-5 text-blue-400" />
-            </div>
+            <div className={cn("p-2 rounded-lg", mediaColor)}>
+                <PlayCircle className="w-5 h-5" />
+              </div>
             <div>
               <h3 className="font-semibold text-white">Progresso do Filme</h3>
               <p className="text-sm text-white/60">
@@ -961,9 +1030,9 @@ const MovieForm = (props) => {
           variant="primary"
           loading={loading}
           disabled={loading || !canSubmit}
-          className="min-w-[100px] bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="min-w-[100px] bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
+          {initialData ? 'Atualizar' : hasDisplayData ? 'Adicionar à minha lista' : 'Criar'}
         </Button>
       </div>
     </form>

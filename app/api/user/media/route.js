@@ -7,7 +7,6 @@ import {
   getUserMediaModelByType
 } from '@/models';
 
-// ATUALIZADA: Função auxiliar para criar progresso inicial baseado no tipo de mídia
 const createInitialProgress = (mediaType, initialProgress = {}) => {
   const progress = {
     lastUpdated: new Date()

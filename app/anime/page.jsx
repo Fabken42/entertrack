@@ -1,7 +1,7 @@
 // app/animes/page.jsx
 'use client';
 
-import { Tv, Tv2 } from 'lucide-react';
+import { Tv2 } from 'lucide-react';
 import { useMyAnimeListSearch } from '@/lib/hooks/use-myanimelist';
 import { useMediaStore } from '@/store/media-store';
 import MediaPageLayout from '@/components/layout/MediaPageLayout';
@@ -11,7 +11,6 @@ export default function AnimesPage() {
 
   const handleEditSubmit = async (data) => {
     try {
-      // Verificar se temos o ID do UserMedia no objeto data
       if (data.userMediaId) {
         const updatePayload = {
           status: data.status,
@@ -54,6 +53,10 @@ export default function AnimesPage() {
     category: editingItem.mediaCacheId?.essentialData?.category,
     coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
     releasePeriod: editingItem.mediaCacheId?.essentialData?.releasePeriod,
+    averageRating: editingItem.mediaCacheId?.essentialData?.averageRating,
+    ratingCount: editingItem.mediaCacheId?.essentialData?.ratingCount,
+    members: editingItem.mediaCacheId?.essentialData?.members,
+    popularity: editingItem.mediaCacheId?.essentialData?.popularity,
     userRating: editingItem.userRating || null,
     personalNotes: editingItem.personalNotes || '',
     status: editingItem.status,
@@ -66,9 +69,8 @@ export default function AnimesPage() {
     <MediaPageLayout
       mediaType="anime"
       Icon={Tv2}
-      gradientFrom="from-pink-500/20"
-      gradientTo="to-purple-500/20"
-      iconColor="text-pink-400"
+      mediaBg='bg-red-500/20'
+      iconColor="text-red-400"
       placeholderText="Buscar animes no MyAnimeList..."
       pageTitle={
         <>

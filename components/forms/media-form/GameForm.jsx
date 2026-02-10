@@ -5,7 +5,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Select, TextArea, Modal } from '@/components/ui';
-import { Gamepad, Star, Calendar, TrendingUp, Layers, Info, Clock } from 'lucide-react';
+import { Gamepad, Star, Calendar, TrendingUp, Layers, Info, Clock, ChevronDown, ChevronUp, PlayCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, formatApiRating } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
@@ -27,7 +27,14 @@ const GameForm = (props) => {
   console.log(props)
 
   // Usando função utilitária para cores
-  const mediaColor = getMediaColor('games');
+  const mediaColor = getMediaColor('game');
+
+  // 🔥 NOVO: Estado para controlar se a seção de informações está expandida
+  const [isInfoExpanded, setIsInfoExpanded] = React.useState(() => {
+    // Se tem externalData (abriu da página de descoberta), começa expandido
+    // Se só tem initialData (abriu de /game), começa recolhido
+    return !!externalData && !initialData;
+  });
 
   // Obter todos os gêneros do RAWG
   const availableGenres = React.useMemo(() => {
@@ -39,6 +46,51 @@ const GameForm = (props) => {
       return [];
     }
   }, []);
+
+  // 🔥 NOVO: Obter dados de exibição (combinando initialData e externalData)
+  const getDisplayData = () => {
+    // Prioriza externalData para informações da API
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        coverImage: externalData.coverImage,
+        averageRating: externalData.averageRating,
+        rating: externalData.rating,
+        ratingCount: externalData.ratingCount,
+        metacritic: externalData.metacritic,
+        playtime: externalData.playtime,
+        releasePeriod: externalData.releasePeriod,
+        platforms: externalData.platforms,
+        genres: externalData.genres,
+        source: 'external'
+      };
+    }
+
+    // Se não tem externalData mas tem initialData (modo edição)
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        coverImage: initialData.coverImage,
+        averageRating: initialData.averageRating,
+        rating: initialData.rating,
+        ratingCount: initialData.ratingCount,
+        metacritic: initialData.metacritic,
+        playtime: initialData.playtime,
+        releasePeriod: initialData.releasePeriod,
+        platforms: initialData.platforms,
+        genres: initialData.genres,
+        source: 'initial'
+      };
+    }
+
+    return null;
+  };
+
+  const displayData = getDisplayData();
+  const hasDisplayData = !!displayData;
+  const isExternalData = displayData?.source === 'external';
 
   const getInitialGenres = () => {
     // Para initialData (dados existentes - modo edição)
@@ -58,7 +110,7 @@ const GameForm = (props) => {
         return externalData.genres.map(g => {
           if (typeof g === 'object' && (g.id || g.name)) {
             return {
-              id: Number(g.id) || `rawg_${Date.now()}`,
+              id: g.id || 0,
               name: g.name || 'Desconhecido'
             };
           }
@@ -144,6 +196,7 @@ const GameForm = (props) => {
       description: '',
       releasePeriod: null,
       metacritic: undefined,
+      playtime: undefined,
       platforms: [],
     };
 
@@ -163,6 +216,7 @@ const GameForm = (props) => {
         coverImage: initialData.coverImage || '',
         status: initialData.status || 'planned',
         metacritic: initialData.metacritic || null,
+        playtime: initialData.playtime || null,
         platforms: initialData.platforms || [],
         progress: {
           hours: initialData.hours || initialData.progress?.hours || 0,
@@ -184,6 +238,7 @@ const GameForm = (props) => {
         status: 'planned',
         coverImage: externalData.coverImage || '',
         metacritic: externalData.metacritic || null,
+        playtime: externalData.playtime || null,
         platforms: externalData.platforms || [],
         progress: {
           hours: 0,
@@ -241,7 +296,10 @@ const GameForm = (props) => {
           setValue('platforms', values.platforms || []);
         } else if (key === 'metacritic') {
           setValue('metacritic', values.metacritic);
-        } else if (key === 'releasePeriod') {
+        } else if (key === 'playtime') {
+          setValue('playtime', values.playtime);
+        }
+        else if (key === 'releasePeriod') {
           setValue('releasePeriod', values.releasePeriod);
         } else {
           setValue(key, values[key]);
@@ -261,7 +319,7 @@ const GameForm = (props) => {
     });
 
     let newGenres;
-    
+
     if (isCurrentlySelected) {
       newGenres = selectedGenres.filter(g => {
         const gId = g.id || g;
@@ -351,6 +409,7 @@ const GameForm = (props) => {
           genres: selectedGenres,
           platforms: formData.platforms || [],
           metacritic: formData.metacritic || null,
+          playtime: formData.playtime || null,
           progress: {
             hours: formData.progress?.hours || 0,
             tasks: validTasks,
@@ -364,15 +423,16 @@ const GameForm = (props) => {
         }
 
         if (externalData && !isEditMode) {
-          finalFormData.sourceId = externalData.id?.toString();
+          finalFormData.sourceId = externalData.sourceId?.toString();
           finalFormData.sourceApi = 'rawg';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
-          finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
-          finalFormData.apiRating = externalData.rating;
-          finalFormData.apiVoteCount = externalData.ratingCount;
-          finalFormData.metacritic = externalData.metacritic || finalFormData.metacritic;
-          finalFormData.platforms = externalData.platforms || finalFormData.platforms;
+          finalFormData.coverImage = externalData.coverImage;
+          finalFormData.averageRating = externalData.averageRating;
+          finalFormData.ratingCount = externalData.ratingCount;
+          finalFormData.metacritic = externalData.metacritic;
+          finalFormData.playtime = externalData.playtime;
+          finalFormData.platforms = externalData.platforms;
 
           // Atualizado para releasePeriod
           if (!finalFormData.releasePeriod && externalData.releasePeriod) {
@@ -397,136 +457,182 @@ const GameForm = (props) => {
   return (
     <>
       <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
-        {hasExternalData && (
-          <div className={cn("glass border rounded-xl p-6 space-y-4", "border-orange-500/30")}>
-            <div className="flex items-center gap-3">
-              <div className={cn("p-2 rounded-lg", mediaColor)}>
-                <Gamepad className="w-5 h-5" />
+        {/* 🔥 ATUALIZADO: Seção de informações básicas agora recolhível */}
+        {hasDisplayData && (
+          <div className={cn("glass border rounded-xl overflow-hidden transition-all duration-300", "border-orange-500/30")}>
+            {/* Cabeçalho recolhível */}
+            <button
+              type="button"
+              onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+              className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn("p-2 rounded-lg", mediaColor)}>
+                  <Gamepad className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-white">
+                    {displayData.title}
+                  </h3>
+                  <p className="text-sm text-white/60">
+                    {isExternalData ? 'Dados importados do RAWG' : 'Informações do jogo'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-white">
-                  {externalData.title}
-                </h3>
-                <p className="text-sm text-white/60">Dados importados do RAWG</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-white/60">
+                  {isInfoExpanded ? 'Recolher' : 'Expandir'}
+                </span>
+                {isInfoExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-white/60" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-white/60" />
+                )}
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              {/* Nota - verifica se existe e é maior que 0 */}
-              {(externalData.rating != null && externalData.rating > 0 &&
-                externalData.ratingCount != null && externalData.ratingCount > 0) ? (
-                <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                  <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                  <div>
-                    <span className="text-white/80">Nota:</span>
-                    <div className="font-medium text-white">
-                      {formatApiRating(externalData.rating, 1)?.display || externalData.rating.toFixed(1)}/5
-                    </div>
-                    <div className="text-xs text-white/60">
-                      ({externalData.ratingCount.toLocaleString()} avaliações)
-                    </div>
-                  </div>
-                </div>
-              ) : null}
+            </button>
 
-              {/* Metacritic - verifica se existe */}
-              {externalData.metacritic != null ? (
-                <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                  <TrendingUp className="w-4 h-4 text-green-400" />
-                  <div>
-                    <span className="text-white/80">Metacritic:</span>
-                    <div className="font-medium text-white">{externalData.metacritic}/100</div>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Período de lançamento - verifica se existe */}
-              {externalData.releasePeriod ? (
-                <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                  <Calendar className="w-4 h-4 text-white/60" />
-                  <div>
-                    <span className="text-white/80">Lançamento:</span>
-                    <div className="font-medium text-white">
-                      {formatReleasePeriod(externalData.releasePeriod)}
+            {/* Conteúdo da seção - só mostra se expandido */}
+            {isInfoExpanded && (
+              <div className="px-6 pb-6 space-y-6">
+                {/* Grid de informações */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {/* Nota - verifica se existe e é maior que 0 */}
+                  {((displayData.rating != null && displayData.rating > 0 ||
+                    displayData.averageRating != null && displayData.averageRating > 0) &&
+                    displayData.ratingCount != null && displayData.ratingCount > 0) ? (
+                    <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                      <div>
+                        <span className="text-white/80">Nota:</span>
+                        <div className="font-medium text-white">
+                          {formatApiRating(displayData.rating || displayData.averageRating, 1)?.display ||
+                            (displayData.rating || displayData.averageRating)?.toFixed(1)}/5
+                        </div>
+                        <div className="text-xs text-white/60">
+                          ({displayData.ratingCount.toLocaleString()} avaliações)
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ) : null}
+                  ) : null}
 
-              {/* Plataformas - verifica se existe e tem pelo menos 1 */}
-              {externalData.platforms && externalData.platforms.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowPlatformsModal(true)}
-                  className="flex items-center gap-2 p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer group text-left w-full"
-                >
-                  <div className="flex items-center gap-2 flex-1">
-                    <Layers className="w-4 h-4 text-orange-400" />
-                    <div>
-                      <span className="text-white/80">
-                        {externalData.platforms.length === 1 ? 'Plataforma:' : 'Plataformas:'}
-                      </span>
-                      <div className="font-medium text-white flex items-center gap-1">
-                        {externalData.platforms.slice(0, 3).join(', ')}
-                        {externalData.platforms.length > 3 && '...'}
+                  {/* Metacritic - verifica se existe */}
+                  {displayData.metacritic != null ? (
+                    <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                      <div>
+                        <span className="text-white/80">Metacritic:</span>
+                        <div className="font-medium text-white">{displayData.metacritic}/100</div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Período de lançamento - verifica se existe */}
+                  {displayData.releasePeriod ? (
+                    <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                      <Calendar className="w-4 h-4 text-white/60" />
+                      <div>
+                        <span className="text-white/80">Lançamento:</span>
+                        <div className="font-medium text-white">
+                          {formatReleasePeriod(displayData.releasePeriod)}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Tempo para concluir o jogo */}
+                  {displayData.playtime ? (
+                    <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                      <Clock className="w-4 h-4 text-white/60" />
+                      <div>
+                        <span className="text-white/80">Duração Média:</span>
+                        <div className="font-medium text-white">
+                          {displayData.playtime} horas
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Plataformas - verifica se existe e tem pelo menos 1 */}
+                  {displayData.platforms && displayData.platforms.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowPlatformsModal(true)}
+                      className="flex items-center gap-2 p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer group text-left w-full"
+                    >
+                      <div className="flex items-center gap-2 flex-1">
+                        <Layers className="w-4 h-4 text-orange-400" />
+                        <div>
+                          <span className="text-white/80">
+                            {displayData.platforms.length === 1 ? 'Plataforma:' : 'Plataformas:'}
+                          </span>
+                          <div className="font-medium text-white flex items-center gap-1">
+                            {displayData.platforms.slice(0, 3).join(', ')}
+                            {displayData.platforms.length > 3 && '...'}
+                            <Info className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </div>
+                      </div>
+                      <svg className="w-4 h-4 text-white/40 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ) : null}
+                </div>
+
+                {/* Imagem com tags de gêneros */}
+                {displayData.coverImage && (
+                  <div className="flex flex-col items-center">
+                    <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
+                      <img
+                        src={displayData.coverImage}
+                        alt={displayData.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    {displayData.genres && displayData.genres.length > 0 && (
+                      <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
+                        {displayData.genres.slice(0, 5).map((genre, index) => (
+                          <span
+                            key={index}
+                            className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 
+             text-purple-300 text-sm font-medium rounded-lg border border-purple-500/30 
+             hover:from-purple-500/30 hover:to-pink-500/30 transition-all duration-300"
+                          >
+                            {typeof genre === 'object' ? genre.name : genre}
+                          </span>
+                        ))}
+
+                        {displayData.genres.length > 5 && (
+                          <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
+                            +{displayData.genres.length - 5}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Descrição */}
+                {displayData?.description && (
+                  <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("p-2 rounded-lg", mediaColor)}>
+                        <Gamepad className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-white mb-3">
+                          Descrição
+                        </h3>
+                        <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
+                          {displayData.description}
+                        </p>
                       </div>
                     </div>
                   </div>
-                  <Info className="w-3 h-3 text-white/40 ml-auto flex-shrink-0" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-        )}
-
-        {/* Imagem com tags de gêneros */}
-        {hasExternalData && externalData.coverImage && (
-          <div className="flex flex-col items-center">
-            <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
-              <img
-                src={externalData.coverImage}
-                alt={externalData.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            {externalData.genres && externalData.genres.length > 0 && (
-              <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
-                {externalData.genres.slice(0, 5).map((genre, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1.5 bg-gradient-to-r from-orange-500/20 to-red-500/20 
-                       text-orange-300 text-sm font-medium rounded-lg border border-orange-500/30 
-                       hover:from-orange-500/30 hover:to-red-500/30 transition-all duration-300"
-                  >
-                    {typeof genre === 'object' ? genre.name : genre}
-                  </span>
-                ))}
-
-                {externalData.genres.length > 5 && (
-                  <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
-                    +{externalData.genres.length - 5}
-                  </span>
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {externalData?.description && (
-          <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className={cn("p-2 rounded-lg", mediaColor)}>
-                <Gamepad className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-3">
-                  Descrição
-                </h3>
-                <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
-                  {externalData.description}
-                </p>
-              </div>
-            </div>
           </div>
         )}
 
@@ -595,13 +701,6 @@ const GameForm = (props) => {
               />
 
               <div className="md:col-span-2">
-                <Input
-                  label="URL da Imagem"
-                  {...register('coverImage')}
-                  error={errors.coverImage?.message}
-                  placeholder="https://exemplo.com/imagem.jpg"
-                  variant="glass"
-                />
               </div>
             </div>
 
@@ -669,7 +768,7 @@ const GameForm = (props) => {
             </div>
             <div>
               <h3 className="font-semibold text-white">
-                {hasExternalData ? 'Sua experiência' : 'Sua avaliação'}
+                {hasDisplayData ? 'Sua experiência' : 'Sua avaliação'}
               </h3>
               <p className="text-sm text-white/60">Como você avalia este conteúdo?</p>
             </div>
@@ -780,8 +879,8 @@ const GameForm = (props) => {
             "border-l-4 border-orange-500/30"
           )}>
             <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20">
-                <Gamepad className="w-5 h-5 text-orange-400" />
+              <div className={cn("p-2 rounded-lg", mediaColor)}>
+                <PlayCircle className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="font-semibold text-white">Progresso do Jogo</h3>
@@ -898,9 +997,9 @@ const GameForm = (props) => {
             variant="primary"
             loading={loading}
             disabled={loading || !canSubmit}
-            className="min-w-[100px] bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-w-[100px] bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
+            {initialData ? 'Atualizar' : hasDisplayData ? 'Adicionar à minha lista' : 'Criar'}
           </Button>
         </div>
       </form>
@@ -908,14 +1007,14 @@ const GameForm = (props) => {
       <Modal
         isOpen={showPlatformsModal}
         onClose={() => setShowPlatformsModal(false)}
-        title={`${externalData?.title} - Plataformas Disponíveis`}
+        title={`${displayData?.title} - Plataformas Disponíveis`}
         size="md"
       >
-        {externalData?.platforms && externalData.platforms.length > 0 && (
+        {displayData?.platforms && displayData.platforms.length > 0 && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-3">Todas as Plataformas {externalData?.platforms?.length > 0 ? `(${externalData.platforms.length})` : ''}</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">Todas as Plataformas {displayData?.platforms?.length > 0 ? `(${displayData.platforms.length})` : ''}</h3>
             <div className="space-y-2">
-              {externalData.platforms.map((platform, index) => (
+              {displayData.platforms.map((platform, index) => (
                 <div
                   key={index}
                   className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"

@@ -11,7 +11,6 @@ export default function MangasPage() {
 
   const handleEditSubmit = async (data) => {
     try {
-      // Verificar se temos o ID do UserMedia no objeto data
       if (data.userMediaId) {
         const updatePayload = {
           status: data.status,
@@ -48,7 +47,6 @@ export default function MangasPage() {
   };
 
   const editModalInitialData = (editingItem) => ({
-    // Adicionar userMediaId explicitamente
     userMediaId: editingItem._id,
     genres: editingItem.mediaCacheId?.essentialData?.genres,
     volumes: editingItem.mediaCacheId?.essentialData?.volumes,
@@ -60,6 +58,10 @@ export default function MangasPage() {
     category: editingItem.mediaCacheId?.essentialData?.category,
     coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
     releasePeriod: editingItem.mediaCacheId?.essentialData?.releasePeriod,
+    averageRating: editingItem.mediaCacheId?.essentialData?.averageRating,
+    ratingCount: editingItem.mediaCacheId?.essentialData?.ratingCount,
+    members: editingItem.mediaCacheId?.essentialData?.members,
+    popularity: editingItem.mediaCacheId?.essentialData?.popularity,
     userRating: editingItem.userRating || null,
     personalNotes: editingItem.personalNotes || '',
     status: editingItem.status,
@@ -73,9 +75,8 @@ export default function MangasPage() {
     <MediaPageLayout
       mediaType="manga"
       Icon={BookOpen}
-      gradientFrom="from-blue-500/20"
-      gradientTo="to-cyan-500/20"
-      iconColor="text-blue-400"
+      mediaBg='bg-orange-500/20'
+      iconColor="text-orange-400"
       placeholderText="Buscar mangás no MyAnimeList..."
       pageTitle={
         <>

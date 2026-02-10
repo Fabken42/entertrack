@@ -58,6 +58,7 @@ const createCleanedEssentialData = (essentialData, mediaType) => {
       Object.assign(typeSpecificData, {
         playHours: essentialData.playHours,
         metacritic: essentialData.metacritic,
+        playtime: essentialData.playtime,
         platforms: Array.isArray(essentialData.platforms) ? essentialData.platforms : undefined,
       });
       break;
@@ -168,6 +169,9 @@ export async function POST(request) {
       }
       if (existingCache.essentialData.metacritic !== undefined && cleanedEssentialData.metacritic === undefined) {
         mergedEssentialData.metacritic = existingCache.essentialData.metacritic;
+      }
+      if (existingCache.essentialData.playtime !== undefined && cleanedEssentialData.playtime === undefined) {
+        mergedEssentialData.playtime = existingCache.essentialData.playtime;
       }
 
       existingCache.essentialData = mergedEssentialData;

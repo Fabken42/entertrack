@@ -18,8 +18,7 @@ import { RefreshCw, Plus } from 'lucide-react';
 export default function MediaPageLayout({
     mediaType,
     Icon,
-    gradientFrom,
-    gradientTo,
+    mediaBg,
     iconColor,
     placeholderText,
     pageTitle,
@@ -27,7 +26,6 @@ export default function MediaPageLayout({
     searchHook,
     emptyStateIcon = '📚',
     editModalInitialData = {},
-    onManualCreate,
     handleEditSubmit,
     handleAddMedia
 }) {
@@ -193,7 +191,7 @@ export default function MediaPageLayout({
                         <div className="mb-8 glass rounded-2xl p-6 border border-white/10">
                             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                                 <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-lg w-12 h-12 flex items-center justify-center bg-gradient-to-br ${gradientFrom} ${gradientTo}`}>
+                                    <div className={`p-3 rounded-lg w-12 h-12 flex items-center justify-center ${mediaBg}`}>
                                         <Icon className={`w-6 h-6 ${iconColor}`} />
                                     </div>
                                     <div>
@@ -342,7 +340,7 @@ export default function MediaPageLayout({
                                             variant="primary"
                                             onClick={handleRefresh}
                                             icon={RefreshCw}
-                                            className={`bg-gradient-to-r ${gradientFrom.split('/')[0]} ${gradientTo.split('/')[0]}`}
+                                            className={`${mediaBg} hover:opacity-90 min-w-[180px]`}
                                         >
                                             Tentar novamente
                                         </Button>
@@ -395,25 +393,16 @@ export default function MediaPageLayout({
                                                     </h3>
                                                     <p className="text-white/60 mb-8">
                                                         {searchQuery
-                                                            ? `Não foi possível encontrar ${mediaType === 'manga' ? 'mangás' : mediaType + 's'} com o título "${searchQuery}"`
-                                                            : `Não foi possível encontrar ${mediaType === 'manga' ? 'mangás' : mediaType + 's'} correspondentes aos filtros selecionados`
+                                                            ? `Não foi possível encontrar mídias com o título "${searchQuery}"`
+                                                            : `Não foi possível encontrar mídias correspondentes`
                                                         }
                                                     </p>
                                                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                                                        {searchQuery && (
-                                                            <Button
-                                                                variant="outline"
-                                                                onClick={() => setSearchQuery('')}
-                                                                className="border-white/20 hover:bg-white/10"
-                                                            >
-                                                                Limpar busca
-                                                            </Button>
-                                                        )}
                                                         <Button
                                                             variant="primary"
                                                             onClick={handleRefresh}
                                                             icon={RefreshCw}
-                                                            className={`bg-gradient-to-r ${gradientFrom.split('/')[0]} ${gradientTo.split('/')[0]} hover:opacity-90 min-w-[180px]`}
+                                                            className={`${mediaBg} hover:opacity-90 min-w-[180px]`}
                                                         >
                                                             Recarregar Página
                                                         </Button>

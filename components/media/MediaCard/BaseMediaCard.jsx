@@ -12,24 +12,8 @@ import {
     getProgressInfo,
     getStatusColor,
     getStatusLabel,
+    formatReleasePeriod
 } from '@/lib/utils/media-utils';
-
-// Função formatReleasePeriod movida para o componente
-function formatReleasePeriod(releasePeriod) {
-    if (!releasePeriod || !releasePeriod.year) {
-        return null;
-    }
-
-    const { year, month } = releasePeriod;
-    if (month) {
-        const monthNames = [
-            'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-            'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
-        ];
-        return `${monthNames[month - 1]}, ${year}`;
-    }
-    return year.toString();
-}
 
 export default function BaseMediaCard({
     item,
@@ -62,7 +46,7 @@ export default function BaseMediaCard({
 
     const MediaIcon = getMediaIcon(mediaType);
     const mediaColor = getMediaColor(mediaType);
-    const ratingInfo = formatRating(item.rating, mediaType);
+    const ratingInfo = formatRating(item.averageRating, mediaType);
     const shouldShowRatingBadge = !isLibrary && ratingInfo;
     const statusBorderColor = getStatusBorderColor(item.status);
 
@@ -83,11 +67,11 @@ export default function BaseMediaCard({
         if (item.getFormattedReleaseDate && typeof item.getFormattedReleaseDate === 'function') {
             return item.getFormattedReleaseDate();
         }
-        
+
         if (item.releasePeriod) {
             return formatReleasePeriod(item.releasePeriod);
         }
-        
+
         return null;
     };
 
@@ -177,7 +161,7 @@ export default function BaseMediaCard({
         return (
             <div
                 className={cn(
-                    "glass flex items-start gap-4 p-5 rounded-xl transition-all duration-300 cursor-pointer group hover-lift relative",
+                    "glass flex items-start gap-4 p-5 rounded-xl transition-all duration-300 cursor-pointer group fade-in relative",
                     statusBorderColor,
                     "border-2 hover:border-white/30"
                 )}
@@ -227,7 +211,7 @@ export default function BaseMediaCard({
                     {/* Cabeçalho com título e rating */}
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-white text-lg group-hover:text-blue-400 transition-colors truncate">
+                            <h3 className="font-semibold text-white text-lg truncate">
                                 {item.title}
                             </h3>
                             {renderBasicInfo()}
@@ -236,7 +220,7 @@ export default function BaseMediaCard({
                             <div className={cn(
                                 "px-3 py-1 rounded-full text-sm font-semibold backdrop-blur-sm border border-white/10 shrink-0",
                                 "bg-gray-900/60 shadow-sm",
-                                getRatingColor(item.rating, mediaType)
+                                getRatingColor(item.averageRating, mediaType)
                             )}>
                                 <div className="flex items-center gap-1.5">
                                     <Star className="w-3.5 h-3.5 fill-current" />
@@ -310,7 +294,7 @@ export default function BaseMediaCard({
                                         className={cn(
                                             "w-4 h-4 transition-transform",
                                             i < item.userRating
-                                                ? "text-yellow-400 fill-yellow-400 group-hover:scale-110"
+                                                ? "text-yellow-400 fill-yellow-400"
                                                 : "text-white/20"
                                         )}
                                     />
@@ -330,7 +314,7 @@ export default function BaseMediaCard({
                                 <span className="font-medium">Seu comentário:</span>
                             </div>
                             <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 border border-white/10">
-                                <p className="text-sm text-white/80 line-clamp-2 group-hover:line-clamp-4 transition-all duration-300 leading-relaxed whitespace-pre-line">
+                                <p className="text-sm text-white/80 line-clamp-3 transition-all duration-300 leading-relaxed whitespace-pre-line">
                                     {item.personalNotes}
                                 </p>
                             </div>
@@ -380,7 +364,7 @@ export default function BaseMediaCard({
                     {/* Descrição (somente fora da biblioteca) */}
                     {!isLibrary && item.description && (
                         <div className="pt-3 border-t border-white/10">
-                            <p className="text-sm text-white/60 line-clamp-2 group-hover:line-clamp-3 transition-all leading-relaxed">
+                            <p className="text-sm text-white/60 line-clamp-3 transition-all leading-relaxed">
                                 {item.description}
                             </p>
                         </div>
@@ -409,7 +393,7 @@ export default function BaseMediaCard({
         <Card
             variant="glass"
             className={cn(
-                "h-full flex flex-col group cursor-pointer hover-lift relative overflow-hidden",
+                "h-full flex flex-col group cursor-pointer fade-in relative overflow-hidden",
                 statusBorderColor,
                 "hover:border-white/30"
             )}
@@ -424,7 +408,7 @@ export default function BaseMediaCard({
                         <img
                             src={item.coverImage || '/images/icons/placeholder-image.png'}
                             alt={item.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             onError={(e) => e.target.src = '/images/icons/placeholder-image.png'}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-70 group-hover:opacity-90 transition-opacity"></div>
@@ -445,7 +429,7 @@ export default function BaseMediaCard({
                             <div className={cn(
                                 "px-3 py-1.5 rounded-full text-sm font-semibold backdrop-blur-sm border border-white/20 shadow-sm",
                                 "bg-gray-900/70",
-                                getRatingColor(item.rating, mediaType)
+                                getRatingColor(item.averageRating, mediaType)
                             )}>
                                 <div className="flex items-center gap-1.5">
                                     <Star className="w-3.5 h-3.5 fill-current" />
@@ -463,7 +447,7 @@ export default function BaseMediaCard({
 
                 {/* Cabeçalho com título e botão deletar */}
                 <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-semibold text-white line-clamp-2 group-hover:text-blue-400 transition-colors flex-1 text-lg">
+                    <h3 className="font-semibold text-white line-clamp-2 flex-1 text-lg">
                         {item.title}
                     </h3>
                     {renderDeleteButton()}
@@ -510,7 +494,7 @@ export default function BaseMediaCard({
                                         className={cn(
                                             "w-4 h-4 transition-transform",
                                             i < item.userRating
-                                                ? "text-yellow-400 fill-yellow-400 group-hover:scale-110"
+                                                ? "text-yellow-400 fill-yellow-400"
                                                 : "text-white/20"
                                         )}
                                     />
@@ -531,7 +515,7 @@ export default function BaseMediaCard({
                             <span className="font-medium">Seu comentário:</span>
                         </div>
                         <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 border border-white/10">
-                            <p className="text-xs text-white/80 line-clamp-3 group-hover:line-clamp-4 transition-all duration-300 leading-relaxed whitespace-pre-line">
+                            <p className="text-xs text-white/80 line-clamp-3 transition-all duration-300 leading-relaxed whitespace-pre-line">
                                 {item.personalNotes}
                             </p>
                         </div>
@@ -590,7 +574,7 @@ export default function BaseMediaCard({
                 {/* Descrição (fora da biblioteca) */}
                 {!isLibrary && item.description && (
                     <div className="mb-4">
-                        <p className="text-sm text-white/60 line-clamp-3 group-hover:line-clamp-4 transition-all leading-relaxed">
+                        <p className="text-sm text-white/60 line-clamp-3 transition-all leading-relaxed">
                             {item.description}
                         </p>
                     </div>

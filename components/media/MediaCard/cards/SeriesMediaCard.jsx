@@ -15,7 +15,7 @@ export default function SeriesMediaCard({
     const currentEpisode = item.progress?.episodes || 0;
     const nextEpisode = currentEpisode + 1;
     const currentSeason = item.progress?.seasons || '?';
-    return `Ep. ${nextEpisode} (T${currentSeason}) assistido`;
+    return `Ep. ${nextEpisode} (${currentSeason}ª temp.) assistido`;
   };
 
   const renderSpecificContent = () => {

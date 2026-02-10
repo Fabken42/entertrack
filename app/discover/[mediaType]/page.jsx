@@ -4,13 +4,34 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Select, Input } from '@/components/ui';
-import { Grid, List, Star, TrendingUp, Calendar, Search, Users, Filter, ArrowUpDown, Layers, Tag, RefreshCw, X, AlertCircle } from 'lucide-react';
+import { Grid, List, Star, TrendingUp, Calendar, Search, Users, Filter, ArrowUpDown, Layers, Tag, RefreshCw, Film, Tv, Tv2, BookOpen, Gamepad, ChevronDown, ChevronUp, Sliders } from 'lucide-react';
 import Pagination from '@/components/ui/pagination/Pagination';
 import MediaCard from '@/components/media/MediaCard';
 import MediaFormModal from '@/components/forms/media-form/MediaFormModal';
 import { useMediaStore } from '@/store/media-store';
 import { cn } from '@/lib/utils/general-utils';
 import { FETCH_MEDIA_ITEMS_LIMIT } from '@/constants';
+
+// Adicione esta função auxiliar para obter a temporada atual
+const getCurrentSeason = () => {
+  const now = new Date();
+  const month = now.getMonth() + 1; // getMonth() retorna 0-11
+  const year = now.getFullYear();
+
+  // Determinar temporada baseada no mês
+  let season;
+  if (month >= 1 && month <= 3) {
+    season = 'winter';
+  } else if (month >= 4 && month <= 6) {
+    season = 'spring';
+  } else if (month >= 7 && month <= 9) {
+    season = 'summer';
+  } else {
+    season = 'fall';
+  }
+
+  return { year, season };
+};
 
 export default function DiscoverPage() {
   const params = useParams();
@@ -32,6 +53,22 @@ export default function DiscoverPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedMediaData, setSelectedMediaData] = useState(null);
 
+  // Obter temporada atual uma vez
+  const currentSeason = getCurrentSeason();
+
+  const [filters, setFilters] = useState({
+    minRating: '',
+    minVotes: '',
+    minScore: '',
+    minMetacritic: '',
+    // Inicializar com valores vazios
+    seasonYear: '',
+    season: ''
+  });
+
+  const [searchMode, setSearchMode] = useState('discover');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
   const fetchTimeoutRef = useRef(null);
   const { addMedia } = useMediaStore();
 
@@ -49,7 +86,16 @@ export default function DiscoverPage() {
           sortBy,
           page: currentPage.toString(),
           ...(selectedGenre && { genre: selectedGenre }),
-          ...(searchQuery && { query: searchQuery })
+          ...(searchQuery && { query: searchQuery }),
+          ...(filters.minRating && { minRating: filters.minRating }),
+          ...(filters.minVotes && { minVotes: filters.minVotes }),
+          ...(filters.minScore && { minScore: filters.minScore }),
+          ...(filters.minMetacritic && { minMetacritic: filters.minMetacritic }),
+          // Adicione os parâmetros de temporada
+          ...(mediaType === 'anime' && filters.seasonYear && { seasonYear: filters.seasonYear }),
+          ...(mediaType === 'anime' && filters.season && { season: filters.season }),
+          // Adicione o modo de busca
+          ...(mediaType === 'anime' && searchMode && { searchMode })
         });
 
         const response = await fetch(`/api/discover/${mediaType}?${queryParams}`);
@@ -72,7 +118,7 @@ export default function DiscoverPage() {
         setLoading(false);
       }
     }, 100); // 100ms de debounce
-  }, [mediaType, sortBy, selectedGenre, searchQuery, currentPage]);
+  }, [mediaType, sortBy, selectedGenre, searchQuery, currentPage, filters, searchMode]);
 
   useEffect(() => {
     if (mediaType) {
@@ -107,6 +153,27 @@ export default function DiscoverPage() {
       setError('Erro ao carregar');
       setGenres([{ id: '', name: 'Todos os Gêneros' }]);
     }
+  };
+
+  // Função para atualizar filtros quando o modo de busca muda
+  const handleSearchModeChange = (mode) => {
+    if (mode === 'season') {
+      // Quando mudar para "Animes da Temporada", preencher automaticamente com a temporada atual
+      setFilters({
+        ...filters,
+        seasonYear: currentSeason.year.toString(),
+        season: currentSeason.season
+      });
+    } else {
+      // Quando mudar para outro modo, limpar os filtros de temporada
+      setFilters({
+        ...filters,
+        seasonYear: '',
+        season: ''
+      });
+    }
+    setSearchMode(mode);
+    setCurrentPage(1);
   };
 
   const handleAddToLibrary = (item) => {
@@ -148,28 +215,31 @@ export default function DiscoverPage() {
 
   const getMediaTypeIcon = () => {
     const icons = {
-      movies: '🎬',
-      series: '📺',
-      animes: '🇯🇵',
-      mangas: '📚',
-      games: '🎮'
+      movie: Film,
+      series: Tv,
+      anime: Tv2, // Usar Tv2 igual em /anime
+      manga: BookOpen,
+      game: Gamepad
     };
-    return icons[mediaType] || '✨';
+    return icons[mediaType] || null;
   };
 
   const getMediaTypeColor = () => {
     const colors = {
-      movie: 'from-blue-500/20 to-blue-600/20',
-      series: 'from-purple-500/20 to-purple-600/20',
-      anime: 'from-red-500/20 to-pink-600/20',
-      manga: 'from-indigo-500/20 to-indigo-600/20',
-      game: 'from-orange-500/20 to-orange-600/20'
+      movie: 'bg-cyan-500/20 text-cyan-400',
+      series: 'bg-green-500/20 text-green-400',
+      anime: 'bg-red-500/20 text-red-400',
+      manga: 'bg-orange-500/20 text-orange-400',
+      game: 'bg-purple-500/20 text-purple-400'
     };
-    return colors[mediaType] || 'from-gray-500/20 to-gray-600/20';
+    return colors[mediaType] || 'bg-gray-500/20 text-gray-400';
   };
 
   const refreshItems = () => {
     setCurrentPage(1);
+    if (mediaType === 'anime') {
+      setSearchMode('discover');
+    }
     fetchDiscoveryItems();
   };
 
@@ -217,12 +287,20 @@ export default function DiscoverPage() {
     <div className="min-h-screen">
       <div className="p-6 md:p-8 lg:p-12">
         <div className="max-w-7xl mx-auto">
+          {/* Cabeçalho */}
           <div className="mb-8 glass rounded-2xl p-6 border border-white/10">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
               <div className="flex items-center gap-3">
-                {/* Container quadrado para o ícone */}
-                <div className={`p-3 rounded-lg w-12 h-12 flex items-center justify-center bg-gradient-to-br ${getMediaTypeColor()}`}>
-                  <span className="text-2xl leading-none">{getMediaTypeIcon()}</span>
+                <div className={`p-3 rounded-lg w-12 h-12 flex items-center justify-center ${getMediaTypeColor().split(' ')[0]}`}>
+                  {(() => {
+                    const IconComponent = getMediaTypeIcon();
+                    const colorClass = getMediaTypeColor().split(' ')[1];
+                    return IconComponent ? (
+                      <IconComponent className={`w-6 h-6 ${colorClass}`} />
+                    ) : (
+                      <span className="text-2xl leading-none">{getMediaTypeIcon()}</span>
+                    );
+                  })()}
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-white">
@@ -236,104 +314,366 @@ export default function DiscoverPage() {
             </div>
           </div>
 
-          {/* Filtros com estilo glass escuro - IGUAL AO MediaCard */}
-          <div className="glass mb-8 p-6 rounded-2xl border border-white/10 bg-gray-900/80 backdrop-blur-xl">
-            <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
-              {/* Container principal dos filtros */}
-              <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto md:items-center">
-                {/* Campo de Busca */}
-                <div className="w-full md:w-72">
-                  <label className="block text-sm font-medium text-white mb-2 flex items-center gap-2">
-                    <Search className="w-4 h-4" />
-                    Buscar {getMediaTypeLabel().toLowerCase()}s
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    <Input
-                      type="text"
-                      placeholder={`Digite o nome do ${getMediaTypeLabel().toLowerCase()}...`}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+          {/* Container Principal de Filtros */}
+          <div className="glass mb-8 rounded-2xl border border-white/10 bg-gray-900/80 backdrop-blur-xl overflow-hidden">
+            {/* Barra Superior de Filtros Principais */}
+            <div className="p-6 border-b border-white/10">
+              <div className="flex flex-col lg:flex-row gap-6 lg:gap-4 items-start justify-between">
+                {/* Filtros Principais */}
+                <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto flex-wrap">
+                  {/* Campo de Busca */}
+                  <div className="w-full sm:flex-1 min-w-[250px] lg:w-64">
+                    <div className="relative group">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                      <Input
+                        type="text"
+                        placeholder={`Buscar ${getMediaTypeLabel().toLowerCase()}...`}
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        variant="glass"
+                        className="pl-10 bg-gray-800/50 border-white/10 text-white placeholder:text-white/40 h-11"
+                        iconLeft={Search}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filtro de Gênero */}
+                  <div className="w-full sm:flex-1 min-w-[250px] lg:w-56">
+                    <Select
+                      value={selectedGenre}
+                      onChange={(e) => {
+                        setSelectedGenre(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      options={genres.map(genre => ({
+                        value: genre.id,
+                        label: genre.name,
+                        icon: genre.id === '' ? Layers : Tag
+                      }))}
                       variant="glass"
-                      className="pl-10 bg-gray-800/50 border-white/10 text-white placeholder:text-white/40"
+                      className="bg-gray-800/50 border-white/10 h-11"
+                      placeholder="Todos os Gêneros"
+                      icon={Filter}
                     />
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/60 w-4 h-4 group-hover:text-white transition-colors" />
+                  </div>
+
+                  {/* Ordenação */}
+                  <div className="w-full sm:flex-1 min-w-[250px] lg:w-56">
+                    <Select
+                      value={sortBy}
+                      onChange={(e) => {
+                        setSortBy(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      options={getSortOptions().map(option => ({
+                        value: option.value,
+                        label: option.label,
+                        icon: option.icon
+                      }))}
+                      variant="glass"
+                      className="bg-gray-800/50 border-white/10 h-11"
+                      placeholder="Ordenar por"
+                      icon={ArrowUpDown}
+                    />
                   </div>
                 </div>
 
-                {/* Filtro de Gênero */}
-                <div className="w-full md:w-56">
-                  <label className="block text-sm font-medium text-white mb-2 flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    Filtrar por Gênero
-                  </label>
-                  <Select
-                    value={selectedGenre}
-                    onChange={(e) => setSelectedGenre(e.target.value)}
-                    options={genres.map(genre => ({
-                      value: genre.id,
-                      label: genre.name,
-                      icon: genre.id === '' ? Layers : Tag
-                    }))}
-                    variant="glass"
-                    className="bg-gray-800/50 border-white/10"
-                  />
-                </div>
+                {/* Controles à Direita */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0">
+                  {/* Botão de Visualização */}
+                  <div className="flex bg-gray-800/50 rounded-xl p-1 border border-white/10">
+                    <Button
+                      variant={viewMode === 'grid' ? 'primary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('grid')}
+                      className={`!p-2 rounded-lg transition-all duration-300 ${viewMode === 'grid'
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+                        : 'text-white/60 hover:text-white hover:bg-white/10'
+                        }`}
+                      icon={Grid}
+                      tooltip="Visualização em Grid"
+                    />
+                    <Button
+                      variant={viewMode === 'list' ? 'primary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className={`!p-2 rounded-lg transition-all duration-300 ${viewMode === 'list'
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                        : 'text-white/60 hover:text-white hover:bg-white/10'
+                        }`}
+                      icon={List}
+                      tooltip="Visualização em Lista"
+                    />
+                  </div>
 
-                {/* Ordenação */}
-                <div className="w-full md:w-56">
-                  <label className="block text-sm font-medium text-white mb-2 flex items-center gap-2">
-                    <ArrowUpDown className="w-4 h-4" />
-                    Ordenar por
-                  </label>
-                  <Select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    options={getSortOptions().map(option => ({
-                      value: option.value,
-                      label: option.label,
-                      icon: option.icon
-                    }))}
-                    variant="glass"
-                    className="bg-gray-800/50 border-white/10"
-                  />
-                </div>
-              </div>
-
-              {/* Modo de Visualização */}
-              <div className="flex flex-col gap-2 w-full md:w-auto">
-                <label className="block text-sm font-medium text-white whitespace-nowrap">
-                  Visualização:
-                </label>
-                <div className="flex bg-gray-800/50 rounded-xl p-1.5 border border-white/10">
+                  {/* Botão Filtros Avançados */}
                   <Button
-                    variant={viewMode === 'grid' ? 'primary' : 'ghost'}
+                    variant="outline"
                     size="sm"
-                    onClick={() => setViewMode('grid')}
-                    className={`!p-2.5 rounded-lg transition-all duration-300 ${viewMode === 'grid'
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                      }`}
-                    icon={Grid}
-                  />
-                  <Button
-                    variant={viewMode === 'list' ? 'primary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className={`!p-2.5 rounded-lg transition-all duration-300 ${viewMode === 'list'
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                      }`}
-                    icon={List}
-                  />
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    className="bg-gray-800/50 border-white/10 text-white hover:bg-gray-700/50 h-11 px-4 w-full sm:w-auto"
+                    icon={showAdvancedFilters ? ChevronUp : ChevronDown}
+                    iconPosition="right"
+                  >
+                    {showAdvancedFilters ? 'Ocultar Filtros' : 'Filtros Avançados'}
+                  </Button>
                 </div>
               </div>
             </div>
 
+            {/* Filtros Avançados (Abrível/Fechável) */}
+            {showAdvancedFilters && (
+              <div className="p-6 bg-gray-800/30 animate-fadeIn">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sliders className="w-4 h-4 text-white/60" />
+                  <h3 className="text-sm font-medium text-white/80">Filtros Avançados</h3>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  {/* Modo de Busca para Animes - ATUALIZADO */}
+                  {mediaType === 'anime' && (
+                    <div>
+                      <label className="block text-sm font-medium text-white mb-2">
+                        Modo de Busca
+                      </label>
+                      <Select
+                        value={searchMode}
+                        onChange={(e) => {
+                          handleSearchModeChange(e.target.value);
+                        }}
+                        options={[
+                          { value: 'discover', label: 'Descobrir Animes' },
+                          { value: 'season', label: 'Animes da Temporada' }
+                        ]}
+                        variant="glass"
+                        className="bg-gray-800/50 border-white/10 h-10 text-sm w-full"
+                      />
+                    </div>
+                  )}
+
+                  {/* Filtros Específicos por Tipo de Mídia */}
+                  {(mediaType === 'movie' || mediaType === 'series') && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">
+                          Nota Mínima (0-5)
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="5"
+                          step="0.1"
+                          value={filters.minRating}
+                          onChange={(e) => {
+                            setFilters({ ...filters, minRating: e.target.value });
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Ex: 3.5"
+                          variant="glass"
+                          className="bg-gray-800/50 border-white/10 h-10 text-sm w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">
+                          Mín. de Votos
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={filters.minVotes}
+                          onChange={(e) => {
+                            setFilters({ ...filters, minVotes: e.target.value });
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Ex: 1000"
+                          variant="glass"
+                          className="bg-gray-800/50 border-white/10 h-10 text-sm w-full"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {mediaType === 'anime' && searchMode === 'season' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">
+                          Ano da Temporada
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="2000"
+                            max={new Date().getFullYear() + 1}
+                            value={filters.seasonYear}
+                            onChange={(e) => {
+                              setFilters({ ...filters, seasonYear: e.target.value });
+                              setCurrentPage(1);
+                            }}
+                            placeholder="Ex: 2024"
+                            variant="glass"
+                            className="bg-gray-800/50 border-white/10 h-10 text-sm w-full"
+                          />
+                          {filters.seasonYear === currentSeason.year.toString() && (
+                            <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                              Atual
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">
+                          Temporada
+                        </label>
+                        <div className="relative">
+                          <Select
+                            value={filters.season}
+                            onChange={(e) => {
+                              setFilters({ ...filters, season: e.target.value });
+                              setCurrentPage(1);
+                            }}
+                            options={[
+                              { value: 'winter', label: 'Inverno' },
+                              { value: 'spring', label: 'Primavera' },
+                              { value: 'summer', label: 'Verão' },
+                              { value: 'fall', label: 'Outono' }
+                            ]}
+                            variant="glass"
+                            className="bg-gray-800/50 border-white/10 h-10 text-sm w-full"
+                            placeholder="Selecionar temporada"
+                          />
+                          {filters.season === currentSeason.season && (
+                            <span className="absolute right-10 top-1/2 transform -translate-y-1/2 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                              Atual
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {mediaType === 'anime' && searchMode === 'discover' && (
+                    <div>
+                      <label className="block text-sm font-medium text-white mb-2">
+                        Nota Mínima (0-5)
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="5"
+                        step="0.1"
+                        value={filters.minScore}
+                        onChange={(e) => {
+                          setFilters({ ...filters, minScore: e.target.value });
+                          setCurrentPage(1);
+                        }}
+                        placeholder="Ex: 3.5"
+                        variant="glass"
+                        className="bg-gray-800/50 border-white/10 h-10 text-sm w-full"
+                      />
+                    </div>
+                  )}
+
+                  {mediaType === 'manga' && (
+                    <div>
+                      <label className="block text-sm font-medium text-white mb-2">
+                        Nota Mínima (0-5)
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="5"
+                        step="0.1"
+                        value={filters.minScore}
+                        onChange={(e) => {
+                          setFilters({ ...filters, minScore: e.target.value });
+                          setCurrentPage(1);
+                        }}
+                        placeholder="Ex: 3.5"
+                        variant="glass"
+                        className="bg-gray-800/50 border-white/10 h-10 text-sm w-full"
+                      />
+                    </div>
+                  )}
+
+                  {mediaType === 'game' && (
+                    <div>
+                      <label className="block text-sm font-medium text-white mb-2">
+                        Metacritic Mínimo
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={filters.minMetacritic}
+                        onChange={(e) => {
+                          setFilters({ ...filters, minMetacritic: e.target.value });
+                          setCurrentPage(1);
+                        }}
+                        placeholder="Ex: 75"
+                        variant="glass"
+                        className="bg-gray-800/50 border-white/10 h-10 text-sm w-full"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Botões de Ação - ATUALIZADO */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4 border-t border-white/10">
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFilters({
+                          minRating: '',
+                          minVotes: '',
+                          minScore: '',
+                          minMetacritic: '',
+                          seasonYear: searchMode === 'season' ? currentSeason.year.toString() : '',
+                          season: searchMode === 'season' ? currentSeason.season : ''
+                        });
+                        if (searchMode === 'season') {
+                          // Manter o modo season
+                          setCurrentPage(1);
+                        } else {
+                          setSearchMode('discover');
+                          setCurrentPage(1);
+                        }
+                      }}
+                      icon={RefreshCw}
+                      className="bg-gray-800/50 border-white/10 text-white hover:bg-gray-700/50 h-10"
+                    >
+                      Limpar Filtros
+                    </Button>
+                    {/* Botão para usar temporada atual */}
+                    {mediaType === 'anime' && searchMode === 'season' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFilters({
+                            ...filters,
+                            seasonYear: currentSeason.year.toString(),
+                            season: currentSeason.season
+                          });
+                          setCurrentPage(1);
+                        }}
+                        className="bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20 h-10"
+                        icon={Calendar}
+                      >
+                        Usar Temporada Atual
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Informações de página - NOVO FORMATO */}
           {!loading && items.length > 0 && (
             <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
@@ -376,6 +716,7 @@ export default function DiscoverPage() {
           {/* Loading State */}
           {loading ? (
             <div className="text-center py-16 fade-in">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white/60"></div>
               <p className="text-white/60 mt-4 text-lg">Carregando {getMediaTypeLabel().toLowerCase()}s...</p>
               <p className="text-white/40 text-sm mt-2">Buscando os melhores conteúdos para você</p>
             </div>
@@ -415,11 +756,10 @@ export default function DiscoverPage() {
             </>
           )}
 
-          {/* Estado Vazio ou Erro - COMPONENTE UNIFICADO */}
+          {/* Estado Vazio ou Erro */}
           {(!loading && items.length === 0) || error ? (
             <div className="text-center py-20 fade-in">
-              <div className="glass border border-white/10 rounded-2xl p-12 max-w-md mx-auto hover-lift">
-                {/* Ícone dinâmico baseado no estado */}
+              <div className="glass border border-white/10 rounded-2xl p-12 max-w-md mx-auto fade-in">
                 <div className="text-6xl mb-6 opacity-50">
                   🔍
                 </div>
@@ -427,20 +767,16 @@ export default function DiscoverPage() {
                   Nenhum resultado encontrado!
                 </h3>
                 <p className="text-white/60 mb-8">
-                  Ocorreu um erro ao buscar os itens. Tente novamente
+                  {error ? 'Ocorreu um erro ao buscar os itens.' : 'Tente ajustar os filtros ou buscar outro termo.'}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
-
-                  {/* Botão principal de ação */}
                   <Button
                     variant="primary"
                     onClick={() => {
-                      // Se for erro, apenas tenta recarregar
                       if (error) {
                         setError(null);
                         refreshItems();
                       } else {
-                        // Se for estado vazio, limpa tudo e recarrega
                         setSearchQuery('');
                         setSelectedGenre('');
                         setSortBy('popularity');
@@ -469,4 +805,4 @@ export default function DiscoverPage() {
       />
     </div>
   );
-} 
+}

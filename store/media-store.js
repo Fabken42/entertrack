@@ -18,12 +18,12 @@ const MEDIA_CONFIG = {
   anime: {
     progressFields: ['episodes'],
     displayUnit: 'episodes',
-    essentialFields: ['episodes', 'studios','category']
+    essentialFields: ['episodes', 'studios', 'category']
   },
   manga: {
     progressFields: ['chapters', 'volumes'],
     displayUnit: 'chapters',
-    essentialFields: ['chapters', 'volumes', 'authors','category']
+    essentialFields: ['chapters', 'volumes', 'authors', 'category']
   },
   game: {
     progressFields: ['hours', 'tasks'],
@@ -68,18 +68,19 @@ const useMediaStore = create((set, get) => ({
           if (typeof g === 'object') {
             return {
               id: Number(g.id) || index + 1,
-              name: g.name || g.title || 'Desconhecido'
+              name: g.name || '*desconhecido*'
             };
           }
           return { id: index + 1, name: g };
         })
         : [],
-      averageRating: mediaData.apiRating || mediaData.averageRating || null,
-      ratingCount: mediaData.apiVoteCount || mediaData.ratingCount || null,
+      averageRating: mediaData.averageRating || null,
+      ratingCount: mediaData.ratingCount || null,
       releasePeriod: mediaData.releasePeriod || null,
       popularity: mediaData.popularity || null,
       members: mediaData.members || null,
       metacritic: mediaData.metacritic || null,
+      playtime: mediaData.playtime || null,
       category: mediaData.category || null,
     };
 
@@ -145,6 +146,7 @@ const useMediaStore = create((set, get) => ({
 
   // ========== OPERAÇÕES CRUD OTIMIZADAS ==========
   addMedia: async (mediaData) => {
+    console.log('add media: ', mediaData)
     try {
       const { sourceApi = 'manual', mediaType } = mediaData;
 

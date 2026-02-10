@@ -1,8 +1,8 @@
 'use client';
 
 import { Loader2, Tv, Film, Book, GamepadIcon, Users, TrendingUp, Star, Calendar, Clock, BookOpen, Search, Target, Trophy } from 'lucide-react';
-import { cn } from '@/lib/utils/general-utils';
-import { normalizeSearchResults, formatRating } from '@/lib/utils/media-utils';
+import { cn, formatRuntime } from '@/lib/utils/general-utils';
+import { normalizeSearchResults, formatRating, formatReleasePeriod } from '@/lib/utils/media-utils';
 import { formatMembers, formatPopularity } from '@/lib/utils/general-utils';
 
 const SearchResults = ({
@@ -11,7 +11,7 @@ const SearchResults = ({
   error,
   mediaType,
   onSelect,
-  query 
+  query
 }) => {
   const getMediaTypeConfig = () => {
     const configs = {
@@ -63,7 +63,9 @@ const SearchResults = ({
 
   const config = getMediaTypeConfig();
   const MediaIcon = config.icon;
+  console.log('Raw Results:', results[0]);
   const normalizedResults = normalizeSearchResults(results, mediaType);
+  console.log('Normalized Results:', normalizedResults[0]);
 
   if (loading) {
     return (
@@ -143,9 +145,9 @@ const SearchResults = ({
       {/* Results List */}
       <div className="p-3 space-y-2">
         {normalizedResults.map((item, index) => {
-          const ratingInfo = formatRating(item.apiRating, mediaType);
-          const ratingDisplay = ratingInfo?.display || (item.apiRating ? item.apiRating.toFixed(1) : 'N/A');
-          const isHighRating = item.apiRating && item.apiRating >= (mediaType === 'book' || mediaType === 'game' ? 4 : 7.5);
+          const ratingInfo = formatRating(item.averageRating, mediaType);
+          const ratingDisplay = ratingInfo?.display || (item.averageRating ? item.averageRating.toFixed(1) : 'N/A');
+          const isHighRating = item.averageRating && item.averageRating >= (mediaType === 'game' ? 4 : 7.5);
 
           return (
             <button
@@ -205,29 +207,22 @@ const SearchResults = ({
                       {item.title}
                     </h4>
                   </div>
-
-                  {/* Título em Inglês */}
-                  {item.englishTitle && item.englishTitle !== item.title && (
-                    <p className="text-sm text-white/60 italic truncate">
-                      {item.englishTitle}
-                    </p>
-                  )}
                 </div>
 
                 {/* Informações específicas */}
                 <div className="flex flex-wrap gap-2">
                   {/* Anos e status */}
-                  {item.releaseYear && (
+                  {item.releasePeriod && (
                     <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
                       <Calendar className="w-3 h-3" />
-                      <span>{item.releaseYear}</span>
+                      <span>{formatReleasePeriod(item.releasePeriod)}</span>
                     </div>
                   )}
 
                   {/* Animes */}
                   {mediaType === 'anime' && item.episodes && (
                     <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
-                      <span>{item.episodes} episódios</span>
+                      <span>{item.episodes} episódio(s)</span>
                     </div>
                   )}
 
@@ -245,21 +240,7 @@ const SearchResults = ({
                   {mediaType === 'movie' && item.runtime && (
                     <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
                       <Clock className="w-3 h-3" />
-                      <span>{item.runtime} min</span>
-                    </div>
-                  )}
-
-                  {/* Séries */}
-                  {mediaType === 'series' && item.numberOfSeasons && (
-                    <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full">
-                      <span>{item.numberOfSeasons} temporada{item.numberOfSeasons > 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-
-                  {/* Livros - Autores */}
-                  {mediaType === 'book' && item.metadata?.authors && item.metadata.authors.length > 0 && (
-                    <div className="flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-full truncate max-w-[200px]">
-                      <span className="truncate">{item.metadata.authors.join(', ')}</span>
+                      <span>{formatRuntime(item.runtime)}</span>
                     </div>
                   )}
                 </div>
@@ -273,14 +254,13 @@ const SearchResults = ({
 
                 {/* Estatísticas */}
                 <div className="flex items-center gap-4 pt-2 border-t border-white/10">
-                  {/* Contagem de votos/avaliações - USANDO apiVoteCount */}
-                  {item.apiVoteCount && (
+                  {item.ratingCount != null && item.ratingCount > 0 ? (
                     <div className="flex items-center gap-1 text-xs text-white/60">
                       <Star className="w-3 h-3 text-yellow-400" />
-                      <span className="font-medium text-white/80">{item.apiVoteCount.toLocaleString()}</span>
+                      <span className="font-medium text-white/80">{item.ratingCount.toLocaleString()}</span>
                       <span>votos</span>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Popularidade */}
                   {item.popularity && (

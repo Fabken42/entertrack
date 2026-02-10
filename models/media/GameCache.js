@@ -7,12 +7,13 @@ const GameCacheSchema = new Schema({
   essentialData: {
     ...MediaBaseSchema.obj.essentialData,
     platforms: [{ type: String }],
-    metacritic: { type: Number }
+    metacritic: { type: Number },
+    playtime: { type: Number }
   }
 });
 
 // Coleção específica para games
-const GameCache = mongoose.models.GameCache || 
+const GameCache = mongoose.models.GameCache ||
   mongoose.model('GameCache', GameCacheSchema, 'gamecaches');
 
 export default GameCache;

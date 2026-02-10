@@ -40,13 +40,13 @@ export async function GET(request) {
             episodes: item.episodes,
             status: item.status,
             mediaType: item.type,
-            apiRating: item.score || 0,
-            apiVoteCount: item.scored_by || 0,
+            averageRating: item.score || 0,
+            ratingCount: item.scored_by || 0,
             popularity: item.popularity || 0,
             studios: item.studios?.map(studio => studio.name) || [],
             members: item.members || 0,
             genres: item.genres?.map(g => ({
-              id: g.mal_id?.toString() || '0',
+              id: g.mal_id || 0,
               name: g.name
             })) || []
           }))
@@ -83,13 +83,13 @@ export async function GET(request) {
             chapters: item.chapters || 0,
             status: item.status,
             category: item.type,
-            apiRating: item.score || 0,
-            apiVoteCount: item.scored_by || 0,
+            averageRating: item.score || 0,
+            ratingCount: item.scored_by || 0,
             popularity: item.popularity || 0,
             authors: item.authors?.map(author => author.name) || [],
             members: item.members || 0,
             genres: item.genres?.map(g => ({
-              id: g.mal_id?.toString() || '0',
+              id: g.mal_id || 0,
               name: g.name
             })) || [],
           }))

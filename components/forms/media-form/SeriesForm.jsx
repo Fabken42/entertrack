@@ -5,7 +5,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Select, TextArea, Modal } from '@/components/ui';
-import { Tv, Calendar, Star, Layers, PlayCircle, Info, ChevronRight } from 'lucide-react';
+import { Tv, Calendar, Star, Layers, PlayCircle, Info, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, formatApiRating } from '@/lib/utils/general-utils';
 import { getMediaColor, formatReleasePeriod } from '@/lib/utils/media-utils';
@@ -23,11 +23,20 @@ const SeriesForm = (props) => {
     onSubmit,
   } = props;
 
+  console.log(props);
+
   // Usando função utilitária para cores
   const mediaColor = getMediaColor('series');
   const [seasonInfo, setSeasonInfo] = React.useState(null);
   const [loadingSeasons, setLoadingSeasons] = React.useState(false);
   const [showSeasonsModal, setShowSeasonsModal] = React.useState(false);
+
+  // 🔥 NOVO: Estado para controlar se a seção de informações está expandida
+  const [isInfoExpanded, setIsInfoExpanded] = React.useState(() => {
+    // Se tem externalData (abriu da página de descoberta), começa expandido
+    // Se só tem initialData (abriu de /series), começa recolhido
+    return !!externalData && !initialData;
+  });
 
   React.useEffect(() => {
     // Se estiver em modo de edição e tiver initialData, usar os dados de initialData
@@ -45,11 +54,11 @@ const SeriesForm = (props) => {
       // Não buscar se já tiver initialData (modo edição)
       if (initialData) return;
 
-      if (externalData?.id && !seasonInfo) {
+      if (externalData?.sourceId && !seasonInfo) {
         setLoadingSeasons(true);
         try {
           const response = await fetch(
-            `/api/external/tmdb?action=tv-details&id=${externalData.id}`
+            `/api/external/tmdb?action=tv-details&id=${externalData.sourceId}`
           );
 
           if (response.ok) {
@@ -67,7 +76,7 @@ const SeriesForm = (props) => {
     };
 
     fetchSeasonData();
-  }, [externalData?.id, initialData]);
+  }, [externalData?.sourceId, initialData]);
 
   const availableGenres = React.useMemo(() => {
     try {
@@ -78,6 +87,70 @@ const SeriesForm = (props) => {
       return [];
     }
   }, []);
+
+  // 🔥 NOVO: Obter dados de exibição (combinando initialData e externalData)
+  const getDisplayData = () => {
+    // Prioriza externalData para informações da API
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        coverImage: externalData.coverImage,
+        averageRating: externalData.averageRating,
+        ratingCount: externalData.ratingCount,
+        releasePeriod: externalData.releasePeriod,
+        genres: externalData.genres,
+        seasons: seasonInfo?.seasons || null,
+        episodes: seasonInfo?.episodes || null,
+        episodesPerSeason: seasonInfo?.episodesPerSeason || [],
+        source: 'external'
+      };
+    }
+
+    // Se não tem externalData mas tem initialData (modo edição)
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        coverImage: initialData.coverImage,
+        averageRating: initialData.averageRating,
+        ratingCount: initialData.ratingCount,
+        releasePeriod: initialData.releasePeriod,
+        genres: initialData.genres,
+        seasons: initialData.seasons || null,
+        episodes: initialData.episodes || null,
+        episodesPerSeason: initialData.episodesPerSeason || [],
+        source: 'initial'
+      };
+    }
+
+    return null;
+  };
+
+  const displayData = getDisplayData();
+  const hasDisplayData = !!displayData;
+  const isExternalData = displayData?.source === 'external';
+
+  // 🔥 ATUALIZADO: Preparar dados de rating da API para exibição usando displayData
+  const apiRatingData = React.useMemo(() => {
+    if (displayData) {
+      const rating = displayData.averageRating;
+      const voteCount = displayData.ratingCount;
+
+      const validRating = rating != null && !isNaN(Number(rating)) && Number(rating) > 0;
+      const validVoteCount = voteCount != null && !isNaN(Number(voteCount)) && Number(voteCount) > 0;
+
+      if (validRating && validVoteCount) {
+        const formattedRating = formatApiRating(rating);
+        return {
+          rating: formattedRating?.display || Number(rating).toFixed(1),
+          voteCount: Number(voteCount),
+          rawRating: Number(rating)
+        };
+      }
+    }
+    return null;
+  }, [displayData]);
 
   const getInitialGenres = () => {
     // Para initialData (dados existentes - modo edição)
@@ -134,30 +207,6 @@ const SeriesForm = (props) => {
   const isEditMode = !!initialData;
   const hasExternalData = !!externalData;
   const isManualEntry = !hasExternalData && !isEditMode;
-
-  // Preparar dados de rating da API para exibição
-  const apiRatingData = React.useMemo(() => {
-    if (externalData) {
-      // Verifica múltiplas fontes possíveis para rating e votos
-      const rating = externalData.rating || externalData.apiRating || externalData.vote_average;
-      const voteCount = externalData.ratingCount || externalData.apiVoteCount || externalData.vote_count;
-
-      // Garantir que temos números válidos
-      const validRating = rating != null && !isNaN(Number(rating)) && Number(rating) > 0;
-      const validVoteCount = voteCount != null && !isNaN(Number(voteCount)) && Number(voteCount) > 0;
-
-      if (validRating && validVoteCount) {
-        const formattedRating = formatApiRating(rating);
-        return {
-          rating: formattedRating?.display || Number(rating).toFixed(1),
-          voteCount: Number(voteCount),
-          rawRating: Number(rating)
-        };
-      }
-    }
-    return null;
-  }, [externalData]);
-
 
   const getDefaultValues = () => {
     const defaultValues = {
@@ -216,7 +265,7 @@ const SeriesForm = (props) => {
         progress: { seasons: 1, episodes: 0 },
       };
     }
-    
+
     if (manualCreateQuery) {
       return {
         ...defaultValues,
@@ -270,15 +319,16 @@ const SeriesForm = (props) => {
     const currentSeasonValue = watch('progress.seasons') || 1;
     const currentEpisodeValue = watch('progress.episodes') || 0;
 
-    if (seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length >= currentSeasonValue) {
-      const maxEpisodes = seasonInfo.episodesPerSeason[currentSeasonValue - 1];
+    // Usar displayData para informações das temporadas
+    if (displayData?.episodesPerSeason && displayData.episodesPerSeason.length >= currentSeasonValue) {
+      const maxEpisodes = displayData.episodesPerSeason[currentSeasonValue - 1];
 
       if (currentEpisodeValue > maxEpisodes) {
         // Resetar para o máximo da nova temporada
         setValue('progress.episodes', maxEpisodes, { shouldValidate: true });
       }
     }
-  }, [watch('progress.seasons'), seasonInfo?.episodesPerSeason, setValue]);
+  }, [watch('progress.seasons'), displayData?.episodesPerSeason, setValue]);
 
   const handleGenreToggle = (genre) => {
     // Não permitir alterar gêneros em dados importados do TMDB (apenas criação)
@@ -291,7 +341,7 @@ const SeriesForm = (props) => {
     });
 
     let newGenres;
-    
+
     if (isCurrentlySelected) {
       newGenres = selectedGenres.filter(g => {
         const gId = g.id || g;
@@ -321,8 +371,8 @@ const SeriesForm = (props) => {
       return 'Temporada não pode ser menor que 1';
     }
 
-    // Usar initialData.seasons se disponível (modo edição), senão usar seasonInfo
-    const maxSeasons = initialData?.seasons || seasonInfo?.seasons;
+    // Usar displayData para temporadas
+    const maxSeasons = displayData?.seasons;
     if (maxSeasons && numValue > maxSeasons) {
       return `Temporada não pode ser maior que ${maxSeasons}`;
     }
@@ -342,23 +392,16 @@ const SeriesForm = (props) => {
       return 'Episódio não pode ser negativo';
     }
 
-    // Usar initialData quando disponível (modo edição)
-    if (initialData?.episodesPerSeason && initialData.episodesPerSeason.length >= seasonNum) {
-      const maxEpisodes = initialData.episodesPerSeason[seasonNum - 1];
-      if (numValue > maxEpisodes) {
-        return `Temporada ${seasonNum} tem apenas ${maxEpisodes} episódios`;
-      }
-    }
-    // Fallback para seasonInfo (modo criação)
-    else if (seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length >= seasonNum) {
-      const maxEpisodes = seasonInfo.episodesPerSeason[seasonNum - 1];
+    // Usar displayData para episódios por temporada
+    if (displayData?.episodesPerSeason && displayData.episodesPerSeason.length >= seasonNum) {
+      const maxEpisodes = displayData.episodesPerSeason[seasonNum - 1];
       if (numValue > maxEpisodes) {
         return `Temporada ${seasonNum} tem apenas ${maxEpisodes} episódios`;
       }
     }
     // Verificação pelo total geral
     else {
-      const totalEpisodes = initialData?.episodes || seasonInfo?.episodes;
+      const totalEpisodes = displayData?.episodes;
       if (totalEpisodes && numValue > totalEpisodes) {
         return `Total de episódios é ${totalEpisodes}`;
       }
@@ -412,19 +455,19 @@ const SeriesForm = (props) => {
           return;
         }
 
-        // Validação específica por temporada
-        if (seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length >= currentSeasonValue) {
-          const maxEpisodes = seasonInfo.episodesPerSeason[currentSeasonValue - 1];
+        // Validação específica por temporada usando displayData
+        if (displayData?.episodesPerSeason && displayData.episodesPerSeason.length >= currentSeasonValue) {
+          const maxEpisodes = displayData.episodesPerSeason[currentSeasonValue - 1];
           if (currentEpisodeValue > maxEpisodes) {
             toast.error(`Episódios assistidos (${currentEpisodeValue}) não pode ser maior que ${maxEpisodes} na temporada ${currentSeasonValue}`);
             setValue('progress.episodes', maxEpisodes, { shouldValidate: true });
             return;
           }
         }
-        // Validação fallback
-        else if (seasonInfo?.episodes && currentEpisodeValue > seasonInfo.episodes) {
-          toast.error(`Episódios assistidos (${currentEpisodeValue}) não pode ser maior que o total (${seasonInfo.episodes})`);
-          setValue('progress.episodes', seasonInfo.episodes, { shouldValidate: true });
+        // Validação fallback usando displayData
+        else if (displayData?.episodes && currentEpisodeValue > displayData.episodes) {
+          toast.error(`Episódios assistidos (${currentEpisodeValue}) não pode ser maior que o total (${displayData.episodes})`);
+          setValue('progress.episodes', displayData.episodes, { shouldValidate: true });
           return;
         }
       }
@@ -444,9 +487,9 @@ const SeriesForm = (props) => {
           userRating: formData.userRating || null,
           personalNotes: formData.personalNotes || '',
           genres: selectedGenres,
-          seasons: seasonInfo?.seasons || null,
-          episodes: seasonInfo?.episodes || null,
-          episodesPerSeason: seasonInfo?.episodesPerSeason || [],
+          seasons: displayData?.seasons || null,
+          episodes: displayData?.episodes || null,
+          episodesPerSeason: displayData?.episodesPerSeason || [],
           progress: {
             seasons: formData.progress?.seasons || 1,
             episodes: formData.progress?.episodes || 0,
@@ -459,13 +502,13 @@ const SeriesForm = (props) => {
         }
 
         if (externalData && !isEditMode) {
-          finalFormData.sourceId = externalData.id?.toString();
+          finalFormData.sourceId = externalData.sourceId?.toString();
           finalFormData.sourceApi = 'tmdb';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
           finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
-          finalFormData.apiRating = apiRatingData?.rawRating || externalData.apiRating;
-          finalFormData.apiVoteCount = apiRatingData?.voteCount || externalData.apiVoteCount;
+          finalFormData.averageRating = apiRatingData?.rawRating || externalData.averageRating;
+          finalFormData.ratingCount = apiRatingData?.voteCount || externalData.ratingCount;
 
           // Atualizado para releasePeriod
           if (!finalFormData.releasePeriod && externalData.releasePeriod) {
@@ -478,7 +521,7 @@ const SeriesForm = (props) => {
           finalFormData.sourceApi = 'manual';
           finalFormData.coverImage = '';
         }
-        
+
         await onSubmit(finalFormData);
       }
     } catch (error) {
@@ -490,143 +533,173 @@ const SeriesForm = (props) => {
   return (
     <>
       <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
-        {hasExternalData && (
-          <div className={cn("glass border rounded-xl p-6 space-y-4", "border-purple-500/30")}>
-            <div className="flex items-center gap-3">
-              <div className={cn("p-2 rounded-lg", mediaColor)}>
-                <Tv className="w-5 h-5" />
+        {/* 🔥 ATUALIZADO: Seção de informações básicas agora recolhível */}
+        {hasDisplayData && (
+          <div className={cn("glass border rounded-xl overflow-hidden transition-all duration-300", "border-purple-500/30")}>
+            {/* Cabeçalho recolhível */}
+            <button
+              type="button"
+              onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+              className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-colors duration-200"
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn("p-2 rounded-lg", mediaColor)}>
+                  <Tv className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-white">
+                    {displayData.title}
+                  </h3>
+                  <p className="text-sm text-white/60">
+                    {isExternalData ? 'Dados importados do TMDB' : 'Informações da série'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-white">
-                  {externalData.title}
-                </h3>
-                <p className="text-sm text-white/60">Dados importados do TMDB</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-white/60">
+                  {isInfoExpanded ? 'Recolher' : 'Expandir'}
+                </span>
+                {isInfoExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-white/60" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-white/60" />
+                )}
               </div>
-            </div>
+            </button>
 
-            {loadingSeasons ? (
-              <div className="text-center py-4">
-                <p className="text-white/60">Carregando informações das temporadas...</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                {/* Nota (agora primeiro) */}
-                {apiRatingData ? (
-                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                    <div>
-                      <span className="text-white/80">Nota:</span>
-                      <div className="font-medium text-white">
-                        {apiRatingData.rating}/5
-                      </div>
-                      <div className="text-xs text-white/60">
-                        ({apiRatingData.voteCount.toLocaleString()} votos)
-                      </div>
-                    </div>
+            {/* Conteúdo da seção - só mostra se expandido */}
+            {isInfoExpanded && (
+              <div className="px-6 pb-6 space-y-6">
+                {loadingSeasons ? (
+                  <div className="text-center py-4">
+                    <p className="text-white/60">Carregando informações das temporadas...</p>
                   </div>
-                ) : null}
+                ) : (
+                  <>
+                    {/* Grid de informações */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                      {/* Nota (agora primeiro) */}
+                      {apiRatingData ? (
+                        <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                          <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                          <div>
+                            <span className="text-white/80">Nota:</span>
+                            <div className="font-medium text-white">
+                              {apiRatingData.rating}/5
+                            </div>
+                            <div className="text-xs text-white/60">
+                              ({apiRatingData.voteCount.toLocaleString()} votos)
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
 
-                {/* Temporada (segundo) */}
-                {seasonInfo && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSeasonsModal(true)}
-                    className="flex items-center gap-2 p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer group text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-purple-400" />
-                      <div>
-                        <span className="text-white/80">Temporadas:</span>
-                        <div className="font-medium text-white flex items-center gap-1">
-                          {seasonInfo.seasons}
-                          <Info className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {/* Temporada (segundo) */}
+                      {displayData.seasons && (
+                        <button
+                          type="button"
+                          onClick={() => setShowSeasonsModal(true)}
+                          className="flex items-center gap-2 p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer group text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Layers className="w-4 h-4 text-purple-400" />
+                            <div>
+                              <span className="text-white/80">Temporadas:</span>
+                              <div className="font-medium text-white flex items-center gap-1">
+                                {displayData.seasons}
+                                <Info className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-white/40 ml-auto flex-shrink-0" />
+                        </button>
+                      )}
+
+                      {/* Episódios (terceiro) */}
+                      {displayData.episodes && (
+                        <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                          <PlayCircle className="w-4 h-4 text-green-400" />
+                          <div>
+                            <span className="text-white/80">Episódios:</span>
+                            <div className="font-medium text-white">
+                              {displayData.episodes}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Período de lançamento (quarto) */}
+                      {displayData.releasePeriod ? (
+                        <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                          <Calendar className="w-4 h-4 text-white/60" />
+                          <div>
+                            <span className="text-white/80">Lançamento:</span>
+                            <div className="font-medium text-white">
+                              {formatReleasePeriod(displayData.releasePeriod)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* Imagem com tags de gêneros */}
+                    {displayData.coverImage && (
+                      <div className="flex flex-col items-center">
+                        <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
+                          <img
+                            src={displayData.coverImage}
+                            alt={displayData.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
+                        {displayData.genres && displayData.genres.length > 0 && (
+                          <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
+                            {/* Gêneros com cores verdes para séries */}
+                            {displayData.genres.slice(0, 5).map((genre, index) => (
+                              <span
+                                key={index}
+                                className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 
+             text-purple-300 text-sm font-medium rounded-lg border border-purple-500/30 
+             hover:from-purple-500/30 hover:to-pink-500/30 transition-all duration-300"
+                              >
+                                {typeof genre === 'object' ? genre.name : genre}
+                              </span>
+                            ))}
+
+                            {/* Mostra contador se houver mais gêneros */}
+                            {displayData.genres.length > 5 && (
+                              <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
+                                +{displayData.genres.length - 5}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Sinopse */}
+                    {displayData?.description && (
+                      <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className={cn("p-2 rounded-lg", mediaColor)}>
+                            <Tv className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-white mb-3">
+                              Sinopse
+                            </h3>
+                            <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
+                              {displayData.description}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-white/40 ml-auto flex-shrink-0" />
-                  </button>
-                )}
-
-                {/* Episódios (terceiro) */}
-                {seasonInfo && (
-                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                    <PlayCircle className="w-4 h-4 text-green-400" />
-                    <div>
-                      <span className="text-white/80">Episódios:</span>
-                      <div className="font-medium text-white">
-                        {seasonInfo.episodes}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Período de lançamento (quarto) - Atualizado para releasePeriod */}
-                {externalData?.releasePeriod ? (
-                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                    <Calendar className="w-4 h-4 text-white/60" />
-                    <div>
-                      <span className="text-white/80">Lançamento:</span>
-                      <div className="font-medium text-white">
-                        {formatReleasePeriod(externalData.releasePeriod)}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
-        )}
-        {/* Imagem com tags de gêneros */}
-        {hasExternalData && externalData.coverImage && (
-          <div className="flex flex-col items-center">
-            <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
-              <img
-                src={externalData.coverImage}
-                alt={externalData.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            {externalData.genres && externalData.genres.length > 0 && (
-              <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
-                {/* Gêneros normais (cores roxas para séries) */}
-                {externalData.genres.slice(0, 5).map((genre, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 
-                     text-purple-300 text-sm font-medium rounded-lg border border-purple-500/30 
-                     hover:from-purple-500/30 hover:to-pink-500/30 transition-all duration-300"
-                  >
-                    {typeof genre === 'object' ? genre.name : genre}
-                  </span>
-                ))}
-
-                {/* Mostra contador se houver mais gêneros */}
-                {externalData.genres.length > 5 && (
-                  <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
-                    +{externalData.genres.length - 5}
-                  </span>
+                    )}
+                  </>
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {externalData?.description && (
-          <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className={cn("p-2 rounded-lg", mediaColor)}>
-                <Tv className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-3">
-                  Sinopse
-                </h3>
-                <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
-                  {externalData.description}
-                </p>
-              </div>
-            </div>
           </div>
         )}
 
@@ -694,13 +767,6 @@ const SeriesForm = (props) => {
                 ]}
               />
 
-              <Input
-                label="URL da Imagem"
-                {...register('coverImage')}
-                error={errors.coverImage?.message}
-                placeholder="https://exemplo.com/imagem.jpg"
-                variant="glass"
-              />
             </div>
 
             <div>
@@ -767,7 +833,7 @@ const SeriesForm = (props) => {
             </div>
             <div>
               <h3 className="font-semibold text-white">
-                {hasExternalData ? 'Sua experiência' : 'Sua avaliação'}
+                {hasDisplayData ? 'Sua experiência' : 'Sua avaliação'}
               </h3>
               <p className="text-sm text-white/60">Como você avalia esta série?</p>
             </div>
@@ -857,8 +923,8 @@ const SeriesForm = (props) => {
             "border-l-4 border-purple-500/30"
           )}>
             <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20">
-                <PlayCircle className="w-5 h-5 text-purple-400" />
+              <div className={cn("p-2 rounded-lg", mediaColor)}>
+                <PlayCircle className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="font-semibold text-white">Progresso da Série</h3>
@@ -882,8 +948,8 @@ const SeriesForm = (props) => {
                       }
                       const numValue = Number(value);
 
-                      // Usar initialData primeiro (modo edição)
-                      const maxSeasons = initialData?.seasons || seasonInfo?.seasons;
+                      // Usar displayData para temporadas
+                      const maxSeasons = displayData?.seasons;
                       if (maxSeasons && numValue > maxSeasons) {
                         return maxSeasons;
                       }
@@ -898,18 +964,18 @@ const SeriesForm = (props) => {
                     validate: validateCurrentSeason
                   })}
                   error={errors.progress?.seasons?.message}
-                  placeholder={`1${(initialData?.seasons || seasonInfo?.seasons) ? ` (máx: ${initialData?.seasons || seasonInfo?.seasons})` : ''}`}
+                  placeholder={`1${displayData?.seasons ? ` (máx: ${displayData.seasons})` : ''}`}
                   variant="glass"
                   min={1}
-                  max={initialData?.seasons || seasonInfo?.seasons || undefined}
+                  max={displayData?.seasons || undefined}
                   step={1}
                 />
 
-                {seasonInfo?.seasons && (
+                {displayData?.seasons && (
                   <div className="mt-2 flex items-center gap-2 text-sm">
                     <div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div>
                     <span className="text-white/60">
-                      Total: <span className="font-medium text-white">{seasonInfo.seasons}</span> temporadas
+                      Total: <span className="font-medium text-white">{displayData.seasons}</span> temporadas
                     </span>
                   </div>
                 )}
@@ -919,63 +985,42 @@ const SeriesForm = (props) => {
                 {(() => {
                   const currentSeasonValue = watch('progress.seasons') || 1;
 
-                  // Tentar usar initialData primeiro (modo edição)
-                  const episodesInSeason = initialData?.episodesPerSeason &&
-                    initialData.episodesPerSeason.length >= currentSeasonValue
-                    ? initialData.episodesPerSeason[currentSeasonValue - 1]
+                  // Usar displayData para episódios por temporada
+                  const episodesInSeason = displayData?.episodesPerSeason &&
+                    displayData.episodesPerSeason.length >= currentSeasonValue
+                    ? displayData.episodesPerSeason[currentSeasonValue - 1]
                     : null;
 
-                  // Fallback para seasonInfo (modo criação)
-                  const episodesInSeasonFromInfo = seasonInfo?.episodesPerSeason &&
-                    seasonInfo.episodesPerSeason.length >= currentSeasonValue
-                    ? seasonInfo.episodesPerSeason[currentSeasonValue - 1]
-                    : null;
-
-                  const finalEpisodesInSeason = episodesInSeason || episodesInSeasonFromInfo;
-                  const totalEpisodes = initialData?.episodes || seasonInfo?.episodes;
+                  const totalEpisodes = displayData?.episodes;
 
                   return (
                     <Input
-                      label="Episódios Assistidos:"
+                      label={`Episódios Assistidos (${currentSeasonValue}ª temp.):`}
                       type="number"
                       icon={PlayCircle}
                       {...register('progress.episodes', {
                         valueAsNumber: true,
                         setValueAs: (value) => {
                           if (value === '' || value === null || value === undefined) {
-                            return 0; // Retorna 0 em vez de 1
+                            return 0;
                           }
                           const numValue = Number(value);
                           const currentSeasonValue = watch('progress.seasons') || 1;
 
-                          // Permite valores de 0 até o máximo
-                          const minValue = 0; // Permite 0
-
-                          // Usar initialData primeiro
-                          if (initialData?.episodesPerSeason &&
-                            initialData.episodesPerSeason.length >= currentSeasonValue) {
-                            const maxEpisodes = initialData.episodesPerSeason[currentSeasonValue - 1];
-                            if (numValue > maxEpisodes) {
-                              return maxEpisodes;
-                            }
-                          }
-                          // Fallback para seasonInfo
-                          else if (seasonInfo?.episodesPerSeason &&
-                            seasonInfo.episodesPerSeason.length >= currentSeasonValue) {
-                            const maxEpisodes = seasonInfo.episodesPerSeason[currentSeasonValue - 1];
+                          // Usar displayData para validação
+                          if (displayData?.episodesPerSeason &&
+                            displayData.episodesPerSeason.length >= currentSeasonValue) {
+                            const maxEpisodes = displayData.episodesPerSeason[currentSeasonValue - 1];
                             if (numValue > maxEpisodes) {
                               return maxEpisodes;
                             }
                           }
                           // Fallback: limita pelo total geral
-                          else {
-                            const totalEpisodes = initialData?.episodes || seasonInfo?.episodes;
-                            if (totalEpisodes && numValue > totalEpisodes) {
-                              return totalEpisodes;
-                            }
+                          else if (displayData?.episodes && numValue > displayData.episodes) {
+                            return displayData.episodes;
                           }
 
-                          // Não permite menor que 0 (permite 0!)
+                          // Não permite menor que 0
                           if (numValue < 0) {
                             return 0;
                           }
@@ -985,10 +1030,10 @@ const SeriesForm = (props) => {
                         validate: (value) => validateCurrentEpisode(value, watch('progress.seasons'))
                       })}
                       error={errors.progress?.episodes?.message}
-                      placeholder={`0${finalEpisodesInSeason ? ` (máx: ${finalEpisodesInSeason})` : totalEpisodes ? ` (máx: ${totalEpisodes})` : ''}`}
+                      placeholder={`0${episodesInSeason ? ` (máx: ${episodesInSeason})` : totalEpisodes ? ` (máx: ${totalEpisodes})` : ''}`}
                       variant="glass"
                       min={0}
-                      max={finalEpisodesInSeason || totalEpisodes || undefined}
+                      max={episodesInSeason || totalEpisodes || undefined}
                       step={1}
                     />
                   );
@@ -997,26 +1042,20 @@ const SeriesForm = (props) => {
                 {(() => {
                   const currentSeasonValue = watch('progress.seasons') || 1;
 
-                  // Priorizar dados de initialData (modo edição)
-                  const episodesInSeason = initialData?.episodesPerSeason &&
-                    initialData.episodesPerSeason.length >= currentSeasonValue
-                    ? initialData.episodesPerSeason[currentSeasonValue - 1]
+                  // Usar displayData para informações dos episódios
+                  const episodesInSeason = displayData?.episodesPerSeason &&
+                    displayData.episodesPerSeason.length >= currentSeasonValue
+                    ? displayData.episodesPerSeason[currentSeasonValue - 1]
                     : null;
 
-                  const episodesInSeasonFromInfo = seasonInfo?.episodesPerSeason &&
-                    seasonInfo.episodesPerSeason.length >= currentSeasonValue
-                    ? seasonInfo.episodesPerSeason[currentSeasonValue - 1]
-                    : null;
+                  const totalEpisodes = displayData?.episodes;
 
-                  const finalEpisodesInSeason = episodesInSeason || episodesInSeasonFromInfo;
-                  const totalEpisodes = initialData?.episodes || seasonInfo?.episodes;
-
-                  if (finalEpisodesInSeason) {
+                  if (episodesInSeason) {
                     return (
                       <div className="mt-2 flex items-center gap-2 text-sm">
                         <div className="w-1.5 h-1.5 bg-pink-400 rounded-full"></div>
                         <span className="text-white/60">
-                          {currentSeasonValue}ª temporada: <span className="font-medium text-white">{finalEpisodesInSeason}</span> episódios
+                          {currentSeasonValue}ª temporada: <span className="font-medium text-white">{episodesInSeason}</span> episódios
                         </span>
                       </div>
                     );
@@ -1034,9 +1073,103 @@ const SeriesForm = (props) => {
                 })()}
               </div>
             </div>
+
+            {/* 🔥 ATUALIZADO: Barra de progresso visual de episódios com cálculo correto */}
+            {displayData?.episodes && displayData?.episodesPerSeason && (
+              <div className="mt-6">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-white/60">Progresso total da série:</span>
+                  <span className="text-white font-medium">
+                    {(() => {
+                      const currentSeason = watch('progress.seasons') || 1;
+                      const currentEpisode = watch('progress.episodes') || 0;
+
+                      // Calcular episódios assistidos totais (acumulados)
+                      let totalWatchedEpisodes = 0;
+
+                      // Soma episódios de temporadas anteriores (completas)
+                      for (let i = 0; i < currentSeason - 1; i++) {
+                        if (displayData.episodesPerSeason[i]) {
+                          totalWatchedEpisodes += displayData.episodesPerSeason[i];
+                        }
+                      }
+
+                      // Adiciona episódios da temporada atual
+                      totalWatchedEpisodes += currentEpisode;
+
+                      const percentage = displayData.episodes
+                        ? Math.round((totalWatchedEpisodes / displayData.episodes) * 100)
+                        : 0;
+
+                      return `${totalWatchedEpisodes}/${displayData.episodes} episódios (${percentage}%)`;
+                    })()}
+                  </span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
+                    style={{
+                      width: `${(() => {
+                        const currentSeason = watch('progress.seasons') || 1;
+                        const currentEpisode = watch('progress.episodes') || 0;
+
+                        let totalWatchedEpisodes = 0;
+
+                        // Calcular episódios assistidos totais
+                        if (displayData?.episodesPerSeason && displayData.episodesPerSeason.length > 0) {
+                          for (let i = 0; i < currentSeason - 1; i++) {
+                            if (displayData.episodesPerSeason[i]) {
+                              totalWatchedEpisodes += displayData.episodesPerSeason[i];
+                            }
+                          }
+                          totalWatchedEpisodes += currentEpisode;
+                        } else {
+                          totalWatchedEpisodes = currentEpisode;
+                        }
+
+                        return displayData.episodes
+                          ? Math.min((totalWatchedEpisodes / displayData.episodes) * 100, 100)
+                          : 0;
+                      })()}%`
+                    }}
+                  />
+                </div>
+
+                {/* Mensagem de série completa */}
+                {(() => {
+                  const currentSeason = watch('progress.seasons') || 1;
+                  const currentEpisode = watch('progress.episodes') || 0;
+
+                  let totalWatchedEpisodes = 0;
+
+                  // Calcular total de episódios assistidos
+                  if (displayData?.episodesPerSeason && displayData.episodesPerSeason.length > 0) {
+                    for (let i = 0; i < currentSeason - 1; i++) {
+                      if (displayData.episodesPerSeason[i]) {
+                        totalWatchedEpisodes += displayData.episodesPerSeason[i];
+                      }
+                    }
+                    totalWatchedEpisodes += currentEpisode;
+                  } else {
+                    totalWatchedEpisodes = currentEpisode;
+                  }
+
+                  if (displayData.episodes && totalWatchedEpisodes >= displayData.episodes) {
+                    return (
+                      <div className="mt-3 flex items-center gap-2 text-sm">
+                        <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+                        <span className="text-green-400">
+                          Você completou a série! Mude o status para "Concluído"
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            )}
           </div>
         )}
-
         <div className="flex justify-end gap-4 pt-6 border-t border-white/10">
           <Button
             type="button"
@@ -1054,14 +1187,16 @@ const SeriesForm = (props) => {
             disabled={loading || !canSubmit}
             className="min-w-[100px] bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
+            {initialData ? 'Atualizar' : hasDisplayData ? 'Adicionar à minha lista' : 'Criar'}
           </Button>
         </div>
       </form>
+
+      {/* Modal de detalhes das temporadas */}
       <Modal
         isOpen={showSeasonsModal}
         onClose={() => setShowSeasonsModal(false)}
-        title={`${externalData?.title} - Detalhes das Temporadas`}
+        title={`${displayData?.title} - Detalhes das Temporadas`}
         size="lg"
       >
         <div className="space-y-6">
@@ -1070,23 +1205,23 @@ const SeriesForm = (props) => {
             <div className="bg-white/5 rounded-lg p-4">
               <div className="text-sm text-white/60">Total de Temporadas</div>
               <div className="text-2xl font-bold text-purple-400">
-                {seasonInfo?.seasons}
+                {displayData?.seasons}
               </div>
             </div>
             <div className="bg-white/5 rounded-lg p-4">
               <div className="text-sm text-white/60">Total de Episódios</div>
               <div className="text-2xl font-bold text-green-400">
-                {seasonInfo?.episodes}
+                {displayData?.episodes}
               </div>
             </div>
           </div>
 
           {/* Lista de Temporadas */}
-          {seasonInfo?.episodesPerSeason && seasonInfo.episodesPerSeason.length > 0 && (
+          {displayData?.episodesPerSeason && displayData.episodesPerSeason.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-white mb-4">Episódios por Temporada</h3>
               <div className="space-y-3">
-                {seasonInfo.episodesPerSeason.map((episodes, index) => (
+                {displayData.episodesPerSeason.map((episodes, index) => (
                   <div
                     key={index}
                     className="flex items-center justify-between p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"

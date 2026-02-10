@@ -5,7 +5,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Select, TextArea } from '@/components/ui';
-import { Tv, Hash, Star, Calendar, Users, TrendingUp, Film } from 'lucide-react';
+import { Tv, Hash, Star, Calendar, Users, TrendingUp, Film, ChevronDown, ChevronUp, PlayCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn, formatApiRating, formatMembers, formatPopularity } from '@/lib/utils/general-utils';
 import { statusColors } from '@/constants';
@@ -26,7 +26,11 @@ const AnimeForm = (props) => {
 
   console.log(props)
 
-  const mediaColor = getMediaColor('animes');
+  const mediaColor = getMediaColor('anime');
+
+  const [isInfoExpanded, setIsInfoExpanded] = React.useState(() => {
+    return !!externalData && !initialData;
+  });
 
   const availableGenres = React.useMemo(() => {
     try {
@@ -53,6 +57,53 @@ const AnimeForm = (props) => {
     return null;
   }, [initialData, externalData]);
 
+  // 🔥 NOVO: Obter dados de exibição (combinando initialData e externalData)
+  const getDisplayData = () => {
+    // Prioriza externalData para informações da API
+    if (externalData) {
+      return {
+        title: externalData.title,
+        description: externalData.description,
+        coverImage: externalData.coverImage,
+        averageRating: externalData.averageRating,
+        ratingCount: externalData.ratingCount,
+        popularity: externalData.popularity,
+        members: externalData.members,
+        releasePeriod: externalData.releasePeriod,
+        episodes: externalData.episodes,
+        studios: externalData.studios,
+        genres: externalData.genres,
+        category: externalData.category,
+        source: 'external'
+      };
+    }
+
+    // Se não tem externalData mas tem initialData (modo edição)
+    if (initialData) {
+      return {
+        title: initialData.title,
+        description: initialData.description,
+        coverImage: initialData.coverImage,
+        averageRating: initialData.averageRating,
+        ratingCount: initialData.ratingCount,
+        popularity: initialData.popularity,
+        members: initialData.members,
+        releasePeriod: initialData.releasePeriod,
+        episodes: initialData.episodes,
+        studios: initialData.studios,
+        genres: initialData.genres,
+        category: initialData.category,
+        source: 'initial'
+      };
+    }
+
+    return null;
+  };
+
+  const displayData = getDisplayData();
+  const hasDisplayData = !!displayData;
+  const isExternalData = displayData?.source === 'external';
+
   const getInitialGenres = () => {
     // Para initialData (dados existentes - modo edição)
     if (initialData?.genres) {
@@ -71,7 +122,7 @@ const AnimeForm = (props) => {
         return externalData.genres.map(g => {
           if (typeof g === 'object' && (g.id || g.name)) {
             return {
-              id: g.id?.toString() || `jikan_${Date.now()}`,
+              id: g.id || 0,
               name: g.name || 'Desconhecido'
             };
           }
@@ -302,7 +353,6 @@ const AnimeForm = (props) => {
 
   const onSubmitForm = async (formData) => {
     try {
-      // Verifica se pode submeter (limite de caracteres)
       if (!canSubmit) {
         toast.error('Notas pessoais não podem exceder 1000 caracteres');
         return;
@@ -317,7 +367,6 @@ const AnimeForm = (props) => {
         return;
       }
 
-      // Valida o formulário
       const isValid = await trigger();
 
       if (!isValid) {
@@ -340,6 +389,7 @@ const AnimeForm = (props) => {
             lastUpdated: new Date()
           },
           category: externalData?.category || null,
+          studios: externalData?.studios || [],
         };
 
         // Se for completed e não tem episódios definidos, usar o total
@@ -352,13 +402,13 @@ const AnimeForm = (props) => {
         }
 
         if (externalData && !isEditMode) {
-          finalFormData.sourceId = externalData.id?.toString();
+          finalFormData.sourceId = externalData.sourceId?.toString();
           finalFormData.sourceApi = 'jikan';
           finalFormData.title = externalData.title || finalFormData.title;
           finalFormData.description = externalData.description || finalFormData.description;
           finalFormData.coverImage = externalData.coverImage || finalFormData.coverImage;
-          finalFormData.apiRating = externalData.apiRating;
-          finalFormData.apiVoteCount = externalData.apiVoteCount || externalData.ratingCount;
+          finalFormData.averageRating = externalData.averageRating;
+          finalFormData.ratingCount = externalData.ratingCount;
           finalFormData.episodes = externalData.episodes || formData.episodes;
           finalFormData.popularity = externalData.popularity;
           finalFormData.members = externalData.members;
@@ -386,174 +436,199 @@ const AnimeForm = (props) => {
 
   return (
     <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-8">
-      {hasExternalData && (
-        <div className={cn("glass border rounded-xl p-6 space-y-4", "border-pink-500/30")}>
-          <div className="flex items-center gap-3">
-            <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <Tv className="w-5 h-5" />
+      {/* Seção de informações básicas agora recolhível */}
+      {hasDisplayData && (
+        <div className={cn("glass border rounded-xl overflow-hidden transition-all duration-300", "border-pink-500/30")}>
+          {/* Cabeçalho recolhível */}
+          <button
+            type="button"
+            onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+            className="w-full p-6 flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn("p-2 rounded-lg", mediaColor)}>
+                <Tv className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-semibold text-white">
+                  {displayData.title}
+                </h3>
+                <p className="text-sm text-white/60">
+                  {isExternalData ? 'Dados importados do myanimelist' : 'Informações do anime'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-white">
-                {externalData.title}
-              </h3>
-              <p className="text-sm text-white/60">Dados importados do myanimelist</p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-white/60">
+                {isInfoExpanded ? 'Recolher' : 'Expandir'}
+              </span>
+              {isInfoExpanded ? (
+                <ChevronUp className="w-5 h-5 text-white/60" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-white/60" />
+              )}
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {/* Nota - verifica se existe e é maior que 0 */}
-            {(externalData.apiRating != null && externalData.apiRating > 0 &&
-              externalData.apiVoteCount != null && externalData.apiVoteCount > 0) ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                <div>
-                  <span className="text-white/80">Nota:</span>
-                  <div className="font-medium text-white">
-                    {formatApiRating(externalData.apiRating)?.display || externalData.apiRating.toFixed(1)}/5
+          </button>
+
+          {/* Conteúdo da seção - só mostra se expandido */}
+          {isInfoExpanded && (
+            <div className="px-6 pb-6 space-y-6">
+              {/* Grid de informações */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {/* Nota - verifica se existe e é maior que 0 */}
+                {(displayData.averageRating != null && displayData.averageRating > 0 &&
+                  displayData.ratingCount != null && displayData.ratingCount > 0) ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                    <div>
+                      <span className="text-white/80">Nota:</span>
+                      <div className="font-medium text-white">
+                        {formatApiRating(displayData.averageRating)?.display || displayData.averageRating.toFixed(1)}/5
+                      </div>
+                      <div className="text-xs text-white/60">
+                        ({displayData.ratingCount.toLocaleString()} votos)
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-white/60">
-                    ({externalData.apiVoteCount.toLocaleString()} votos)
+                ) : null}
+
+                {/* Popularidade - verifica se existe e é maior que 0 */}
+                {displayData.popularity != null && displayData.popularity > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <TrendingUp className="w-4 h-4 text-blue-400" />
+                    <div>
+                      <span className="text-white/80">Popularidade:</span>
+                      <div className="font-medium text-white">{formatPopularity(displayData.popularity)}</div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ) : null}
+                ) : null}
 
-            {/* Popularidade - verifica se existe e é maior que 0 */}
-            {externalData.popularity != null && externalData.popularity > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-blue-400" />
-                <div>
-                  <span className="text-white/80">Popularidade:</span>
-                  <div className="font-medium text-white">{formatPopularity(externalData.popularity)}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Membros - verifica se existe e é maior que 0 */}
-            {externalData.members != null && externalData.members > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Users className="w-4 h-4 text-green-400" />
-                <div>
-                  <span className="text-white/80">Membros:</span>
-                  <div className="font-medium text-white">{formatMembers(externalData.members)}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Período de lançamento - verifica se existe */}
-            {externalData.releasePeriod ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Calendar className="w-4 h-4 text-white/60" />
-                <div>
-                  <span className="text-white/80">Lançamento:</span>
-                  <div className="font-medium text-white">
-                    {formatReleasePeriod(externalData.releasePeriod)}
+                {/* Membros - verifica se existe e é maior que 0 */}
+                {displayData.members != null && displayData.members > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Users className="w-4 h-4 text-green-400" />
+                    <div>
+                      <span className="text-white/80">Membros:</span>
+                      <div className="font-medium text-white">{formatMembers(displayData.members)}</div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ) : null}
+                ) : null}
 
-            {/* Episódios - verifica se existe e é maior que 0 */}
-            {externalData.episodes != null && externalData.episodes > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Tv className="w-4 h-4 text-pink-400" />
-                <div>
-                  <span className="text-white/80">Episódios:</span>
-                  <div className="font-medium text-white">{externalData.episodes}</div>
-                </div>
-              </div>
-            ) : null}
+                {/* Período de lançamento - verifica se existe */}
+                {displayData.releasePeriod ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Calendar className="w-4 h-4 text-white/60" />
+                    <div>
+                      <span className="text-white/80">Lançamento:</span>
+                      <div className="font-medium text-white">
+                        {formatReleasePeriod(displayData.releasePeriod)}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
-            {/* Estúdios - verifica se existe e tem pelo menos 1 */}
-            {externalData.studios && externalData.studios.length > 0 ? (
-              <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                <Film className="w-4 h-4 text-purple-400" />
-                <div>
-                  <span className="text-white/80">
-                    {externalData.studios.length === 1 ? 'Estúdio:' : 'Estúdios:'}
-                  </span>
-                  <div className="font-medium text-white">
-                    {/* Mostra os 3 primeiros estúdios */}
-                    {externalData.studios.slice(0, 3).map((studio, index, arr) => (
-                      <span key={index}>
-                        {studio}
-                        {index < arr.length - 1 && index < 2 && ', '}
+                {/* Episódios - verifica se existe e é maior que 0 */}
+                {displayData.episodes != null && displayData.episodes > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Tv className="w-4 h-4 text-pink-400" />
+                    <div>
+                      <span className="text-white/80">Episódios:</span>
+                      <div className="font-medium text-white">{displayData.episodes}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Estúdios - verifica se existe e tem pelo menos 1 */}
+                {displayData.studios && displayData.studios.length > 0 ? (
+                  <div className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <Film className="w-4 h-4 text-purple-400" />
+                    <div>
+                      <span className="text-white/80">
+                        {displayData.studios.length === 1 ? 'Estúdio:' : 'Estúdios:'}
                       </span>
-                    ))}
+                      <div className="font-medium text-white">
+                        {/* Mostra os 3 primeiros estúdios */}
+                        {displayData.studios.slice(0, 3).map((studio, index, arr) => (
+                          <span key={index}>
+                            {studio}
+                            {index < arr.length - 1 && index < 2 && ', '}
+                          </span>
+                        ))}
+                      </div>
+                      {/* Mostra "+X outro(s)" somente a partir do 4º estúdio */}
+                      {displayData.studios.length > 3 && (
+                        <div className="text-xs text-white/60">
+                          +{displayData.studios.length - 3} outro(s)
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {/* Mostra "+X outro(s)" somente a partir do 4º estúdio */}
-                  {externalData.studios.length > 3 && (
-                    <div className="text-xs text-white/60">
-                      +{externalData.studios.length - 3} outro(s)
+                ) : null}
+              </div>
+
+              {/* Imagem com tags de gêneros - apenas se tiver imagem */}
+              {displayData.coverImage && (
+                <div className="flex flex-col items-center">
+                  <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
+                    <img
+                      src={displayData.coverImage}
+                      alt={displayData.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  {displayData.genres && displayData.genres.length > 0 && (
+                    <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
+                      {displayData.category && (
+                        <span className="px-3 py-1.5 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 
+                           text-blue-300 text-sm font-bold rounded-lg border border-blue-500/30 
+                           hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300">
+                          {displayData.category}
+                        </span>
+                      )}
+
+                      {displayData.genres.slice(0, displayData.category ? 4 : 5).map((genre, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 
+             text-purple-300 text-sm font-medium rounded-lg border border-purple-500/30 
+             hover:from-purple-500/30 hover:to-pink-500/30 transition-all duration-300"
+                        >
+                          {typeof genre === 'object' ? genre.name : genre}
+                        </span>
+                      ))}
+
+                      {/* Mostra contador se houver mais gêneros */}
+                      {displayData.genres.length > (displayData.category ? 4 : 5) && (
+                        <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
+                          +{displayData.genres.length - (displayData.category ? 4 : 5)}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {/* Imagem com tags de gêneros */}
-      {hasExternalData && externalData.coverImage && (
-        <div className="flex flex-col items-center">
-          <div className="rounded-xl overflow-hidden border glass w-48 h-64 relative">
-            <img
-              src={externalData.coverImage}
-              alt={externalData.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-
-          {externalData.genres && externalData.genres.length > 0 && (
-            <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-md">
-              {/* ✅ Tag de Category (primeira, com cor diferente) */}
-              {externalData.category && (
-                <span className="px-3 py-1.5 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 
-                       text-blue-300 text-sm font-bold rounded-lg border border-blue-500/30 
-                       hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300">
-                  {/* Converte para primeira letra maiúscula e resto minúscula */}
-                  {externalData.category}
-                </span>
               )}
 
-              {/* Gêneros normais (cores rosa) */}
-              {externalData.genres.slice(0, externalData.category ? 4 : 5).map((genre, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1.5 bg-gradient-to-r from-pink-500/20 to-purple-500/20 
-                     text-pink-300 text-sm font-medium rounded-lg border border-pink-500/30 
-                     hover:from-pink-500/30 hover:to-purple-500/30 transition-all duration-300"
-                >
-                  {typeof genre === 'object' ? genre.name : genre}
-                </span>
-              ))}
-
-              {/* Mostra contador se houver mais gêneros */}
-              {externalData.genres.length > (externalData.category ? 4 : 5) && (
-                <span className="px-3 py-1.5 bg-white/10 text-white/60 text-sm font-medium rounded-lg">
-                  +{externalData.genres.length - (externalData.category ? 4 : 5)}
-                </span>
+              {/* Sinopse - apenas se tiver descrição */}
+              {displayData?.description && (
+                <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("p-2 rounded-lg", mediaColor)}>
+                      <Tv className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white mb-3">
+                        Sinopse
+                      </h3>
+                      <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
+                        {displayData.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {externalData?.description && (
-        <div className="glass border border-white/10 rounded-xl p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className={cn("p-2 rounded-lg", mediaColor)}>
-              <Tv className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-3">
-                Sinopse
-              </h3>
-              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">
-                {externalData.description}
-              </p>
-            </div>
-          </div>
         </div>
       )}
 
@@ -705,7 +780,7 @@ const AnimeForm = (props) => {
           </div>
           <div>
             <h3 className="font-semibold text-white">
-              {hasExternalData ? 'Sua experiência' : 'Sua avaliação'}
+              {hasDisplayData ? 'Sua experiência' : 'Sua avaliação'}
             </h3>
             <p className="text-sm text-white/60">Como você avalia este conteúdo?</p>
           </div>
@@ -794,8 +869,8 @@ const AnimeForm = (props) => {
           "border-l-4 border-pink-500/30"
         )}>
           <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-pink-500/20 to-purple-500/20">
-              <Tv className="w-5 h-5 text-pink-400" />
+            <div className={cn("p-2 rounded-lg", mediaColor)}>
+              <PlayCircle className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-white">Progresso do Anime</h3>
@@ -902,9 +977,9 @@ const AnimeForm = (props) => {
           variant="primary"
           loading={loading}
           disabled={loading || !canSubmit}
-          className="min-w-[100px] bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="min-w-[100px] bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {initialData ? 'Atualizar' : hasExternalData ? 'Adicionar à minha lista' : 'Criar'}
+          {initialData ? 'Atualizar' : hasDisplayData ? 'Adicionar à minha lista' : 'Criar'}
         </Button>
       </div>
     </form>

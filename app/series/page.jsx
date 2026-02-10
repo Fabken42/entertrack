@@ -53,7 +53,8 @@ export default function SeriesPage() {
     seasons: editingItem.mediaCacheId?.essentialData?.seasons,
     episodes: editingItem.mediaCacheId?.essentialData?.episodes,
     episodesPerSeason: editingItem.mediaCacheId?.essentialData?.episodesPerSeason,
-    category: editingItem.mediaCacheId?.essentialData?.category,
+    averageRating: editingItem.mediaCacheId?.essentialData?.averageRating,
+    ratingCount: editingItem.mediaCacheId?.essentialData?.ratingCount,
     coverImage: editingItem.mediaCacheId?.essentialData?.coverImage,
     releasePeriod: editingItem.mediaCacheId?.essentialData?.releasePeriod,
     userRating: editingItem.userRating || null,
@@ -69,9 +70,8 @@ export default function SeriesPage() {
     <MediaPageLayout
       mediaType="series"
       Icon={Tv}
-      gradientFrom="from-purple-500/20"
-      gradientTo="to-pink-500/20"
-      iconColor="text-purple-400"
+      mediaBg='bg-green-500/20'
+      iconColor="text-green-400"
       placeholderText="Buscar séries no TMDB..."
       pageTitle={
         <>
