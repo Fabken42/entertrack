@@ -1,4 +1,5 @@
-import { getCacheModelByType, getUserMediaModelByType } from '@/lib/models';
+import { getCacheModelByType } from '@/models/media';
+import { getUserMediaModelByType } from '@/models/user';
 
 const API_CLIENTS = {
   jikan: jikanClient,
